@@ -1,0 +1,213 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&family=Crimson+Pro:ital,wght@0,200..900;1,200..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  /* High-Performance School System Palette - Dynamic Bindings */
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-secondary: var(--brand-secondary);
+  --color-brand-accent: var(--brand-accent);
+
+  --color-primary-50: #f0f4f8;
+  --color-primary-100: #d9e2ec;
+  --color-primary-200: #bcccdc;
+  --color-primary-300: #9fb3c8;
+  --color-primary-400: #829ab1;
+  --color-primary-500: var(--brand-primary);
+  --color-primary-600: var(--brand-primary);
+  --color-primary-700: var(--brand-primary);
+  --color-primary-800: var(--brand-primary);
+  --color-primary-900: var(--brand-primary);
+  --color-primary-950: var(--brand-primary);
+
+  --color-yellow-50: #fffbea;
+  --color-yellow-100: #fff1c1;
+  --color-yellow-200: #ffe382;
+  --color-yellow-300: #ffca43;
+  --color-yellow-400: var(--brand-accent);
+  --color-yellow-500: var(--brand-accent);
+  --color-yellow-600: var(--brand-accent);
+
+  --color-sidebar-light: #ffffff;
+  --color-sidebar-dark: #001833;
+
+  --color-accent-gold: var(--brand-accent);
+  --color-accent-silver: #C0C0C0;
+  --color-accent-bronze: #CD7F32;
+
+  /* Custom Animations */
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-fade-in: fadeIn 0.5s ease-out;
+  --animate-slide-up: slideUp 0.5s ease-out;
+
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
+
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slideUp {
+    0% {
+      transform: translateY(10px);
+      opacity: 0;
+    }
+
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  /* Modern Glassmorphism Effects */
+  --blur-glass: 12px;
+}
+
+:root {
+  /* Dynamic Theme Variables - Initialized to Defaults */
+  --brand-primary: #003366;
+  --brand-secondary: #0ea5e9;
+  --brand-accent: #fbbf24;
+  --brand-text: #003366;
+
+  --glass-bg: rgba(255, 255, 255, var(--brand-glass, 0.98));
+  --glass-border: rgba(0, 51, 102, 0.1);
+  --glass-shadow: 0 10px 40px -10px rgba(0, 51, 102, 0.08);
+  --glow-shadow: 0 0 20px rgba(251, 191, 36, 0.15);
+
+  --navy-blue: var(--brand-primary);
+  --sky-blue: var(--brand-secondary);
+  --golden: var(--brand-accent);
+  --institutional-yellow: var(--brand-accent);
+}
+
+html.dark {
+  background-color: #000c1d !important;
+  --brand-primary: #fbbf24;
+  --brand-text: #fbbf24;
+}
+
+.dark {
+  --glass-bg: #001529;
+  --glass-border: rgba(251, 191, 36, 0.3);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.9);
+  color: var(--brand-accent);
+}
+
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+  color: var(--brand-accent) !important;
+  text-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
+}
+
+.font-urdu {
+  font-family: 'Noto Nastaliq Urdu', serif !important;
+}
+
+@layer components {
+  .glass-card {
+    @apply bg-[var(--glass-bg)] border border-[var(--glass-border)] shadow-[var(--glass-shadow)] transition-all;
+    border-radius: var(--brand-radius, 2.5rem);
+  }
+
+  .glass-nav {
+    @apply bg-white dark:bg-[#000c1d] border-b border-slate-100 dark:border-yellow-400/20 shadow-sm transition-colors;
+  }
+
+  .glass-sidebar {
+    @apply bg-[var(--brand-primary)] dark:bg-[#000816] border-r border-white/10 dark:border-yellow-400/10;
+  }
+
+  .glass-glow {
+    @apply relative transition-all duration-500;
+  }
+
+  .glass-glow::after {
+    content: '';
+    @apply absolute inset-0 rounded-[inherit] shadow-[var(--glow-shadow)] opacity-0 transition-opacity duration-500 pointer-events-none;
+  }
+
+  .glass-glow:hover::after {
+    @apply opacity-100;
+  }
+
+  .btn-primary {
+    @apply bg-[var(--brand-primary)] dark:bg-[var(--brand-accent)] hover:opacity-90 dark:hover:opacity-90 text-white dark:text-[#003366] px-6 py-2.5 transition-all active:scale-95 shadow-xl shadow-blue-900/10 font-black uppercase tracking-widest text-[11px] flex items-center justify-center gap-2;
+    border-radius: calc(var(--brand-radius, 2.5rem) * 0.4);
+  }
+
+  .input-modern {
+    @apply bg-slate-50 dark:bg-[#001a33] border border-slate-200 dark:border-yellow-400/30 px-5 py-3 focus:ring-4 focus:ring-[var(--brand-primary)]/5 dark:focus:ring-yellow-400/10 outline-none transition-all font-bold text-sm text-slate-900 dark:text-yellow-400;
+    border-radius: calc(var(--brand-radius, 2.5rem) * 0.4);
+  }
+}
+
+body {
+  @apply bg-[#fcfcfc] text-slate-900 transition-colors duration-300 min-h-screen;
+  font-family: 'Crimson Pro', serif !important;
+  background-image:
+    radial-gradient(at 0% 0%, var(--brand-primary-light, rgba(0, 51, 102, 0.04)) 0px, transparent 55%),
+    radial-gradient(at 100% 0%, var(--brand-secondary-light, rgba(251, 191, 36, 0.03)) 0px, transparent 55%);
+}
+
+/* Force Times New Roman on all elements that might have specific font overrides */
+.font-outfit,
+.font-inter,
+.font-sans,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+span,
+p,
+div,
+button,
+input,
+select,
+textarea {
+  font-family: 'Crimson Pro', serif !important;
+}
+
+html.dark body {
+  background-color: #000d1a !important;
+  color: #f1f5f9;
+  background-image:
+    radial-gradient(at 0% 0%, rgba(251, 191, 36, 0.05) 0px, transparent 55%),
+    radial-gradient(at 100% 0%, rgba(0, 51, 102, 0.1) 0px, transparent 55%);
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 dark:bg-slate-700 rounded-full hover:bg-slate-400 dark:hover:bg-slate-600 transition-colors;
+}

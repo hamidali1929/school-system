@@ -1,0 +1,12 @@
+src/components/IDCardGenerator.tsx(27,21): error TS2339: Property 'onload' does not exist on type 'Element'.
+src/components/IDCardGenerator.tsx(28,21): error TS2339: Property 'onerror' does not exist on type 'Element'.
+src/components/ThemeToggle.tsx(1,8): error TS6133: 'React' is declared but its value is never read.
+src/pages/Parents.tsx(1,48): error TS6133: 'LineChart' is declared but its value is never read.
+src/pages/Parents.tsx(1,59): error TS6133: 'BookOpen' is declared but its value is never read.
+src/pages/Parents.tsx(1,81): error TS6133: 'ChevronRight' is declared but its value is never read.
+src/pages/Parents.tsx(1,95): error TS6133: 'CreditCard' is declared but its value is never read.
+src/pages/Parents.tsx(1,129): error TS6133: 'QrCode' is declared but its value is never read.
+src/pages/Parents.tsx(1,137): error TS6133: 'MapPin' is declared but its value is never read.
+src/pages/Parents.tsx(1,145): error TS6133: 'PhoneCall' is declared but its value is never read.
+src/pages/Parents.tsx(1,176): error TS6133: 'Share2' is declared but its value is never read.
+src/pages/Parents.tsx(10,68): error TS6133: 'settings' is declared but its value is never read.
