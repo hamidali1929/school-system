@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { sanitizeObject } from '../utils/security';
 import { normalizeWhatsAppNumber, MESSAGE_TEMPLATES } from '../utils/whatsapp';
+import { supabase } from '../lib/supabase';
 
 export interface AcademicRecord {
     degree: string;
@@ -109,6 +110,7 @@ export interface Teacher {
     password?: string;
     permissions?: string[];
     role?: string;
+    inchargeClass?: string;
     documents?: Record<string, string>;
 }
 
@@ -156,6 +158,8 @@ export interface SchoolSettings {
         borderRadius?: string;
         glassIntensity?: string;
     };
+    adminUsername?: string;
+    adminPassword?: string;
 }
 
 export interface Campus {
@@ -225,6 +229,7 @@ export interface Exam {
     date: string;
     status: 'In Progress' | 'Finalized';
     createdAt: string;
+    session?: string;
 }
 
 export interface StudentExamResult {
@@ -236,7 +241,9 @@ export interface StudentExamResult {
     totalPossible: number;
     percentage: number;
     grade: string;
-    position: number | null;
+    position: number | null; // Class Position
+    schoolPosition?: number | null;
+    campusPosition?: number | null;
     remarks?: string;
 }
 
@@ -252,7 +259,7 @@ interface AppState {
     addClass: (name: string, fee: number) => void;
     updateClass: (oldName: string, newName: string, fee: number) => void;
     deleteClass: (name: string) => void;
-    addStudent: (s: Partial<Student>) => void;
+    addStudent: (s: Partial<Student>) => Promise<void>;
     updateStudent: (id: string, updates: Partial<Student>) => void;
     deleteStudent: (id: string) => void;
     addTeacher: (t: Partial<Teacher>) => void;
@@ -265,7 +272,9 @@ interface AppState {
     classInCharge: Record<string, string>;
     subjectTeachers: Record<string, Record<string, string>>; // Class -> { Subject: TeacherId }
     timetables: Record<string, WeeklyTimetable>; // Class -> WeeklyTimetable
+    subjectTotalMarks: Record<string, Record<string, number>>;
     updateClassSubjects: (className: string, subjects: string[]) => void;
+    updateClassSubjectMarks: (className: string, marks: Record<string, number>) => void;
     updateClassInCharge: (className: string, teacherId: string) => void;
     assignSubjectTeacher: (className: string, subject: string, teacherId: string) => void;
     updateTimetable: (className: string, timetable: WeeklyTimetable) => void;
@@ -274,14 +283,15 @@ interface AppState {
     exams: Exam[];
     examResults: StudentExamResult[];
     addExam: (exam: Partial<Exam>) => void;
+    updateExam: (id: string, updates: Partial<Exam>) => void;
     deleteExam: (id: string) => void;
-    inputMarks: (examId: string, className: string, studentId: string, subject: string, obtained: number, total: number) => void;
+    inputMarks: (examId: string, className: string, studentId: string, subject: string, obtained: number | string, total: number) => void;
     finalizeResults: (examId: string, className: string) => void;
-    currentUser: { id: string, name: string, role: string } | null;
-    login: (id: string, role: string) => boolean;
+    currentUser: { id: string, name: string, role: string, permissions?: string[], inchargeClass?: string } | null;
+    login: (id: string, password?: string, role?: string) => boolean;
     logout: () => void;
     notifications: Notification[];
-    sendNotification: (studentId: string, type: 'Attendance' | 'Fee' | 'General', message: string) => void;
+    sendNotification: (studentId: string, type: 'Attendance' | 'Fee' | 'General', message: string, media?: string, filename?: string) => void;
     triggerFeeReminders: (className?: string, studentId?: string) => void;
     auditLogs: AuditLog[];
     addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => void;
@@ -295,7 +305,7 @@ interface AppState {
     updateSalarySlip: (id: string, updates: Partial<SalarySlip>) => void;
 
     // Backup & Restore
-    importBackup: (data: any) => boolean;
+    importBackup: (data: any) => Promise<boolean>;
 
     // Campus Management
     campuses: Campus[];
@@ -454,6 +464,8 @@ export const DEFAULT_PERIODS: PeriodTime[] = [
 ];
 
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
+
     const [students, setStudents] = useState<Student[]>(() => {
         const saved = localStorage.getItem('edunova_students');
         return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
@@ -463,6 +475,87 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         const saved = localStorage.getItem('edunova_teachers');
         return saved ? JSON.parse(saved) : INITIAL_TEACHERS;
     });
+
+    useEffect(() => {
+        let isMounted = true;
+        const fetchInitialData = async () => {
+            try {
+                // Fetch all data from Supabase
+                const [stuRes, tchRes, appDataRes] = await Promise.all([
+                    supabase.from('students').select('*'),
+                    supabase.from('teachers').select('*'),
+                    supabase.from('app_data').select('*')
+                ]);
+
+                if (!isMounted) return;
+
+                // Helper to fix legacy doubled quotes ('' -> ') and merge records
+                const cleanLegacy = (obj: any): any => {
+                    if (typeof obj === 'string') return obj.replace(/''/g, "'");
+                    if (Array.isArray(obj)) return obj.map(cleanLegacy);
+                    if (obj !== null && typeof obj === 'object') {
+                        const next: any = {};
+                        for (const k in obj) next[k] = cleanLegacy(obj[k]);
+                        return next;
+                    }
+                    return obj;
+                };
+
+                // Merge Logic: Prioritize Supabase but keep unique LocalStorage records
+                if (stuRes.data && !stuRes.error) {
+                    const cloudStudents = cleanLegacy(stuRes.data as Student[]);
+                    setStudents(prev => {
+                        // If cloud has data, we merge. If local is empty, we just take cloud.
+                        // Filter out any default/empty INITIAL_STUDENTS if clound has content
+                        const filteredLocal = prev.filter(s => !s.id.startsWith('STU-00')); // Remove placeholders
+                        const localMap = new Map(filteredLocal.map(s => [s.id, s]));
+                        cloudStudents.forEach((s: Student) => localMap.set(s.id, s));
+                        return Array.from(localMap.values());
+                    });
+                }
+                if (tchRes.data && !tchRes.error) {
+                    const cloudTeachers = cleanLegacy(tchRes.data as Teacher[]);
+                    setTeachers(prev => {
+                        const filteredLocal = prev.filter(t => !t.id.startsWith('TCH-')); // Remove defaults if needed
+                        const localMap = new Map(filteredLocal.map(t => [t.id, t]));
+                        cloudTeachers.forEach((t: Teacher) => localMap.set(t.id, t));
+                        return Array.from(localMap.values());
+                    });
+                }
+
+                if (appDataRes.data && !appDataRes.error) {
+                    const appDataMap = new Map(appDataRes.data.map(item => [item.id, cleanLegacy(item.data)]));
+
+                    if (appDataMap.has('settings')) setSettings(prev => ({ ...prev, ...(appDataMap.get('settings') || {}) }));
+                    if (appDataMap.has('attendance')) setAttendance(appDataMap.get('attendance'));
+                    if (appDataMap.has('feeStructure')) setFeeStructure(appDataMap.get('feeStructure'));
+                    if (appDataMap.has('classes')) setClasses(appDataMap.get('classes'));
+                    if (appDataMap.has('periodSettings')) setPeriodSettings(appDataMap.get('periodSettings'));
+                    if (appDataMap.has('classSubjects')) setClassSubjects(appDataMap.get('classSubjects'));
+                    if (appDataMap.has('subjectTotalMarks')) setSubjectTotalMarks(appDataMap.get('subjectTotalMarks'));
+                    if (appDataMap.has('classInCharge')) setClassInCharge(appDataMap.get('classInCharge'));
+                    if (appDataMap.has('subjectTeachers')) setSubjectTeachers(appDataMap.get('subjectTeachers'));
+                    if (appDataMap.has('timetables')) setTimetables(appDataMap.get('timetables'));
+                    if (appDataMap.has('exams')) setExams(appDataMap.get('exams'));
+                    if (appDataMap.has('examResults')) setExamResults(appDataMap.get('examResults'));
+                    if (appDataMap.has('notifications')) setNotifications(appDataMap.get('notifications'));
+                    if (appDataMap.has('auditLogs')) setAuditLogs(appDataMap.get('auditLogs'));
+                    if (appDataMap.has('campuses')) setCampuses(appDataMap.get('campuses'));
+                    if (appDataMap.has('expenses')) setExpenses(appDataMap.get('expenses'));
+                    if (appDataMap.has('salarySlips')) setSalarySlips(appDataMap.get('salarySlips'));
+                }
+
+                // If we reach here without throwing, mark fetch as complete
+                setIsInitialLoading(false);
+            } catch (err) {
+                console.error("CRITICAL: Supabase connection failed. App is in Local-Only mode.", err);
+                // Allow the app to proceed with local data if cloud fails
+                setIsInitialLoading(false);
+            }
+        };
+        fetchInitialData();
+        return () => { isMounted = false; };
+    }, []);
 
 
     const [settings, setSettings] = useState<SchoolSettings>(() => {
@@ -568,6 +661,11 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         return saved ? JSON.parse(saved) : {};
     });
 
+    const [subjectTotalMarks, setSubjectTotalMarks] = useState<Record<string, Record<string, number>>>(() => {
+        const saved = localStorage.getItem('edunova_subject_total_marks');
+        return saved ? JSON.parse(saved) : {};
+    });
+
     const [auditLogs, setAuditLogs] = useState<AuditLog[]>(() => {
         const saved = localStorage.getItem('edunova_audit_logs');
         return saved ? JSON.parse(saved) : [];
@@ -616,6 +714,16 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         return saved ? JSON.parse(saved) : INITIAL_CAMPUSES;
     });
 
+    const [expenses, setExpenses] = useState<Expense[]>(() => {
+        const saved = localStorage.getItem('edunova_expenses');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    const [salarySlips, setSalarySlips] = useState<SalarySlip[]>(() => {
+        const saved = localStorage.getItem('edunova_salary_slips');
+        return saved ? JSON.parse(saved) : [];
+    });
+
     useEffect(() => {
         // Migration for specific campus names requested by user
         const campusMigration = localStorage.getItem('campus_migration_v1');
@@ -630,30 +738,78 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     };
 
     useEffect(() => {
-        try {
-            localStorage.setItem('edunova_students', JSON.stringify(students));
-            localStorage.setItem('edunova_teachers', JSON.stringify(teachers));
-            localStorage.setItem('edunova_settings', JSON.stringify(settings));
-            localStorage.setItem('edunova_attendance', JSON.stringify(attendance));
-            localStorage.setItem('edunova_fees', JSON.stringify(feeStructure));
-            localStorage.setItem('edunova_classes', JSON.stringify(classes));
-            localStorage.setItem('edunova_period_settings_v2', JSON.stringify(periodSettings));
-            localStorage.setItem('edunova_class_subjects', JSON.stringify(classSubjects));
-            localStorage.setItem('edunova_class_incharge', JSON.stringify(classInCharge));
-            localStorage.setItem('edunova_subject_teachers', JSON.stringify(subjectTeachers));
-            localStorage.setItem('edunova_timetables', JSON.stringify(timetables));
-            localStorage.setItem('edunova_exams_v2', JSON.stringify(exams));
-            localStorage.setItem('edunova_exam_results_v2', JSON.stringify(examResults));
-            localStorage.setItem('edunova_notifications', JSON.stringify(notifications));
-            localStorage.setItem('edunova_audit_logs', JSON.stringify(auditLogs));
-            localStorage.setItem('edunova_campuses', JSON.stringify(campuses));
-        } catch (err) {
-            console.error('CRITICAL: LocalStorage Full or Corrupted. Changes may not persist.', err);
-        }
+        const timeoutId = setTimeout(() => {
+            // Priority 1: Local Storage Sync (Always allowed, as it started from local data)
+            try {
+                localStorage.setItem('edunova_students', JSON.stringify(students));
+                localStorage.setItem('edunova_teachers', JSON.stringify(teachers));
+                localStorage.setItem('edunova_settings', JSON.stringify(settings));
+                localStorage.setItem('edunova_attendance', JSON.stringify(attendance));
+                localStorage.setItem('edunova_fees', JSON.stringify(feeStructure));
+                localStorage.setItem('edunova_classes', JSON.stringify(classes));
+                localStorage.setItem('edunova_period_settings_v2', JSON.stringify(periodSettings));
+                localStorage.setItem('edunova_class_subjects', JSON.stringify(classSubjects));
+                localStorage.setItem('edunova_subject_total_marks', JSON.stringify(subjectTotalMarks));
+                localStorage.setItem('edunova_class_incharge', JSON.stringify(classInCharge));
+                localStorage.setItem('edunova_subject_teachers', JSON.stringify(subjectTeachers));
+                localStorage.setItem('edunova_timetables', JSON.stringify(timetables));
+                localStorage.setItem('edunova_exams_v2', JSON.stringify(exams));
+                localStorage.setItem('edunova_exam_results_v2', JSON.stringify(examResults));
+                localStorage.setItem('edunova_notifications', JSON.stringify(notifications));
+                localStorage.setItem('edunova_audit_logs', JSON.stringify(auditLogs));
+                localStorage.setItem('edunova_campuses', JSON.stringify(campuses));
+                localStorage.setItem('edunova_expenses', JSON.stringify(expenses));
+                localStorage.setItem('edunova_salary_slips', JSON.stringify(salarySlips));
+            } catch (err) {
+                console.error('CRITICAL: LocalStorage Full or Corrupted.', err);
+            }
+
+            // Priority 2: Cloud Sync (Only if fetch finished)
+            if (isInitialLoading) return;
+
+            const syncToCloud = async () => {
+                try {
+                    // Bulk Sync Students and Teachers (ensure they exist in their own tables)
+                    if (students.length > 0) {
+                        await supabase.from('students').upsert(students, { onConflict: 'id' });
+                    }
+                    if (teachers.length > 0) {
+                        await supabase.from('teachers').upsert(teachers, { onConflict: 'id' });
+                    }
+
+                    // Bulk Sync App Data
+                    const appDataPayload = [
+                        { id: 'settings', data: settings },
+                        { id: 'attendance', data: attendance },
+                        { id: 'feeStructure', data: feeStructure },
+                        { id: 'classes', data: classes },
+                        { id: 'periodSettings', data: periodSettings },
+                        { id: 'classSubjects', data: classSubjects },
+                        { id: 'subjectTotalMarks', data: subjectTotalMarks },
+                        { id: 'classInCharge', data: classInCharge },
+                        { id: 'subjectTeachers', data: subjectTeachers },
+                        { id: 'timetables', data: timetables },
+                        { id: 'exams', data: exams },
+                        { id: 'examResults', data: examResults },
+                        { id: 'notifications', data: notifications },
+                        { id: 'auditLogs', data: auditLogs },
+                        { id: 'expenses', data: expenses },
+                        { id: 'salarySlips', data: salarySlips },
+                        { id: 'campuses', data: campuses }
+                    ];
+                    await supabase.from('app_data').upsert(appDataPayload, { onConflict: 'id' });
+                } catch (e) {
+                    console.error('AppData Cloud Sync Error:', e);
+                }
+            };
+            syncToCloud();
+        }, 3000);
+
+        return () => clearTimeout(timeoutId);
     }, [
-        students, teachers, settings, attendance, feeStructure,
-        classes, periodSettings, classSubjects, classInCharge,
-        subjectTeachers, timetables, exams, examResults, notifications, auditLogs, campuses
+        isInitialLoading, students, teachers, settings, attendance, feeStructure,
+        classes, periodSettings, classSubjects, subjectTotalMarks, classInCharge,
+        subjectTeachers, timetables, exams, examResults, notifications, auditLogs, campuses, expenses, salarySlips
     ]);
 
     // Apply Theme Engine
@@ -677,26 +833,54 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setStudents(prev => prev.map(s => s.class === fromClass ? { ...s, class: toClass } : s));
     };
 
-    const addStudent = (s: Partial<Student>) => {
-        const cleanData = sanitizeObject(s);
-        const newStudent: Student = {
-            ...cleanData as Student,
-            id: cleanData.id || `ADM-${Date.now().toString().slice(-6)}`,
-            status: 'Active',
-            performance: 'N/A',
-            feesPaid: s.feesPaid ?? 0,
-            feesTotal: s.feesTotal ?? 0,
-            avatar: s.avatar || (s.name || 'S').charAt(0),
-            admissionFees: s.admissionFees || 0,
-            monthlyFees: s.monthlyFees || 0,
-            securityFees: s.securityFees || 0,
-            miscellaneousCharges: s.miscellaneousCharges || 0,
-            paymentHistory: [],
-            discounts: []
-        };
-        setStudents(prev => [...prev, newStudent]);
+    const sanitizeNumber = (val: any) => {
+        if (typeof val === 'number') return val;
+        if (val === null || val === undefined || val === '') return 0;
+        const cleaned = val.toString().replace(/[^0-9.-]/g, '');
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? 0 : Math.round(num);
+    };
 
-        // Trigger Admission Welcome Notification
+    const addStudent = async (s: Partial<Student>) => {
+        const studentId = s.id || `ADM-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+        const newStudent: Student = {
+            ...s as Student,
+            id: studentId,
+            status: s.status || 'Active',
+            performance: s.performance || 'N/A',
+            feesPaid: sanitizeNumber(s.feesPaid || s.feesPaid),
+            feesTotal: sanitizeNumber(s.feesTotal || s.feesTotal),
+            avatar: s.avatar || (s.name || 'S').charAt(0),
+            admissionFees: sanitizeNumber(s.admissionFees),
+            monthlyFees: sanitizeNumber(s.monthlyFees),
+            securityFees: sanitizeNumber(s.securityFees),
+            miscellaneousCharges: sanitizeNumber(s.miscellaneousCharges),
+            academicRecords: s.academicRecords || [],
+            documents: s.documents || {},
+            paymentHistory: s.paymentHistory || [],
+            discounts: s.discounts || []
+        };
+
+        setStudents(prev => {
+            const index = prev.findIndex(item => item.id === studentId);
+            if (index >= 0) {
+                const updated = [...prev];
+                updated[index] = newStudent;
+                return updated;
+            }
+            return [...prev, newStudent];
+        });
+
+        try {
+            const { error } = await supabase.from('students').upsert(newStudent, { onConflict: 'id' });
+            if (error) {
+                console.error('Supabase Add/Update Student Error:', error);
+            }
+        } catch (err) {
+            console.error('Critical Student Sync Error:', err);
+        }
+
+        // Trigger Admission Welcome Notification (if not already existing)
         const welcomeMsg = MESSAGE_TEMPLATES.ADMISSION_WELCOME(
             newStudent.name,
             newStudent.id,
@@ -705,11 +889,16 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         sendNotification(newStudent.id, 'General', welcomeMsg);
     };
 
-    const updateStudent = (oldId: string, updates: Partial<Student>) => {
-        const cleanUpdates = sanitizeObject(updates);
-        const newId = cleanUpdates.id;
+    const updateStudent = async (oldId: string, updates: Partial<Student>) => {
+        const newId = updates.id;
 
-        setStudents(prev => prev.map(s => s.id === oldId ? { ...s, ...cleanUpdates } : s));
+        setStudents(prev => prev.map(s => s.id === oldId ? { ...s, ...updates } : s));
+
+        try {
+            await supabase.from('students').update(updates).eq('id', oldId);
+        } catch (err) {
+            console.error('Failed to update student in Supabase:', err);
+        }
 
         // If ID has changed, propagate to other records
         if (newId && newId !== oldId) {
@@ -724,48 +913,72 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const deleteStudent = (id: string) => {
+    const deleteStudent = async (id: string) => {
         setStudents(prev => prev.filter(s => s.id !== id));
+        try {
+            await supabase.from('students').delete().eq('id', id);
+        } catch (err) {
+            console.error('Failed to delete student from Supabase:', err);
+        }
     };
 
-    const addTeacher = (t: Partial<Teacher>) => {
-        const cleanData = sanitizeObject(t);
+    const addTeacher = async (t: Partial<Teacher>) => {
+        const teacherId = t.id || `PST-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
         const newTeacher: Teacher = {
-            id: `PST-${Date.now().toString().slice(-6)}`,
-            name: '',
-            subject: '',
-            phone: '',
-            avatar: (cleanData.name || 'P').charAt(0),
+            id: teacherId,
+            name: t.name || '',
+            subject: t.subject || '',
+            phone: t.phone || '',
+            avatar: t.avatar || (t.name || 'P').charAt(0),
             status: 'Active',
-            classes: [],
-            whatsappNumber: '',
-            email: '',
-            fatherName: '',
-            password: '',
-            username: '',
-            permissions: [],
-            ...cleanData
+            classes: t.classes || [],
+            whatsappNumber: t.whatsappNumber || '',
+            email: t.email || '',
+            fatherName: t.fatherName || '',
+            password: t.password || '',
+            username: t.username || '',
+            permissions: t.permissions || [],
+            baseSalary: sanitizeNumber(t.baseSalary),
+            ...t
         } as Teacher;
 
-        // Ensure avatar is preserved if present in t, otherwise the character is used
-        if (t.avatar) {
-            newTeacher.avatar = t.avatar;
+        setTeachers(prev => {
+            const index = prev.findIndex(item => item.id === teacherId);
+            if (index >= 0) {
+                const updated = [...prev];
+                updated[index] = newTeacher;
+                return updated;
+            }
+            return [...prev, newTeacher];
+        });
+
+        try {
+            await supabase.from('teachers').upsert(newTeacher, { onConflict: 'id' });
+        } catch (err) {
+            console.error('Failed to sync teacher to Supabase:', err);
         }
-        setTeachers(prev => [...prev, newTeacher]);
     };
 
-    const updateTeacher = (id: string, updates: Partial<Teacher>) => {
-        const cleanUpdates = sanitizeObject(updates);
-        setTeachers(prev => prev.map(t => t.id === id ? { ...t, ...cleanUpdates } : t));
+    const updateTeacher = async (id: string, updates: Partial<Teacher>) => {
+        setTeachers(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+        try {
+            await supabase.from('teachers').update(updates).eq('id', id);
+        } catch (err) {
+            console.error('Failed to update teacher in Supabase:', err);
+        }
     };
 
-    const deleteTeacher = (id: string) => {
+    const deleteTeacher = async (id: string) => {
         setTeachers(prev => prev.filter(t => t.id !== id));
+        try {
+            await supabase.from('teachers').delete().eq('id', id);
+        } catch (err) {
+            console.error('Failed to delete teacher from Supabase:', err);
+        }
     };
 
     const updateSettings = (updates: Partial<SchoolSettings>) => {
-        const cleanUpdates = sanitizeObject(updates);
-        setSettings(prev => ({ ...prev, ...cleanUpdates }));
+        setSettings(prev => ({ ...prev, ...updates }));
     };
 
     const markAttendance = (newAttendance: Attendance) => {
@@ -814,7 +1027,13 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         });
     };
 
-    const sendNotification = async (studentId: string, type: 'Attendance' | 'Fee' | 'General', message: string) => {
+    const sendNotification = async (
+        studentId: string,
+        type: 'Attendance' | 'Fee' | 'General',
+        message: string,
+        media?: string,
+        filename?: string
+    ) => {
         const student = students.find(s => s.id === studentId);
         if (!student) return;
 
@@ -834,7 +1053,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
         if (targetNo !== 'N/A') {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
+            const timeoutId = setTimeout(() => controller.abort(), 30000); // Increased to 30s for media
 
             try {
                 const cleanNumber = normalizeWhatsAppNumber(targetNo);
@@ -842,13 +1061,18 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 fetch('/api/wa/send-message', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ to: cleanNumber, message }),
+                    body: JSON.stringify({ to: cleanNumber, message, media, filename }),
                     signal: controller.signal
                 }).then(async (res) => {
                     clearTimeout(timeoutId);
                     if (res.ok) {
                         setNotifications(prev => prev.map(n => n.id === newNotification.id ? { ...n, status: 'Queued' } : n));
-                        addAuditLog({ user: 'System', action: 'WhatsApp Relay', type: 'System', details: `Neural alert dispatched to ${student.name} (${cleanNumber})` });
+                        addAuditLog({
+                            user: 'System',
+                            action: 'WhatsApp Relay',
+                            type: 'System',
+                            details: `${media ? 'Document' : 'Neural alert'} dispatched to ${student.name} (${cleanNumber})`
+                        });
                     } else {
                         const errorData = await res.json().catch(() => ({ error: 'Unknown server error' }));
                         setNotifications(prev => prev.map(n => n.id === newNotification.id ? { ...n, status: 'Failed' } : n));
@@ -868,10 +1092,9 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 user: 'System',
                 action: 'Notification Skipped',
                 type: 'System',
-                details: `No contact data available for ${student.name}`
+                details: `No valid contact for ${student.name}`
             });
         }
-
         console.log(`%c [OUTGOING MESSAGE] To: ${targetNo} | Content: ${message}`, 'background: #25D366; color: white; padding: 2px 5px; border-radius: 4px;');
     };
 
@@ -944,6 +1167,10 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setClassSubjects(prev => ({ ...prev, [className]: subjects }));
     };
 
+    const updateClassSubjectMarks = (className: string, marks: Record<string, number>) => {
+        setSubjectTotalMarks(prev => ({ ...prev, [className]: marks }));
+    };
+
     const updateClassInCharge = (className: string, teacherId: string) => {
         setClassInCharge(prev => ({ ...prev, [className]: teacherId }));
     };
@@ -978,25 +1205,42 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setExams(prev => [...prev, newExam]);
     };
 
+    const updateExam = (id: string, updates: Partial<Exam>) => {
+        setExams(prev => prev.map(e => e.id === id ? { ...e, ...updates } : e));
+    };
+
     const deleteExam = (id: string) => {
         setExams(prev => prev.filter(e => e.id !== id));
         setExamResults(prev => prev.filter(er => er.examId !== id));
     };
 
-    const inputMarks = (examId: string, className: string, studentId: string, subject: string, obtained: number, total: number = 100) => {
+    const inputMarks = (examId: string, className: string, studentId: string, subject: string, obtained: number | string, total: number = 100) => {
         setExamResults(prev => {
-            const existing = prev.find(r => r.examId === examId && r.studentId === studentId);
-            if (existing) {
-                return prev.map(r => r.studentId === studentId && r.examId === examId
-                    ? { ...r, marks: { ...r.marks, [subject]: { obtained, total } } }
-                    : r
-                );
+            const existingIndex = prev.findIndex(r => r.examId === examId && r.studentId === studentId);
+            const isMissing = obtained === '' || (typeof obtained === 'string' && obtained.trim() === '') || obtained === null || obtained === undefined;
+            const numericObtained = Number(obtained);
+
+            if (existingIndex >= 0) {
+                const updatedPrev = [...prev];
+                const r = { ...updatedPrev[existingIndex] };
+                const newMarks = { ...r.marks };
+
+                if (isMissing) {
+                    delete newMarks[subject];
+                } else {
+                    newMarks[subject] = { obtained: numericObtained, total };
+                }
+
+                r.marks = newMarks;
+                updatedPrev[existingIndex] = r;
+                return updatedPrev;
             } else {
+                if (isMissing) return prev; // don't create if missing
                 return [...prev, {
                     examId,
                     studentId,
                     className,
-                    marks: { [subject]: { obtained, total } },
+                    marks: { [subject]: { obtained: numericObtained, total } },
                     totalObtained: 0,
                     totalPossible: 0,
                     percentage: 0,
@@ -1008,57 +1252,85 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const finalizeResults = (examId: string, className: string) => {
-        const generateRemarks = (_percentage: number, grade: string, position: number | null) => {
-            if (position === 1) return "Outstanding! An exemplary performance that sets a standard for the entire class. Keep shining!";
-            if (position === 2) return "Brilliant work! Your dedication is clearly visible in your results. Minor refinements will lead to the top spot.";
-            if (position === 3) return "Excellent achievement! You have secured a place among the best. Consistency is your key to success.";
+        const generateRemarks = (_percentage: number, grade: string, _position: number | null) => {
+            if (grade === 'A++') return "Extraordinary";
+            if (grade === 'A+') return "Exceptional";
+            if (grade === 'A') return "Outstanding";
+            if (grade === 'B++') return "Excellent";
+            if (grade === 'B+') return "Very Good";
+            if (grade === 'B') return "Good";
+            if (grade === 'C+') return "Fairly Good";
+            if (grade === 'C') return "Above Average";
+            if (grade === 'D') return "Emerging";
 
-            if (grade === 'A+') return "Highly impressive. Your mastery of the curriculum is exceptional. Keep maintaining this elite level.";
-            if (grade === 'A') return "Commendable performance. You have a very strong grasp of the subjects. Aim for perfection next time.";
-            if (grade === 'B') return "Good, consistent work. You have performed well, but there is still room for further excellence in specific areas.";
-            if (grade === 'C') return "Satisfactory performance. You have potential for more; more focused revision will help improve your depth of knowledge.";
-            if (grade === 'D') return "Requires attention. Bridging learning gaps now with more dedicated study hours will lead to better future results.";
-
-            return "Significant improvement needed. Consistent study habits and seeking help in difficult topics are highly recommended.";
+            return "Needs Improvement";
         };
 
         setExamResults(prev => {
-            const classResults = prev.filter(r => r.examId === examId && r.className === className);
+            // Map students for quick campus lookup
+            const studentMap = new Map(students.map(s => [s.id, s.campus]));
 
-            const calculated = classResults.map(res => {
-                const totalObtained = Object.values(res.marks).reduce((sum, m) => sum + m.obtained, 0);
-                const totalPossible = Object.values(res.marks).reduce((sum, m) => sum + m.total, 0);
+            // 1. Get ALL results for this exam to calculate global rankings
+            const allExamResults = prev.filter(r => r.examId === examId).map(res => {
+                const totalObtained = Object.values(res.marks).reduce((sum, m) => sum + (Number(m.obtained) || 0), 0);
+                const totalPossible = Object.values(res.marks).reduce((sum, m) => sum + (Number(m.total) || 0), 0);
                 const percentage = totalPossible > 0 ? (totalObtained / totalPossible) * 100 : 0;
 
                 let grade = 'F';
-                if (percentage >= 90) grade = 'A+';
-                else if (percentage >= 80) grade = 'A';
-                else if (percentage >= 70) grade = 'B';
-                else if (percentage >= 60) grade = 'C';
-                else if (percentage >= 50) grade = 'D';
+                if (percentage >= 96) grade = 'A++';
+                else if (percentage >= 91) grade = 'A+';
+                else if (percentage >= 86) grade = 'A';
+                else if (percentage >= 81) grade = 'B++';
+                else if (percentage >= 76) grade = 'B+';
+                else if (percentage >= 71) grade = 'B';
+                else if (percentage >= 61) grade = 'C+';
+                else if (percentage >= 51) grade = 'C';
+                else if (percentage >= 40) grade = 'D';
 
                 return { ...res, totalObtained, totalPossible, percentage, grade };
             });
 
-            calculated.sort((a, b) => b.percentage - a.percentage);
+            // 2. Global (School) Sorted
+            const schoolSorted = [...allExamResults].sort((a, b) => b.percentage - a.percentage);
 
-            const positioned = calculated.map((res, index) => {
-                const position = index < 3 ? index + 1 : null;
+            // 3. Process the results for the requested class
+            const classResults = allExamResults.filter(r => r.className === className);
+            classResults.sort((a, b) => b.percentage - a.percentage);
+
+            const updatedClassResults = classResults.map((res, index) => {
+                const classPos = index + 1;
+
+                // Find school position
+                const schoolPos = schoolSorted.findIndex(s => s.studentId === res.studentId) + 1;
+
+                // Find campus position
+                const studentCampus = studentMap.get(res.studentId);
+                let campusPos: number | null = null;
+                if (studentCampus) {
+                    const campusSorted = allExamResults
+                        .filter(r => studentMap.get(r.studentId) === studentCampus)
+                        .sort((a, b) => b.percentage - a.percentage);
+                    campusPos = campusSorted.findIndex(s => s.studentId === res.studentId) + 1;
+                }
+
                 return {
                     ...res,
-                    position,
-                    remarks: generateRemarks(res.percentage, res.grade, position)
+                    position: classPos,
+                    schoolPosition: schoolPos,
+                    campusPosition: campusPos,
+                    remarks: generateRemarks(res.percentage, res.grade, classPos)
                 };
             });
 
             const otherResults = prev.filter(r => !(r.examId === examId && r.className === className));
-            return [...otherResults, ...positioned];
+            return [...otherResults, ...updatedClassResults];
         });
 
         setExams(prev => prev.map(e => e.id === examId ? { ...e, status: 'Finalized' } : e));
+
     };
 
-    const [currentUser, setCurrentUser] = useState<{ id: string, name: string, role: string } | null>(() => {
+    const [currentUser, setCurrentUser] = useState<{ id: string, name: string, role: string, permissions?: string[] } | null>(() => {
         const saved = localStorage.getItem('edunova_current_user');
         return saved ? JSON.parse(saved) : null;
     });
@@ -1066,17 +1338,27 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     const addAuditLog = (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
         const newLog: AuditLog = {
             ...log,
-            id: `LOG-${Date.now()}`,
+            id: `LOG-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
             timestamp: new Date().toLocaleString()
         };
         setAuditLogs(prev => [newLog, ...prev].slice(0, 100)); // Keep last 100 logs
     };
 
-    const login = (id: string, role: string) => {
+    const login = (id: string, password?: string, roleToUse?: string) => {
         const normalizedId = id.trim().toLowerCase();
 
-        if (role === 'admin') {
-            if (normalizedId === 'admin') {
+        // Ensure role works with backwards compatible signature if password isn't passed
+        const actualRole = roleToUse || (['admin', 'teacher', 'student'].includes(password || '') ? password : undefined);
+        const actualPassword = roleToUse ? password : undefined;
+
+        if (actualRole === 'admin') {
+            const expectedUser = settings.adminUsername ? settings.adminUsername.toLowerCase() : 'admin';
+
+            if (normalizedId === expectedUser) {
+                // Check password if it's set in settings
+                if (settings.adminPassword && settings.adminPassword !== actualPassword) {
+                    return false;
+                }
                 const user = { id: 'admin', name: 'Super Admin', role: 'admin' };
                 setCurrentUser(user);
                 localStorage.setItem('edunova_current_user', JSON.stringify(user));
@@ -1091,13 +1373,22 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             return false;
         }
 
-        if (role === 'teacher') {
+        if (actualRole === 'teacher') {
             const teacher = teachers.find(t =>
                 t.id?.toLowerCase() === normalizedId ||
                 t.username?.toLowerCase() === normalizedId
             );
             if (teacher) {
-                const user = { id: teacher.id, name: teacher.name, role: 'teacher' };
+                // Find the class where this teacher is in-charge
+                const assignedClass = Object.keys(classInCharge).find(cls => classInCharge[cls] === teacher.id);
+
+                const user = {
+                    id: teacher.id,
+                    name: teacher.name,
+                    role: 'teacher',
+                    permissions: teacher.permissions || [],
+                    inchargeClass: assignedClass // Use the mapped class
+                };
                 setCurrentUser(user);
                 localStorage.setItem('edunova_current_user', JSON.stringify(user));
                 addAuditLog({
@@ -1110,7 +1401,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             }
         }
 
-        if (role === 'student') {
+        if (actualRole === 'student') {
             const student = students.find(s => s.id?.toLowerCase() === normalizedId);
             if (student) {
                 const user = { id: student.id, name: student.name, role: 'student' };
@@ -1133,24 +1424,6 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setCurrentUser(null);
         localStorage.removeItem('edunova_current_user');
     };
-
-    const [expenses, setExpenses] = useState<Expense[]>(() => {
-        const saved = localStorage.getItem('edunova_expenses');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    const [salarySlips, setSalarySlips] = useState<SalarySlip[]>(() => {
-        const saved = localStorage.getItem('edunova_salary_slips');
-        return saved ? JSON.parse(saved) : [];
-    });
-
-    useEffect(() => {
-        localStorage.setItem('edunova_expenses', JSON.stringify(expenses));
-    }, [expenses]);
-
-    useEffect(() => {
-        localStorage.setItem('edunova_salary_slips', JSON.stringify(salarySlips));
-    }, [salarySlips]);
 
     const addExpense = (e: Omit<Expense, 'id'>) => {
         const newExpense = { ...e, id: `EXP-${Date.now()}` };
@@ -1186,28 +1459,114 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setSalarySlips(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     };
 
-    const importBackup = (data: any) => {
+    const importBackup = async (data: any) => {
         try {
             if (!data || typeof data !== 'object') throw new Error('Invalid backup format');
+            let hasErrors = false;
+            let errorMessages: string[] = [];
 
             // Sanitize and update each state if present in the backup
-            if (data.students) setStudents(sanitizeObject(data.students));
-            if (data.teachers) setTeachers(sanitizeObject(data.teachers));
-            if (data.settings) setSettings(sanitizeObject(data.settings));
-            if (data.attendance) setAttendance(sanitizeObject(data.attendance));
-            if (data.feeStructure) setFeeStructure(sanitizeObject(data.feeStructure));
-            if (data.classes) setClasses(sanitizeObject(data.classes));
-            if (data.periodSettings) setPeriodSettings(sanitizeObject(data.periodSettings));
-            if (data.classSubjects) setClassSubjects(sanitizeObject(data.classSubjects));
-            if (data.classInCharge) setClassInCharge(sanitizeObject(data.classInCharge));
-            if (data.subjectTeachers) setSubjectTeachers(sanitizeObject(data.subjectTeachers));
-            if (data.timetables) setTimetables(sanitizeObject(data.timetables));
-            if (data.exams) setExams(sanitizeObject(data.exams));
-            if (data.examResults) setExamResults(sanitizeObject(data.examResults));
-            if (data.notifications) setNotifications(sanitizeObject(data.notifications));
-            if (data.auditLogs) setAuditLogs(sanitizeObject(data.auditLogs));
-            if (data.expenses) setExpenses(sanitizeObject(data.expenses));
-            if (data.salarySlips) setSalarySlips(sanitizeObject(data.salarySlips));
+            if (data.students) {
+                const cleaned = sanitizeObject(data.students);
+                const allowedStudentKeys = ["id", "name", "class", "status", "performance", "avatar", "feesPaid", "feesTotal", "monthlyTuition", "fatherName", "fatherOccupation", "monthlyIncome", "address", "dob", "contactSelf", "contactFather", "gender", "religion", "nationality", "cnic", "discipline", "email", "campus", "isOrphan", "whatsappNumber", "admissionDate", "admissionFees", "monthlyFees", "securityFees", "miscellaneousCharges", "academicRecords", "documents", "manualId", "paymentHistory", "discounts"];
+                const dbReadyStudents = Array.from(new Map(cleaned.map((s: any) => {
+                    const obj: any = {};
+                    allowedStudentKeys.forEach(k => {
+                        if (s[k] !== undefined) obj[k] = s[k];
+                    });
+                    ['feesPaid', 'feesTotal', 'monthlyTuition', 'admissionFees', 'monthlyFees', 'securityFees', 'miscellaneousCharges'].forEach(k => {
+                        if (obj[k] === "" || obj[k] === null || obj[k] === undefined) obj[k] = 0;
+                        else obj[k] = Number(obj[k]);
+                    });
+                    ['academicRecords', 'paymentHistory', 'discounts'].forEach(k => {
+                        if (!Array.isArray(obj[k])) obj[k] = [];
+                    });
+                    if (typeof obj.documents !== 'object' || Array.isArray(obj.documents)) obj.documents = {};
+                    return [obj.id, obj];
+                })).values());
+
+                try {
+                    const { data: currentStudents, error: fetchErr } = await supabase.from('students').select('id');
+                    if (fetchErr) throw fetchErr;
+                    if (currentStudents && currentStudents.length > 0) {
+                        const ids = currentStudents.map(s => s.id);
+
+                        // Delete in batches of 100 to avoid request URL too long
+                        for (let i = 0; i < ids.length; i += 100) {
+                            const { error: delErr } = await supabase.from('students').delete().in('id', ids.slice(i, i + 100));
+                            if (delErr) throw delErr;
+                        }
+                    }
+                    if (dbReadyStudents.length > 0) {
+                        const { error: insErr } = await supabase.from('students').insert(dbReadyStudents);
+                        if (insErr) throw insErr;
+                    }
+                    setStudents(cleaned);
+                } catch (e: any) {
+                    hasErrors = true;
+                    errorMessages.push('Students sync failed: ' + e.message);
+                    console.error('Failed to sync students to Supabase:', e);
+                }
+            }
+            if (data.teachers) {
+                const cleaned = sanitizeObject(data.teachers);
+                const allowedTeacherKeys = ["id", "name", "subject", "classes", "status", "avatar", "cnic", "address", "dob", "gender", "religion", "nationality", "phone", "email", "qualification", "experience", "joiningDate", "campus", "whatsappNumber", "employmentType", "fatherName", "husbandName", "maritalStatus", "baseSalary", "username", "password", "permissions", "role", "inchargeClass", "documents"];
+                const dbReadyTeachers = Array.from(new Map(cleaned.map((t: any) => {
+                    const obj: any = {};
+                    allowedTeacherKeys.forEach(k => {
+                        if (t[k] !== undefined) obj[k] = t[k];
+                    });
+                    if (obj.baseSalary === "" || obj.baseSalary === null || obj.baseSalary === undefined) obj.baseSalary = 0;
+                    else obj.baseSalary = Number(obj.baseSalary);
+                    ['classes', 'permissions'].forEach(k => {
+                        if (!Array.isArray(obj[k])) obj[k] = [];
+                    });
+                    if (typeof obj.documents !== 'object' || Array.isArray(obj.documents)) obj.documents = {};
+                    return [obj.id, obj];
+                })).values());
+
+                try {
+                    const { data: currentTeachers, error: fetchErr } = await supabase.from('teachers').select('id');
+                    if (fetchErr) throw fetchErr;
+
+                    if (currentTeachers && currentTeachers.length > 0) {
+                        const ids = currentTeachers.map(t => t.id);
+                        for (let i = 0; i < ids.length; i += 100) {
+                            const { error: delErr } = await supabase.from('teachers').delete().in('id', ids.slice(i, i + 100));
+                            if (delErr) throw delErr;
+                        }
+                    }
+                    if (dbReadyTeachers.length > 0) {
+                        const { error: insErr } = await supabase.from('teachers').insert(dbReadyTeachers);
+                        if (insErr) throw insErr;
+                    }
+                    setTeachers(cleaned);
+                } catch (e: any) {
+                    hasErrors = true;
+                    errorMessages.push('Teachers sync failed: ' + e.message);
+                    console.error('Failed to sync teachers to Supabase:', e);
+                }
+            }
+
+            if (hasErrors) {
+                alert("Backup partially restored. Errors: " + errorMessages.join(", "));
+            }
+            if (data.settings) setSettings(data.settings);
+            if (data.attendance) setAttendance(data.attendance);
+            if (data.feeStructure) setFeeStructure(data.feeStructure);
+            if (data.classes) setClasses(data.classes);
+            if (data.periodSettings) setPeriodSettings(data.periodSettings);
+            if (data.classSubjects) setClassSubjects(data.classSubjects);
+            if (data.subjectTotalMarks) setSubjectTotalMarks(data.subjectTotalMarks);
+            if (data.classInCharge) setClassInCharge(data.classInCharge);
+            if (data.subjectTeachers) setSubjectTeachers(data.subjectTeachers);
+            if (data.timetables) setTimetables(data.timetables);
+            if (data.exams) setExams(data.exams);
+            if (data.examResults) setExamResults(data.examResults);
+            if (data.notifications) setNotifications(data.notifications);
+            if (data.auditLogs) setAuditLogs(data.auditLogs);
+            if (data.expenses) setExpenses(data.expenses);
+            if (data.salarySlips) setSalarySlips(data.salarySlips);
 
             // Force localStorage sync immediately for peace of mind
             Object.entries(data).forEach(([key, val]) => {
@@ -1228,7 +1587,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     const addCampus = (c: Omit<Campus, 'id'>) => {
         const newCampus: Campus = {
             ...c,
-            id: `CAMP-${Date.now().toString().slice(-6)}`
+            id: `CAMP-${Date.now()}-${Math.floor(Math.random() * 10000)}`
         };
         setCampuses(prev => [...prev, newCampus]);
         addAuditLog({
@@ -1282,10 +1641,12 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             markAttendance,
             updateFeeStructure,
             classSubjects,
+            subjectTotalMarks,
             classInCharge,
             subjectTeachers,
             timetables,
             updateClassSubjects,
+            updateClassSubjectMarks,
             updateClassInCharge,
             assignSubjectTeacher,
             updateTimetable,
@@ -1294,6 +1655,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             exams,
             examResults,
             addExam,
+            updateExam,
             deleteExam,
             inputMarks,
             finalizeResults,

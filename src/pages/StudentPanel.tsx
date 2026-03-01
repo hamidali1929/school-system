@@ -134,11 +134,11 @@ export const StudentPanel = ({
                         .document-banner { background: var(--brand-primary); color: white; text-align: center; padding: 3mm; font-family: 'Cinzel', serif; font-size: 13pt; letter-spacing: 4px; margin-bottom: 6mm; border-radius: 8px; }
                         .profile-section { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3mm; margin-bottom: 6mm; }
                         .profile-item { background: #f8fafc; padding: 8px 12px; border-radius: 10px; border: 1px solid #e2e8f0; }
-                        .profile-item label { font-size: 7pt; font-weight: 800; color: #94a3b8; text-transform: uppercase; display: block; margin-bottom: 2px; }
-                        .profile-item span { font-size: 10.5pt; font-weight: 800; color: var(--brand-primary); display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                        table { width: 100%; border-collapse: collapse; border: 1px solid #cbd5e1; margin-bottom: 6mm; }
-                        th { background: #f1f5f9; color: var(--brand-primary); font-size: 8.5pt; font-weight: 800; text-transform: uppercase; padding: 10px; border: 1px solid #cbd5e1; text-align: center; }
-                        td { padding: 8px 10px; font-size: 9.5pt; font-weight: 600; border: 1px solid #e2e8f0; text-align: center; }
+                        .profile-item label { font-size: 8pt; font-weight: 800; color: #475569; text-transform: uppercase; display: block; margin-bottom: 2px; }
+                        .profile-item span { font-size: 11.5pt; font-weight: 900; color: #0f172a; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+                        table { width: 100%; border-collapse: collapse; border: 2px solid #0f172a; margin-bottom: 6mm; }
+                        th { background: #f1f5f9; color: var(--brand-primary); font-size: 8.5pt; font-weight: 800; text-transform: uppercase; padding: 10px; border: 2px solid #0f172a; text-align: center; }
+                        td { padding: 8px 10px; font-size: 9.5pt; font-weight: 600; border: 2px solid #0f172a; text-align: center; }
                         .subject-name { text-align: left; font-weight: 800; color: var(--brand-primary); background: #fcfdfe; }
                         .bar-container { width: 100%; max-width: 120px; height: 6px; background: #e2e8f0; border-radius: 10px; overflow: hidden; margin: 4px auto; }
                         .bar-fill { height: 100%; border-radius: 10px; }
@@ -168,19 +168,22 @@ export const StudentPanel = ({
                                     <div class="school-info">
                                         <h1>${settings.schoolName || 'PIONEER’S SUPERIOR'}</h1>
                                         <p>${settings.subTitle || 'Institute of Higher Secondary Education'}</p>
+                                        ${student.campus ? `<div style="display: inline-block; background: #0f172a; color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 9pt; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-top: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2);">${student.campus}</div>` : ''}
+                                        <div style="font-size: 14pt; font-weight: 800; color: var(--brand-primary); margin-top: 5px; text-transform: uppercase;">${selectedExam.name}</div>
                                     </div>
                                     <div class="logo-container"><img src="${settings.logo2 || settings.logo1 || ''}"></div>
                                 </div>
                                 <div class="document-banner">OFFICIAL PERFORMANCE TRANSCRIPT</div>
-                                <div class="profile-section">
-                                    <div class="profile-item"><label>Student Name</label><span>${student.name}</span></div>
-                                    <div class="profile-item"><label>Father's Name</label><span>${student.fatherName || '---'}</span></div>
+
+                                <div style="text-align: center; margin-bottom: 4mm; margin-top: 2mm;">
+                                    <h2 style="margin: 0; font-size: 26pt; font-weight: 900; color: var(--brand-primary); text-transform: uppercase; letter-spacing: 1px;">${student.name}</h2>
+                                </div>
+
+                                <div class="profile-section" style="grid-template-columns: repeat(4, 1fr);">
+                                    <div class="profile-item"><label>Father Name</label><span>${student.fatherName || '---'}</span></div>
                                     <div class="profile-item"><label>Admission No</label><span>${student.id}</span></div>
-                                    <div class="profile-item"><label>Class / Wing</label><span>${selectedResult.className}</span></div>
-                                    <div class="profile-item"><label>Examination</label><span>${selectedExam.name}</span></div>
-                                    <div class="profile-item"><label>Academic Roll</label><span>${student.manualId || 'N/A'}</span></div>
-                                    <div class="profile-item"><label>Session</label><span>${settings.academicSession || '2025-26'}</span></div>
-                                    <div class="profile-item"><label>Date Analysis</label><span>${new Date().toLocaleDateString('en-GB')}</span></div>
+                                    <div class="profile-item"><label>Class</label><span>${selectedResult.className}</span></div>
+                                    <div class="profile-item"><label>Session</label><span>${selectedExam.session || settings.academicSession || '2025-26'}</span></div>
                                 </div>
                                 <table>
                                     <thead>
@@ -194,8 +197,11 @@ export const StudentPanel = ({
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${allClassSubjects.map(subName => {
-            const m = selectedResult.marks[subName] || { obtained: 0, total: 100 };
+                                        ${allClassSubjects.filter(subName => {
+            const m = selectedResult.marks[subName];
+            return m && m.obtained !== undefined && String(m.obtained).trim() !== '';
+        }).map(subName => {
+            const m = selectedResult.marks[subName];
             const perc = (m.obtained / m.total) * 100;
             const barColor = perc >= 80 ? '#10b981' : perc >= 60 ? '#3b82f6' : perc >= 40 ? '#f59e0b' : '#ef4444';
             let g = 'F';
@@ -204,9 +210,9 @@ export const StudentPanel = ({
             return `
                                                 <tr>
                                                     <td class="subject-name">${subName}</td>
-                                                    <td>${m.total}</td>
-                                                    <td style="font-weight: 800; color: var(--brand-primary)">${m.obtained}</td>
-                                                    <td style="font-weight: 700; color: #64748b">${perc.toFixed(0)}%</td>
+                                                    <td style="font-weight: 900; color: #0f172a; font-size: 10.5pt;">${m.total}</td>
+                                                    <td style="font-weight: 900; color: #0f172a; font-size: 10.5pt;">${m.obtained}</td>
+                                                    <td style="font-weight: 900; color: #64748b; font-size: 10.5pt;">${perc.toFixed(0)}%</td>
                                                     <td><div class="bar-container"><div class="bar-fill" style="width: ${perc}%; background: ${barColor}"></div></div></td>
                                                     <td><span class="grade-badge">${g}</span></td>
                                                 </tr>
@@ -216,21 +222,24 @@ export const StudentPanel = ({
                                 </table>
                                 <div class="summary-grid">
                                     <div class="summary-box">
-                                        <div><div class="summary-label">Aggregate Marks</div><div class="summary-value">${selectedResult.totalObtained} <span style="font-size: 12pt; opacity: 0.4">/ ${selectedResult.totalPossible}</span></div></div>
-                                        <div style="text-align: right"><div class="summary-label">Total Percentage</div><div class="summary-accent">${selectedResult.percentage.toFixed(1)}%</div></div>
+                                        <div><div class="summary-label">Total Marks</div><div class="summary-value">${selectedResult.totalObtained} <span style="font-size: 15pt; opacity: 0.8; font-weight: 900;">/ ${selectedResult.totalPossible}</span></div></div>
+                                        <div style="text-align: right"><div class="summary-label">Percentage</div><div class="summary-accent">${selectedResult.percentage.toFixed(1)}%</div></div>
                                     </div>
                                     <div class="summary-box">
-                                        <div><div class="summary-label">Merit Rank</div><div class="summary-value">#${selectedResult.position || '---'}</div></div>
-                                        <div style="text-align: right"><div class="summary-label">Final Grade</div><div class="summary-accent" style="color: var(--brand-primary)">${selectedResult.grade}</div></div>
+                                        <div><div class="summary-label">Position</div><div class="summary-value">#${selectedResult.position || '---'}</div></div>
+                                        <div style="text-align: right"><div class="summary-label">Grade</div><div class="summary-accent" style="color: var(--brand-primary)">${selectedResult.grade}</div></div>
                                     </div>
                                 </div>
-                                <div class="remarks-area">
-                                    <h4>Institutional Assessment Remarks</h4>
-                                    <p>${selectedResult.remarks || 'Performance evaluated based on standardized academic parameters. Continuous improvement in consistency will lead to superior outcomes.'}</p>
+                                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; margin-bottom: 10mm; padding-right: 10mm; padding-left: 0;">
+                                    <div class="remarks-area" style="margin-bottom: 0; width: fit-content; min-width: 200px; max-width: 60%; padding-right: 40px;">
+                                        <h4>Remarks</h4>
+                                        <p>${selectedResult.remarks || 'Pending Finalization'}</p>
+                                    </div>
+                                    <div class="sig-block" style="margin-bottom: 5px;"><div class="sig-line"></div><div class="sig-label">Academic Incharge</div></div>
                                 </div>
-                                <div class="signature-row">
-                                    <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Class In-charge</div></div>
-                                    <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Principal / Dean</div></div>
+                                <div class="signature-row" style="justify-content: space-between; margin-top: 0;">
+                                    <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Director</div></div>
+                                    <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Principal</div></div>
                                 </div>
                             </div>
                         </div>
@@ -545,7 +554,7 @@ export const StudentPanel = ({
                                         <Award size={16} /> Teacher Remarks
                                     </h4>
                                     <p className="text-sm font-bold text-slate-600 dark:text-slate-300 italic leading-relaxed">
-                                        "{latestResult?.remarks || 'Consistently demonstrating academic curiosity. Current trajectory indicates high potential for advanced curriculum modules in the next session.'}"
+                                        "{latestResult?.remarks || 'Pending Finalization'}"
                                     </p>
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-8 text-right">— Institutional Head of Faculty</p>
                                 </div>

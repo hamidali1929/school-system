@@ -14,7 +14,7 @@ export const Login = () => {
         e.preventDefault();
 
         // Use store's login logic
-        const success = login(userId, role);
+        const success = login(userId, password, role);
 
         if (!success) {
             Swal.fire({

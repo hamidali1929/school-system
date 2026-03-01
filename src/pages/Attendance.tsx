@@ -6,9 +6,12 @@ import Swal from 'sweetalert2';
 import { QRScanner } from '../components/QRScanner';
 
 export const Attendance = () => {
-    const { students, attendance, markAttendance, campuses } = useStore();
+    const { students, attendance, markAttendance, campuses, currentUser } = useStore();
+    const isTeacher = currentUser?.role === 'teacher';
+    const inchargeClass = currentUser?.inchargeClass;
+
     const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-    const [selectedClass, setSelectedClass] = useState('All');
+    const [selectedClass, setSelectedClass] = useState((isTeacher && inchargeClass) ? inchargeClass : 'All');
     const [selectedCampus, setSelectedCampus] = useState('All');
     const [searchQuery, setSearchQuery] = useState('');
     const [isScanning, setIsScanning] = useState(false);
@@ -36,7 +39,10 @@ export const Attendance = () => {
     }, []);
 
     // Extracts unique classes and campuses for filters
-    const classes = useMemo(() => ['All', ...new Set(students.map(s => s.class))], [students]);
+    const classes = useMemo(() => {
+        if (isTeacher && inchargeClass) return [inchargeClass];
+        return ['All', ...new Set(students.map(s => s.class))];
+    }, [students, isTeacher, inchargeClass]);
     const campusOptions = useMemo(() => ['All', ...campuses.map(c => c.name)], [campuses]);
 
     // Current attendance records for the selected date, class, and campus

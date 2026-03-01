@@ -156,9 +156,9 @@ export const AdminPanel = () => {
                         showCancelButton: true,
                         confirmButtonText: 'Yes, Restore Everything',
                         confirmButtonColor: '#ef4444'
-                    }).then((result) => {
+                    }).then(async (result) => {
                         if (result.isConfirmed) {
-                            const success = importBackup(data);
+                            const success = await importBackup(data);
                             if (success) {
                                 addAuditLog({
                                     user: 'Admin',
@@ -323,6 +323,43 @@ export const AdminPanel = () => {
                 timer: 3000,
                 showConfirmButton: false
             });
+        }
+    };
+
+    const handleAdminCredentials = async () => {
+        const { value: formValues } = await Swal.fire({
+            title: 'Admin Credentials',
+            html: `
+                <div class="text-left space-y-4 font-outfit">
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-500 mb-2 block tracking-widest">Admin Username</label>
+                        <input id="swal-admin-user" type="text" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm" placeholder="admin" value="${settings.adminUsername || 'admin'}">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-500 mb-2 block tracking-widest">Admin Password</label>
+                        <input id="swal-admin-pass" type="password" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm" placeholder="Leave empty for no password" value="${settings.adminPassword || ''}">
+                    </div>
+                </div>`,
+            showCancelButton: true,
+            confirmButtonText: 'Save Credentials',
+            confirmButtonColor: 'var(--brand-primary)',
+            preConfirm: () => {
+                return {
+                    adminUsername: (document.getElementById('swal-admin-user') as HTMLInputElement).value,
+                    adminPassword: (document.getElementById('swal-admin-pass') as HTMLInputElement).value
+                }
+            }
+        });
+
+        if (formValues) {
+            updateSettings(formValues);
+            addAuditLog({
+                user: 'Super Admin',
+                action: 'Admin Config Saved',
+                type: 'Security',
+                details: 'Admin login credentials updated'
+            });
+            Swal.fire('Saved', 'Admin credentials updated successfully. Please use these next time you login.', 'success');
         }
     };
 
@@ -1080,7 +1117,7 @@ export const AdminPanel = () => {
                                         title="Privacy & Security"
                                         desc="Keep your school data safe and secure."
                                         actionLabel="Security"
-                                        onClick={() => Swal.fire('Protected', 'Your data is secured with AES-256 encryption.', 'info')}
+                                        onClick={handleAdminCredentials}
                                     />
                                     <AdminSettingItem
                                         icon={Globe}

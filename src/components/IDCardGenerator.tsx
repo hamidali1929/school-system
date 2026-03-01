@@ -89,22 +89,22 @@ export const IDCardGenerator = ({ student, onClose }: IDCardGeneratorProps) => {
         <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/98 backdrop-blur-3xl overflow-y-auto font-serif">
             {flash && <div className="fixed inset-0 z-[300] bg-white animate-flash pointer-events-none" />}
 
-            <div className="relative w-full max-w-5xl bg-white rounded-[2rem] shadow-2xl overflow-hidden">
-                <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-4 bg-slate-50/80">
-                    <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-[#003366] rounded-xl flex items-center justify-center text-yellow-500 font-black">PSS</div>
-                        <h2 className="text-xl font-black text-[#003366]">IDENTITY STUDIO</h2>
+            <div className="relative w-full max-w-5xl bg-white rounded-2xl md:rounded-[2rem] shadow-2xl overflow-hidden mx-auto">
+                <div className="p-3 md:p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/80">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 md:w-10 md:h-10 bg-[#003366] rounded-lg md:rounded-xl flex items-center justify-center text-yellow-500 font-black text-xs md:text-base">PSS</div>
+                        <h2 className="text-lg md:text-xl font-black text-[#003366]">IDENTITY STUDIO</h2>
                     </div>
                     <div className="flex items-center gap-2">
-                        <button onClick={exportPDF} disabled={isExporting} className="px-6 py-2 bg-[#003366] text-white rounded-lg text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all">Download PDF</button>
-                        <button onClick={() => exportHighQualImage('front')} className="p-2 hover:bg-slate-100 rounded-lg group" title="Front"><ImageIcon className="w-5 h-5 text-[#003366]" /></button>
-                        <button onClick={() => exportHighQualImage('back')} className="p-2 hover:bg-slate-100 rounded-lg group" title="Back"><ImageIcon className="w-5 h-5 text-[#003366]" /></button>
-                        <button onClick={onClose} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"><X className="w-6 h-6" /></button>
+                        <button onClick={exportPDF} disabled={isExporting} className="px-3 md:px-6 py-2 bg-[#003366] text-white rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all">PDF</button>
+                        <button onClick={() => exportHighQualImage('front')} className="p-2 hover:bg-slate-100 rounded-lg group" title="Front"><ImageIcon className="w-4 h-4 md:w-5 md:h-5 text-[#003366]" /></button>
+                        <button onClick={() => exportHighQualImage('back')} className="p-2 hover:bg-slate-100 rounded-lg group" title="Back"><ImageIcon className="w-4 h-4 md:w-5 md:h-5 text-[#003366]" /></button>
+                        <button onClick={onClose} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"><X className="w-5 h-5 md:w-6 md:h-6" /></button>
                     </div>
                 </div>
 
-                <div className="p-8 flex flex-col items-center gap-12 bg-slate-50">
-                    <div className="flex flex-col lg:flex-row gap-8 justify-center items-center py-10 px-10 bg-white rounded-[3rem] shadow-xl border border-slate-100">
+                <div className="p-4 md:p-8 flex flex-col items-center gap-6 md:gap-12 bg-slate-50">
+                    <div className="flex flex-col lg:flex-row gap-6 md:gap-8 justify-center items-center py-6 px-4 md:py-10 md:px-10 bg-white rounded-2xl md:rounded-[3rem] shadow-xl border border-slate-100 w-full md:w-auto">
 
                         {/* FRONT SIDE */}
                         <div className="flex flex-col items-center gap-4">

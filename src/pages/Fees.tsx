@@ -8,21 +8,26 @@ import { FeeVoucher } from '../components/FeeVoucher';
 import { BulkFeeVoucher } from '../components/BulkFeeVoucher';
 
 export const Fees = () => {
-    const { students, updateStudent, feeStructure, triggerFeeReminders, sendNotification, settings } = useStore();
+    const { students, updateStudent, feeStructure, triggerFeeReminders, sendNotification, settings, currentUser } = useStore();
     const [search, setSearch] = useState('');
     const [selectedStudentForVoucher, setSelectedStudentForVoucher] = useState<Student | null>(null);
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [activeTab, setActiveTab] = useState<'billing' | 'ledger'>('billing');
 
-    const filteredStudents = students.filter(s =>
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        s.id.toLowerCase().includes(search.toLowerCase()) ||
-        s.class.toLowerCase().includes(search.toLowerCase())
-    );
+    const isTeacher = currentUser?.role === 'teacher';
+    const inchargeClass = currentUser?.inchargeClass;
+
+    const filteredStudents = students.filter(s => {
+        const belongsToClass = !isTeacher || s.class === inchargeClass;
+        if (!belongsToClass) return false;
+        return s.name.toLowerCase().includes(search.toLowerCase()) ||
+            s.id.toLowerCase().includes(search.toLowerCase()) ||
+            s.class.toLowerCase().includes(search.toLowerCase());
+    });
 
     // Get all payments for ledger
     const masterLedger: { studentName: string; studentId: string; class: string; payment: Payment }[] = [];
-    students.forEach(s => {
+    students.filter(s => !isTeacher || s.class === inchargeClass).forEach(s => {
         if (s.paymentHistory) {
             s.paymentHistory.forEach(p => {
                 masterLedger.push({ studentName: s.name, studentId: s.id, class: s.class, payment: p });
@@ -45,14 +50,15 @@ export const Fees = () => {
         });
 
         if (isConfirmed) {
-            students.forEach(s => {
+            const studentsToApply = isTeacher ? students.filter(s => s.class === inchargeClass) : students;
+            studentsToApply.forEach(s => {
                 const tuitionFee = Number(s.monthlyFees) || Number(s.monthlyTuition) || feeStructure[s.class] || feeStructure['General'] || 3000;
                 updateStudent(s.id, { feesTotal: (s.feesTotal || 0) + tuitionFee });
             });
 
             Swal.fire({
                 title: 'Billing Cycle Synchronized',
-                text: 'Monthly tuition fees have been successfully added to all active student accounts.',
+                text: `${isTeacher ? inchargeClass : 'All active'} student accounts have been updated with monthly tuition fees.`,
                 icon: 'success',
                 background: h ? '#001529' : '#ffffff',
                 color: h ? 'var(--brand-accent)' : '#0f172a',
@@ -344,8 +350,9 @@ export const Fees = () => {
         });
     };
 
-    const totalCollected = students.reduce((acc, s) => acc + (Number(s.feesPaid) || 0), 0);
-    const totalTarget = students.reduce((acc, s) => acc + (Number(s.feesTotal) || 0), 0);
+    const statsStudents = isTeacher ? students.filter(s => s.class === inchargeClass) : students;
+    const totalCollected = statsStudents.reduce((acc, s) => acc + (Number(s.feesPaid) || 0), 0);
+    const totalTarget = statsStudents.reduce((acc, s) => acc + (Number(s.feesTotal) || 0), 0);
     const totalPending = totalTarget - totalCollected;
     const recoveryRate = totalTarget > 0 ? ((totalCollected / totalTarget) * 100).toFixed(1) : '100';
     const ledgerSum = masterLedger.reduce((acc, entry) => acc + (Number(entry.payment.amount) || 0), 0);
@@ -378,7 +385,7 @@ export const Fees = () => {
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <button onClick={() => {
-                        triggerFeeReminders();
+                        triggerFeeReminders(isTeacher ? inchargeClass || undefined : undefined);
                         Swal.fire({
                             title: 'Broadcasting Reminders',
                             text: 'AI-generated WhatsApp reminders are being sent to all pending accounts.',

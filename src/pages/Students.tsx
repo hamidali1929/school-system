@@ -13,7 +13,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, School, GraduationCap } from 'lucide-react';
 
 export const Students = () => {
-    const { students, deleteStudent, addStudent, settings, campuses } = useStore();
+    const { students, deleteStudent, addStudent, settings, campuses, currentUser } = useStore();
+    const canAddStudent = currentUser?.role === 'admin' || currentUser?.permissions?.includes('students_add');
+    const isAdmin = currentUser?.role === 'admin';
+    const canViewStudents = isAdmin || currentUser?.permissions?.includes('students_view') || currentUser?.permissions?.includes('students_add');
+
+    if (!canViewStudents) return null;
     const [statusFilter, setStatusFilter] = useState('All');
     const [campusFilter, setCampusFilter] = useState('All');
     const [search, setSearch] = useState('');
@@ -31,6 +36,11 @@ export const Students = () => {
     const [showBulkFeeVouchers, setShowBulkFeeVouchers] = useState(false);
 
     const filteredStudents = students.filter(s => {
+        // Teacher restriction: Only show their incharge class
+        if (currentUser?.role === 'teacher' && currentUser?.inchargeClass) {
+            if (s.class !== currentUser.inchargeClass) return false;
+        }
+
         const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
             s.id.toLowerCase().includes(search.toLowerCase());
         const matchesClass = filterClass === 'All' || s.class.includes(filterClass);
@@ -39,7 +49,9 @@ export const Students = () => {
         return matchesSearch && matchesClass && matchesStatus && matchesCampus;
     });
 
-    const classes = ['All', ...new Set(students.map(s => s.class))];
+    const classes = (currentUser?.role === 'teacher' && currentUser?.inchargeClass)
+        ? [currentUser.inchargeClass]
+        : ['All', ...new Set(students.map(s => s.class))];
 
     const viewStudentDetails = (student: Student) => {
         const hasAvatar = student.avatar && student.avatar.length > 5;
@@ -388,39 +400,7 @@ export const Students = () => {
         });
     };
 
-    const handleExportRegistry = () => {
-        if (filteredStudents.length === 0) {
-            Swal.fire({ title: 'No Data', text: 'There are no records to export.', icon: 'info' });
-            return;
-        }
 
-        const headers = ['ID', 'Name', 'Father Name', 'Class', 'Discipline', 'Status', 'Contact Self', 'Admission Date', 'Address'];
-        const csvRows = [
-            headers.join(','),
-            ...filteredStudents.map(s => [
-                s.id,
-                `"${s.name}"`,
-                `"${s.fatherName || ''}"`,
-                `"${s.class}"`,
-                `"${s.discipline || 'General'}"`,
-                s.status,
-                s.contactSelf || '',
-                s.admissionDate || '',
-                `"${(s.address || '').replace(/"/g, '""')}"`
-            ].join(','))
-        ];
-
-        const csvString = csvRows.join('\n');
-        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.setAttribute('href', url);
-        link.setAttribute('download', `Student_Records_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    };
 
     const handleImportRegistry = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -432,23 +412,58 @@ export const Students = () => {
             const rows = content.split('\n');
             if (rows.length < 2) return;
 
-            const headers = rows[0].split(',').map(h => h.trim());
+            const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/ /g, ''));
             const studentRows = rows.slice(1).filter(r => r.trim());
 
-            studentRows.forEach(row => {
-                const values = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
-                const studentData: any = {};
-                headers.forEach((header, index) => {
-                    let val = (values[index] || '').trim().replace(/^"|"$/g, '').replace(/""/g, '"');
-                    const key = header.toLowerCase().replace(/ /g, '');
-                    if (key === 'id') studentData.id = val;
-                    else if (key === 'name') studentData.name = val;
-                    else if (key === 'fathername') studentData.fatherName = val;
-                    else if (key === 'class') studentData.class = val;
-                    else if (key === 'status') studentData.status = val;
+            const processRows = async () => {
+                for (const row of studentRows) {
+                    const values = [];
+                    let insideQuote = false;
+                    let currentWord = '';
+                    for (let i = 0; i < row.length; i++) {
+                        const char = row[i];
+                        if (char === '"') {
+                            insideQuote = !insideQuote;
+                        } else if (char === ',' && !insideQuote) {
+                            values.push(currentWord);
+                            currentWord = '';
+                        } else {
+                            currentWord += char;
+                        }
+                    }
+                    values.push(currentWord);
+                    const cleanValues = values.map(val => val.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+
+                    const studentData: any = {};
+                    headers.forEach((key, index) => {
+                        const val = cleanValues[index] || '';
+                        if (key === 'id' || key === 'srno' || key === 'sid' || key === 'admno' || key === 'regno' || key === 'reg#' || key === 'sr#') studentData.id = val;
+                        else if (key === 'name' || key === 'studentname') studentData.name = val;
+                        else if (key === 'fathername' || key === 'fname') studentData.fatherName = val;
+                        else if (key === 'class' || key === 'grade') studentData.class = val;
+                        else if (key === 'campus') studentData.campus = val;
+                        else if (key === 'discipline') studentData.discipline = val;
+                        else if (key === 'status') studentData.status = val;
+                        else if (key === 'contactself' || key === 'mobile' || key === 'phone') studentData.contactSelf = val;
+                        else if (key === 'admissiondate') studentData.admissionDate = val;
+                        else if (key === 'address') studentData.address = val;
+                        else if (key === 'manualid') studentData.manualId = val;
+                    });
+
+                    if (studentData.name && studentData.class) {
+                        await addStudent(studentData);
+                    }
+                }
+
+                Swal.fire({
+                    title: 'Import Successful',
+                    text: 'Student records have been imported.',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
                 });
-                if (studentData.name && studentData.class) addStudent(studentData);
-            });
+            };
+            processRows();
             e.target.value = '';
         };
         reader.readAsText(file);
@@ -499,16 +514,18 @@ export const Students = () => {
                                 <span className="text-[9px] font-black uppercase tracking-widest text-white/90">Select All</span>
                             </button>
                             <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
-                            <button
-                                onClick={handleBulkDelete}
-                                disabled={selectedIds.length === 0}
-                                className={cn(
-                                    "px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
-                                    selectedIds.length > 0 ? "bg-rose-500 text-white shadow-lg" : "text-white/20 cursor-not-allowed"
-                                )}
-                            >
-                                Delete {selectedIds.length > 0 && `(${selectedIds.length})`}
-                            </button>
+                            {isAdmin && (
+                                <button
+                                    onClick={handleBulkDelete}
+                                    disabled={selectedIds.length === 0}
+                                    className={cn(
+                                        "px-4 py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all",
+                                        selectedIds.length > 0 ? "bg-rose-500 text-white shadow-lg" : "text-white/20 cursor-not-allowed"
+                                    )}
+                                >
+                                    Delete {selectedIds.length > 0 && `(${selectedIds.length})`}
+                                </button>
+                            )}
                             {selectedIds.length > 0 && (
                                 <>
                                     <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
@@ -522,13 +539,15 @@ export const Students = () => {
                             )}
                         </div>
 
-                        <button
-                            onClick={() => setShowSelectionModal(true)}
-                            className="px-5 py-3 bg-white text-brand-primary rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 transition-all shadow-xl active:scale-95 flex items-center gap-2 group"
-                        >
-                            <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
-                            Add Student
-                        </button>
+                        {canAddStudent && (
+                            <button
+                                onClick={() => setShowSelectionModal(true)}
+                                className="px-5 py-3 bg-white text-brand-primary rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-50 transition-all shadow-xl active:scale-95 flex items-center gap-2 group"
+                            >
+                                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+                                Add Student
+                            </button>
+                        )}
                     </div>
                 </div>
 
@@ -553,21 +572,65 @@ export const Students = () => {
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <input type="file" id="import-registry-input" className="hidden" accept=".csv" onChange={handleImportRegistry} />
-                        <button
-                            onClick={() => document.getElementById('import-registry-input')?.click()}
-                            className="flex-1 md:flex-none px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest"
-                        >
-                            <Plus className="w-3.5 h-3.5" /> Import
-                        </button>
-                        <button
-                            onClick={handleExportRegistry}
-                            className="flex-1 md:flex-none px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest"
-                        >
-                            <Download className="w-3.5 h-3.5" /> Export
-                        </button>
-                    </div>
+                    {isAdmin && (
+                        <div className="flex items-center gap-2 w-full md:w-auto">
+                            <input type="file" id="import-registry-input" className="hidden" accept=".csv" onChange={handleImportRegistry} />
+                            <button
+                                onClick={() => document.getElementById('import-registry-input')?.click()}
+                                className="flex-1 md:flex-none px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest"
+                            >
+                                <Plus className="w-3.5 h-3.5" /> Import
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    const classOptions = { 'All': 'All Classes', ...Object.fromEntries(classes.filter(c => c !== 'All').map(c => [c, c])) };
+                                    const { value: selectedClass } = await Swal.fire({
+                                        title: 'Export Registry',
+                                        text: 'Select a class to export records',
+                                        input: 'select',
+                                        inputOptions: classOptions,
+                                        inputPlaceholder: 'Choose class...',
+                                        showCancelButton: true,
+                                        confirmButtonText: 'Export CSV',
+                                        confirmButtonColor: 'var(--brand-primary)'
+                                    });
+
+                                    if (selectedClass) {
+                                        const studentsToExport = selectedClass === 'All' ? filteredStudents : filteredStudents.filter(s => s.class === selectedClass);
+
+                                        if (studentsToExport.length === 0) {
+                                            Swal.fire({ title: 'No Data', text: `There are no records to export for ${selectedClass}.`, icon: 'info' });
+                                            return;
+                                        }
+
+                                        const headers = ['ID', 'Name', 'Father Name', 'Class', 'Campus', 'Discipline', 'Status', 'Contact Self', 'Admission Date', 'Address'];
+                                        const csvRows = [
+                                            headers.join(','),
+                                            ...studentsToExport.map(s => [
+                                                `"\t${s.id}"`, `"${(s.name || '').replace(/"/g, '""')}"`, `"${(s.fatherName || '').replace(/"/g, '""')}"`,
+                                                `"${(s.class || '').replace(/"/g, '""')}"`, `"${(s.campus || '').replace(/"/g, '""')}"`, `"${(s.discipline || 'General').replace(/"/g, '""')}"`,
+                                                `"${s.status}"`, `"\t${(s.contactSelf || '').replace(/"/g, '""')}"`, `"\t${(s.admissionDate || '').replace(/"/g, '""')}"`, `"${(s.address || '').replace(/"/g, '""')}"`
+                                            ].join(','))
+                                        ];
+
+                                        const csvString = csvRows.join('\n');
+                                        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+                                        const url = URL.createObjectURL(blob);
+                                        const link = document.createElement('a');
+                                        link.setAttribute('href', url);
+                                        link.setAttribute('download', `Student_Records_${selectedClass.replace(/\s+/g, '_')}_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+                                        link.style.visibility = 'hidden';
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                    }
+                                }}
+                                className="flex-1 md:flex-none px-4 py-2.5 bg-white/5 hover:bg-white/10 rounded-xl border border-white/10 text-white/70 hover:text-white transition-all flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest"
+                            >
+                                <Download className="w-3.5 h-3.5" /> Export
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
@@ -653,8 +716,8 @@ export const Students = () => {
                                         <button onClick={() => setSelectedStudentForId(student)} className="p-3 bg-blue-500/5 dark:bg-white/5 rounded-xl text-slate-400 hover:text-brand-primary dark:hover:text-brand-accent transition-all hover:scale-110"><Contact className="w-4 h-4" /></button>
                                     </div>
                                     <div className="flex gap-2">
-                                        <button onClick={() => setEditingStudent(student)} className="p-3 bg-emerald-500/10 rounded-xl text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all hover:rotate-6"><Edit className="w-4 h-4" /></button>
-                                        <button onClick={() => handleDeleteStudent(student.id, student.name)} className="p-3 bg-rose-500/10 rounded-xl text-rose-500 hover:bg-rose-500 hover:text-white transition-all hover:-rotate-6"><Trash2 className="w-4 h-4" /></button>
+                                        {isAdmin && <button onClick={() => setEditingStudent(student)} className="p-3 bg-emerald-500/10 rounded-xl text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all hover:rotate-6"><Edit className="w-4 h-4" /></button>}
+                                        {isAdmin && <button onClick={() => handleDeleteStudent(student.id, student.name)} className="p-3 bg-rose-500/10 rounded-xl text-rose-500 hover:bg-rose-500 hover:text-white transition-all hover:-rotate-6"><Trash2 className="w-4 h-4" /></button>}
                                     </div>
                                 </div>
                             </div>
@@ -713,7 +776,7 @@ export const Students = () => {
                                         <td className="px-6 py-4 text-right sticky right-0 bg-white dark:bg-[#001a33]">
                                             <div className="flex items-center justify-end gap-2">
                                                 <button onClick={() => viewStudentDetails(student)} title="View Profile" className="p-2 hover:bg-brand-primary/10 text-slate-400"><FileText className="w-4 h-4" /></button>
-                                                <button onClick={() => setEditingStudent(student)} title="Edit Student" className="p-2 hover:bg-emerald-50 text-slate-400"><Edit className="w-4 h-4" /></button>
+                                                {isAdmin && <button onClick={() => setEditingStudent(student)} title="Edit Student" className="p-2 hover:bg-emerald-50 text-slate-400"><Edit className="w-4 h-4" /></button>}
                                                 <button
                                                     onClick={() => {
                                                         setSubmittedStudentForVoucher(student);
@@ -724,7 +787,7 @@ export const Students = () => {
                                                     <DollarSign className="w-4 h-4" />
                                                 </button>
                                                 <button onClick={() => setSelectedStudentForId(student)} title="ID Card" className="p-2 hover:bg-brand-primary/10 text-slate-400"><Contact className="w-4 h-4" /></button>
-                                                <button onClick={() => handleDeleteStudent(student.id, student.name)} title="Delete" className="p-2 hover:bg-red-50 text-slate-400"><Trash2 className="w-4 h-4" /></button>
+                                                {isAdmin && <button onClick={() => handleDeleteStudent(student.id, student.name)} title="Delete" className="p-2 hover:bg-red-50 text-slate-400"><Trash2 className="w-4 h-4" /></button>}
                                             </div>
                                         </td>
                                     </tr>

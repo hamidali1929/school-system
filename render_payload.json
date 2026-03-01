@@ -1,0 +1,15 @@
+{
+    "type": "web_service",
+    "name": "school-system-backend",
+    "ownerId": "tea-d58j4fggjchc73a6ru9g",
+    "repo": "https://github.com/hamidali1929/school-system",
+    "autoDeploy": "yes",
+    "serviceDetails": {
+        "env": "node",
+        "region": "oregon",
+        "plan": "free",
+        "rootDir": "server",
+        "buildCommand": "npm install",
+        "startCommand": "node index.js"
+    }
+}

@@ -15,7 +15,16 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
+
+const LOG_FILE = path.join(__dirname, 'logs.txt');
+function logToFile(msg) {
+    const timestamp = new Date().toLocaleString();
+    const entry = `[${timestamp}] ${msg}\n`;
+    fs.appendFileSync(LOG_FILE, entry);
+    console.log(msg); // Keep original console log too
+}
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -44,30 +53,41 @@ async function processQueue() {
     isProcessingQueue = true;
 
     while (messageQueue.length > 0) {
-        const { id, to, message, resolve, reject } = messageQueue.shift();
+        const { id, to, message, media, filename, resolve, reject } = messageQueue.shift();
         const sock = sessions.get(id);
 
         if (!sock) {
-            reject(new Error('WhatsApp not connected'));
+            if (reject) reject(new Error('WhatsApp not connected'));
             continue;
         }
 
         try {
             const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
-            await sock.sendMessage(jid, { text: message });
-            console.log(`Message sent to ${to}. Waiting 6 seconds...`);
-            io.emit('system_log', `Message successfully sent to ${to}`);
+
+            if (media) {
+                // If media is provided (base64), send as document
+                const buffer = Buffer.from(media.split(',')[1] || media, 'base64');
+                await sock.sendMessage(jid, {
+                    document: buffer,
+                    mimetype: 'application/pdf',
+                    fileName: filename || 'Marksheet.pdf',
+                    caption: message
+                });
+            } else {
+                await sock.sendMessage(jid, { text: message });
+            }
+
+            logToFile(`Content sent to ${to}. Waiting 6 seconds...`);
+            io.emit('system_log', `Successfully sent to ${to}`);
             if (resolve) resolve({ success: true });
         } catch (err) {
-            console.error(`Failed to send message to ${to}:`, err.message);
+            logToFile(`Failed to send to ${to}: ${err.message}`);
             io.emit('system_log', `⚠️ Delivery Failed to ${to}: ${err.message}`);
             if (reject) {
-                // Wrap reject in a try-catch to prevent crashing if the promise isn't handled
-                try { reject(err); } catch (e) { console.error('Error rejecting promise:', e); }
+                try { reject(err); } catch (e) { }
             }
         }
 
-        // Wait 6 seconds before next message
         if (messageQueue.length > 0) {
             await new Promise(resolve => setTimeout(resolve, 6000));
         }
@@ -101,7 +121,7 @@ async function startWhatsAppSession(id = 'admin') {
         const { connection, lastDisconnect, qr } = update;
 
         if (qr) {
-            console.log('New QR Received');
+            logToFile('New QR Received');
             lastQr = qr;
             io.emit('qr', qr);
         }
@@ -111,18 +131,18 @@ async function startWhatsAppSession(id = 'admin') {
                 ? lastDisconnect.error.output.statusCode !== DisconnectReason.loggedOut
                 : true;
 
-            console.log('Connection closed. Reconnecting:', shouldReconnect);
+            logToFile(`Connection closed. Reconnecting: ${shouldReconnect}`);
 
             if (shouldReconnect) {
                 startWhatsAppSession(id);
             } else {
-                console.log('Logged out. Cleaning up...');
+                logToFile('Logged out. Cleaning up...');
                 sessions.delete(id);
                 fs.rmSync(sessionPath, { recursive: true, force: true });
                 io.emit('status', 'DISCONNECTED');
             }
         } else if (connection === 'open') {
-            console.log('WhatsApp Connected!');
+            logToFile('WhatsApp Connected!');
             io.emit('status', 'CONNECTED');
             io.emit('system_log', 'WhatsApp Session Established Successfully');
         }
@@ -198,26 +218,22 @@ app.get('/groups', async (req, res) => {
 });
 
 app.post('/send-message', async (req, res) => {
-    const { to, message } = req.body;
+    const { to, message, media, filename } = req.body;
     const sock = sessions.get('admin');
 
-    // Check if socket exists and is authenticated
     if (!sock || !sock.user) {
-        console.log('Send attempt failed: WhatsApp not authenticated');
-        return res.status(500).json({ error: 'WhatsApp session not authenticated. Please scan QR code in WhatsApp Matrix.' });
+        return res.status(500).json({ error: 'WhatsApp session not authenticated. Please scan QR code.' });
     }
 
-    // Determine JID - if it already has @, use it, otherwise assume individual
     const jid = to.includes('@') ? to : `${to}@s.whatsapp.net`;
+    const logMsg = media ? 'Queueing Document' : 'Queueing Message';
+    logToFile(`${logMsg} for ${jid}`);
 
-    console.log(`Queueing message for ${jid}: "${message.substring(0, 20)}..."`);
-
-    // Queue the message
     new Promise((resolve, reject) => {
-        messageQueue.push({ id: 'admin', to: jid, message, resolve, reject });
+        messageQueue.push({ id: 'admin', to: jid, message, media, filename, resolve, reject });
         processQueue();
     }).catch(err => {
-        console.error('Background Queue Error:', err.message);
+        logToFile(`Background Queue Error: ${err.message}`);
     });
 
     res.json({ success: true, queued: true });

@@ -119,7 +119,7 @@ export const Topbar = ({ onOpenSidebar }: TopbarProps) => {
                     </button>
 
                     {showNotifications && (
-                        <div className="absolute top-full right-0 mt-2 w-80 glass-card border border-slate-200 dark:border-yellow-400/30 shadow-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
+                        <div className="fixed sm:absolute top-[85px] sm:top-full left-4 right-4 sm:left-auto sm:right-0 sm:mt-2 sm:w-80 z-[200] glass-card border border-slate-200 dark:border-yellow-400/30 shadow-2xl p-4 animate-in fade-in slide-in-from-top-2 duration-200 overflow-hidden">
                             <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100 dark:border-yellow-400/10">
                                 <h4 className="font-bold text-sm tracking-tight text-brand-primary dark:text-brand-accent">System Notifications</h4>
                                 <span className="text-[10px] font-black text-brand-primary dark:text-brand-secondary uppercase tracking-widest">3 New</span>

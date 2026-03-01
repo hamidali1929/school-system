@@ -25,7 +25,7 @@ const menuItems = [
     { id: 'dashboard', label: 'dashboard', icon: LayoutDashboard, role: ['admin', 'student'], studentTab: 'overview' },
     { id: 'admin', label: 'Admin Panel', icon: Settings, role: ['admin'] },
     { id: 'teachers', label: 'Teacher Panel', icon: UserSquare2, role: ['admin'] },
-    { id: 'students', label: 'All Students', icon: GraduationCap, role: ['admin'] },
+    { id: 'students', label: 'All Students', icon: GraduationCap, role: ['admin', 'teacher'] },
     { id: 'classes', label: 'Classes & Fee Control', icon: Library, role: ['admin'] },
 
     { id: 'academic', label: 'Academic Record', icon: Award, role: ['student'], studentTab: 'academic' },
@@ -33,7 +33,7 @@ const menuItems = [
     { id: 'fees_ledger', label: 'Fee Ledger', icon: Wallet, role: ['student'], studentTab: 'fees' },
     { id: 'communication', label: 'School Liaison', icon: MessageCircle, role: ['student'], studentTab: 'communication' },
 
-    { id: 'fees', label: 'Fees Collection', icon: CreditCard, role: ['admin'] },
+    { id: 'fees', label: 'Fees Collection', icon: CreditCard, role: ['admin', 'teacher'] },
     { id: 'exams', label: 'Exams & Results', icon: FileText, role: ['admin', 'teacher'] },
     { id: 'analytics', label: 'Student Reports', icon: TrendingUp, role: ['admin'] },
     { id: 'attendance', label: 'Student Attendance', icon: CalendarCheck, role: ['admin', 'teacher'] },
@@ -43,7 +43,7 @@ const menuItems = [
 ];
 
 export const Sidebar = ({ user, activeTab, setActiveTab, onLogout, onClose }: {
-    user: { name: string; role: string };
+    user: { name: string; role: string; permissions?: string[] };
     activeTab: string;
     setActiveTab: (id: string) => void;
     onLogout: () => void;
@@ -51,7 +51,27 @@ export const Sidebar = ({ user, activeTab, setActiveTab, onLogout, onClose }: {
 }) => {
     const { settings } = useStore();
 
-    const filteredMenuItems = menuItems.filter(item => item.role.includes(user.role.toLowerCase()));
+    const filteredMenuItems = menuItems.filter(item => {
+        const hasRole = item.role.includes(user.role.toLowerCase());
+        if (!hasRole) return false;
+
+        if (user.role === 'teacher') {
+            if (item.id === 'students') {
+                return user.permissions?.includes('students_add') || user.permissions?.includes('students_view');
+            }
+            if (item.id === 'attendance') {
+                return user.permissions?.includes('attendance_mark');
+            }
+            if (item.id === 'exams') {
+                return user.permissions?.includes('results_manage');
+            }
+            if (item.id === 'fees') {
+                return user.permissions?.includes('fees_manage');
+            }
+        }
+
+        return true;
+    });
 
     return (
         <div className="w-80 h-screen bg-brand-primary dark:bg-[#000816] flex flex-col p-6 sticky top-0 overflow-y-auto border-r border-white/10 dark:border-yellow-400/10 shadow-2xl transition-all duration-300 relative">

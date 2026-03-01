@@ -1,4 +1,4 @@
-import { Plus, Edit2, Trash2, GraduationCap, Users, RotateCcw, BookOpen, UserPlus } from 'lucide-react';
+import { Plus, Edit2, Trash2, GraduationCap, Users, RotateCcw, BookOpen, UserPlus, UploadCloud, DownloadCloud } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Swal from 'sweetalert2';
 import { cn } from '../utils/cn';
@@ -7,7 +7,7 @@ export const ClassesPage = () => {
     const {
         classes, feeStructure, addClass, updateClass, deleteClass, students, teachers,
         classSubjects, classInCharge, updateClassSubjects, updateClassInCharge,
-        assignSubjectTeacher, campuses
+        assignSubjectTeacher, campuses, addStudent, subjectTotalMarks, updateClassSubjectMarks
     } = useStore();
 
     const handleRestoreDefaults = () => {
@@ -254,7 +254,44 @@ export const ClassesPage = () => {
         if (subjectsStr !== undefined) {
             const subjects = subjectsStr.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
             updateClassSubjects(className, subjects);
-            Swal.fire({ title: 'Curriculum Updated', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+
+            if (subjects.length > 0) {
+                const h = document.documentElement.classList.contains('dark');
+                const { value: marksValues } = await Swal.fire({
+                    title: 'Set Default Maximum Marks',
+                    text: 'Define the total marks for each subject in this class. These will be used as defaults when entering exam marks.',
+                    html: `
+                        <div class="text-left font-outfit space-y-3 mt-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                            ${subjects.map((s: string) => `
+                                <div class="flex items-center justify-between gap-4 bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-100 dark:border-white/10">
+                                    <label class="text-xs font-black uppercase text-brand-primary dark:text-brand-accent truncate flex-1">${s}</label>
+                                    <input type="number" id="marks-${s.replace(/[^a-zA-Z0-9]/g, '-')}" class="w-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/20 text-center py-1.5 outline-none rounded-lg text-xs font-black focus:border-brand-primary" value="${subjectTotalMarks[className]?.[s] || 100}" />
+                                </div>
+                            `).join('')}
+                        </div>
+                    `,
+                    background: h ? 'var(--glass-bg)' : '#ffffff',
+                    color: h ? 'var(--brand-accent)' : '#0f172a',
+                    confirmButtonText: 'Save Curriculum & Marks',
+                    confirmButtonColor: 'var(--brand-primary)',
+                    preConfirm: () => {
+                        const marks: Record<string, number> = {};
+                        subjects.forEach((s: string) => {
+                            const input = document.getElementById(`marks-${s.replace(/[^a-zA-Z0-9]/g, '-')}`) as HTMLInputElement;
+                            marks[s] = Number(input?.value) || 100;
+                        });
+                        return marks;
+                    }
+                });
+
+                if (marksValues) {
+                    updateClassSubjectMarks(className, marksValues);
+                    Swal.fire({ title: 'Curriculum Updated', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, background: h ? 'var(--glass-bg)' : '#ffffff', color: h ? 'var(--brand-accent)' : '#0f172a' });
+                }
+            } else {
+                updateClassSubjectMarks(className, {});
+                Swal.fire({ title: 'Curriculum Cleared', icon: 'info', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+            }
         }
     };
 
@@ -317,6 +354,116 @@ export const ClassesPage = () => {
         }
     };
 
+    const handleImportStudents = (e: React.ChangeEvent<HTMLInputElement>, targetClass: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target?.result as string;
+            const rows = content.split('\n');
+            if (rows.length < 2) return;
+
+            const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/ /g, ''));
+            const studentRows = rows.slice(1).filter(r => r.trim());
+            let count = 0;
+
+            studentRows.forEach(row => {
+                const values = [];
+                let insideQuote = false;
+                let currentWord = '';
+                for (let i = 0; i < row.length; i++) {
+                    const char = row[i];
+                    if (char === '"') {
+                        insideQuote = !insideQuote;
+                    } else if (char === ',' && !insideQuote) {
+                        values.push(currentWord);
+                        currentWord = '';
+                    } else {
+                        currentWord += char;
+                    }
+                }
+                values.push(currentWord);
+                const cleanValues = values.map(val => val.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+
+                const studentData: any = {};
+                headers.forEach((key, index) => {
+                    const val = cleanValues[index] || '';
+                    if (key === 'id') studentData.id = val;
+                    else if (key === 'name') studentData.name = val;
+                    else if (key === 'fathername') studentData.fatherName = val;
+                    else if (key === 'discipline') studentData.discipline = val;
+                    else if (key === 'status') studentData.status = val;
+                    else if (key === 'contactself') studentData.contactSelf = val;
+                    else if (key === 'admissiondate') studentData.admissionDate = val;
+                    else if (key === 'address') studentData.address = val;
+                });
+
+                // Always override the class with the target class
+                studentData.class = targetClass;
+
+                if (studentData.name) {
+                    addStudent(studentData);
+                    count++;
+                }
+            });
+            e.target.value = '';
+            Swal.fire({
+                title: 'Import Successful',
+                text: `${count} student(s) imported into ${targetClass}.`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        };
+        reader.readAsText(file);
+    };
+
+    const handleExportClassStudents = (className: string) => {
+        const classStudents = students.filter(s => s.class === className);
+        if (classStudents.length === 0) {
+            Swal.fire({ title: 'No Students', text: `There are no students in ${className} to export.`, icon: 'info' });
+            return;
+        }
+
+        const headers = [
+            'ID                  ',
+            'Name                                ',
+            'Father Name                         ',
+            'Class               ',
+            'Discipline          ',
+            'Status              ',
+            'Contact Self        ',
+            'Admission Date      ',
+            'Address                                       '
+        ];
+        const csvRows = [
+            headers.join(','),
+            ...classStudents.map(s => [
+                `"\t${s.id}"`,
+                `"${(s.name || '').replace(/"/g, '""')}"`,
+                `"${(s.fatherName || '').replace(/"/g, '""')}"`,
+                `"${(s.class || '').replace(/"/g, '""')}"`,
+                `"${(s.discipline || 'General').replace(/"/g, '""')}"`,
+                `"${s.status}"`,
+                `"\t${(s.contactSelf || '').replace(/"/g, '""')}"`,
+                `"\t${(s.admissionDate || '').replace(/"/g, '""')}"`,
+                `"${(s.address || '').replace(/"/g, '""')}"`
+            ].join(','))
+        ];
+
+        const csvString = csvRows.join('\n');
+        const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `${className.replace(/\s+/g, '_')}_Students_${new Date().toLocaleDateString().replace(/\//g, '-')}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
     const handleDeleteClass = (className: string) => {
         const studentCount = students.filter(s => s.class === className).length;
 
@@ -369,143 +516,6 @@ export const ClassesPage = () => {
                         isCollege ? "bg-gradient-to-r from-amber-400 via-orange-500 to-amber-600" : "bg-gradient-to-r from-brand-primary via-brand-secondary to-brand-accent"
                     )}></div>
 
-                    <div className="p-6 space-y-6 flex-1 flex flex-col">
-                        {/* Title & Revenue Sector */}
-                        <div className="flex items-start justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                                <div className={cn(
-                                    "w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-700 group-hover:rotate-[360deg] shadow-lg",
-                                    isCollege ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" : "bg-brand-primary/5 text-brand-primary dark:bg-brand-accent/10 dark:text-brand-accent"
-                                )}>
-                                    <GraduationCap className="w-7 h-7" />
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-slate-800 dark:text-white tracking-tight uppercase leading-none mb-1.5 group-hover:text-brand-primary dark:group-hover:text-brand-accent transition-colors">{className}</h3>
-                                    <div className="flex items-center gap-2">
-                                        <span className={cn(
-                                            "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest",
-                                            isCollege ? "bg-amber-500/10 text-amber-600" : "bg-brand-primary/10 text-brand-primary dark:text-brand-accent"
-                                        )}>
-                                            {isCollege ? 'College Level' : 'School Level'}
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div className="text-right shrink-0">
-                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Tuition Rate</p>
-                                <div className="flex items-baseline justify-end gap-1">
-                                    <span className="text-[10px] font-black text-slate-400">RS</span>
-                                    <span className="text-xl font-black text-brand-primary dark:text-white leading-none tracking-tighter">
-                                        {fee.toLocaleString()}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Enrollment Intensity Meter */}
-                        <div className="space-y-3 bg-slate-50/50 dark:bg-white/[0.02] p-4 rounded-2xl border border-slate-100 dark:border-white/5">
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                    <Users className="w-3 h-3 text-slate-400" />
-                                    <p className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Enrollment Density</p>
-                                </div>
-                                <p className="text-[10px] font-black text-slate-800 dark:text-white">{studentCount} <span className="text-slate-400">/ {capacity}</span></p>
-                            </div>
-                            <div className="h-2 w-full bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden">
-                                <div
-                                    className={cn(
-                                        "h-full transition-all duration-1000 ease-in-out rounded-full",
-                                        isCollege ? "bg-amber-500" : "bg-gradient-to-r from-brand-primary to-brand-secondary shadow-[0_0_10px_rgba(var(--glow-shadow),0.4)]"
-                                    )}
-                                    style={{ width: `${strengthPercentage}%` }}
-                                ></div>
-                            </div>
-                        </div>
-
-                        {/* Curriculum Overview */}
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                                <BookOpen className="w-3 h-3 text-slate-400" />
-                                <p className="text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Mapped Curriculum</p>
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                                {subjects.length > 0 ? (
-                                    subjects.slice(0, 3).map(s => (
-                                        <div key={s} className="px-2.5 py-1 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/10 rounded-lg text-[9px] font-bold text-slate-600 dark:text-slate-400 hover:border-brand-accent transition-colors">
-                                            {s}
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="text-[10px] text-slate-400 italic font-medium">No subjects allocated yet</div>
-                                )}
-                                {subjects.length > 3 && (
-                                    <div className="px-2 py-1 bg-brand-primary/10 text-brand-primary dark:text-brand-accent rounded-lg text-[9px] font-black">
-                                        +{subjects.length - 3} Units
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Coordinator Block */}
-                        <div className="mt-auto pt-5 border-t border-slate-100 dark:border-white/10 flex items-center justify-between">
-                            {inCharge ? (
-                                <div className="flex items-center gap-3">
-                                    <div className="relative">
-                                        <div className="w-11 h-11 rounded-[1.25rem] bg-gradient-to-tr from-brand-primary to-brand-secondary p-0.5 shadow-xl">
-                                            <div className="w-full h-full rounded-[1.15rem] overflow-hidden bg-white dark:bg-[#001a33] flex items-center justify-center text-xs font-black text-brand-primary">
-                                                {inCharge.avatar && inCharge.avatar.length > 5 ? (
-                                                    <img src={inCharge.avatar} className="w-full h-full object-cover" alt={inCharge.name} />
-                                                ) : (
-                                                    <span>{inCharge.avatar || inCharge.name.charAt(0)}</span>
-                                                )}
-                                            </div>
-                                        </div>
-                                        <div className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-white dark:border-[#001a33]"></div>
-                                    </div>
-                                    <div>
-                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.15em] leading-none mb-1.5">Academic Lead</p>
-                                        <p className="text-xs font-black text-slate-700 dark:text-white truncate max-w-[100px]">{inCharge.name}</p>
-                                    </div>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => handleAssignInCharge(className)}
-                                    className="flex items-center gap-3 group/btn"
-                                >
-                                    <div className="w-11 h-11 rounded-[1.25rem] border-2 border-dashed border-slate-200 dark:border-white/10 flex items-center justify-center text-slate-300 group-hover/btn:border-brand-primary group-hover/btn:text-brand-primary transition-all">
-                                        <UserPlus size={18} />
-                                    </div>
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest group-hover/btn:text-brand-primary transition-colors">Assign Lead</p>
-                                </button>
-                            )}
-
-                            <div className="flex gap-1.5 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">
-                                <button
-                                    onClick={() => handleEditClass(className)}
-                                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-brand-primary dark:hover:text-brand-accent hover:bg-white dark:hover:bg-white/10 shadow-sm border border-transparent hover:border-slate-100 dark:hover:border-white/10 transition-all"
-                                    title="Edit Configuration"
-                                >
-                                    <Edit2 size={14} />
-                                </button>
-                                <button
-                                    onClick={() => handleManageSubjects(className)}
-                                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-blue-500 hover:bg-white dark:hover:bg-white/10 shadow-sm border border-transparent hover:border-slate-100 dark:hover:border-white/10 transition-all"
-                                    title="Manage Curriculum"
-                                >
-                                    <BookOpen size={14} />
-                                </button>
-                                <button
-                                    onClick={() => handleDeleteClass(className)}
-                                    className="p-2.5 rounded-xl bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-rose-500 hover:bg-white dark:hover:bg-white/10 shadow-sm border border-transparent hover:border-slate-100 dark:hover:border-white/10 transition-all"
-                                    title="Decommission Unit"
-                                >
-                                    <Trash2 size={14} />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
                     {/* Quick Access Faculty Portal reveal on hover */}
                     <button
                         onClick={() => handleAssignSubjectTeacher(className)}
@@ -515,13 +525,180 @@ export const ClassesPage = () => {
                         <UserPlus size={18} />
                     </button>
 
+                    <div className="p-5 md:p-6 flex-1 flex flex-col gap-6">
+                        {/* Header Section (Title + Tag) */}
+                        <div className="flex items-start gap-4">
+                            <div className={cn(
+                                "w-12 h-12 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center shrink-0 transition-all duration-700 group-hover:rotate-[360deg] shadow-lg",
+                                isCollege ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400" : "bg-brand-primary/5 text-brand-primary dark:bg-brand-accent/10 dark:text-brand-accent"
+                            )}>
+                                <GraduationCap className="w-6 h-6 md:w-7 md:h-7" />
+                            </div>
+                            <div className="min-w-0 flex-1 pt-1">
+                                <h3 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white tracking-tight uppercase leading-none mb-2 break-words relative overflow-hidden">
+                                    <span className="relative z-10 group-hover:text-brand-primary dark:group-hover:text-brand-accent transition-colors">
+                                        {className}
+                                    </span>
+                                </h3>
+                                <span className={cn(
+                                    "inline-block px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap",
+                                    isCollege ? "bg-amber-500/10 text-amber-600 border border-amber-500/20" : "bg-brand-primary/10 text-brand-primary dark:text-brand-accent border border-brand-primary/20 dark:border-brand-accent/20"
+                                )}>
+                                    {isCollege ? 'College Department' : 'School Department'}
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Three Column Stats Grid */}
+                        <div className="grid grid-cols-2 gap-3 bg-slate-50/50 dark:bg-white/[0.02] p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                            {/* Tuition */}
+                            <div className="flex flex-col gap-1 border-r border-slate-200 dark:border-white/10 pr-2">
+                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Tuition</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-[10px] font-black text-slate-400">RS</span>
+                                    <span className="text-base font-black text-brand-primary dark:text-white truncate">
+                                        {fee.toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Density */}
+                            <div className="flex flex-col gap-1 pl-1">
+                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Density</p>
+                                <div className="flex items-baseline gap-1">
+                                    <span className="text-base font-black text-slate-800 dark:text-white">{studentCount}</span>
+                                    <span className="text-[10px] font-black text-slate-400">/ {capacity}</span>
+                                </div>
+                                <div className="h-1.5 w-full bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden mt-1">
+                                    <div
+                                        className={cn(
+                                            "h-full transition-all duration-1000 ease-in-out rounded-full",
+                                            isCollege ? "bg-amber-500" : "bg-gradient-to-r from-brand-primary to-brand-secondary"
+                                        )}
+                                        style={{ width: `${strengthPercentage}%` }}
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Mapped Curriculum */}
+                        <div className="space-y-2">
+                            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                                <BookOpen className="w-3 h-3" />
+                                Mapped Curriculum
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {subjects.length > 0 ? (
+                                    subjects.slice(0, 4).map(s => (
+                                        <div key={s} className="px-2.5 py-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                                            {s}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="text-[10px] text-slate-400 italic">No curriculum mapped</div>
+                                )}
+                                {subjects.length > 4 && (
+                                    <div className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary dark:text-brand-accent rounded-lg text-[10px] font-black">
+                                        +{subjects.length - 4} More
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Coordinator section moved inside the card body, taking full width */}
+                        <div className="flex-1"></div> {/* Spacer to push bottom section down */}
+
+                        <div className="bg-slate-50 dark:bg-[#05264c] p-3 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-between">
+                            {inCharge ? (
+                                <div className="flex items-center gap-3 w-full">
+                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-primary to-brand-secondary p-0.5 shadow-sm shrink-0">
+                                        <div className="w-full h-full rounded-[0.6rem] overflow-hidden bg-white dark:bg-[#001a33] flex items-center justify-center text-xs font-black text-brand-primary">
+                                            {inCharge.avatar && inCharge.avatar.length > 5 ? (
+                                                <img src={inCharge.avatar} className="w-full h-full object-cover" alt={inCharge.name} />
+                                            ) : (
+                                                <span>{inCharge.avatar || inCharge.name.charAt(0)}</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="text-[8px] font-black text-brand-primary dark:text-brand-accent uppercase tracking-[0.15em] mb-0.5">Academic Lead</p>
+                                        <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{inCharge.name}</p>
+                                    </div>
+                                    <button
+                                        onClick={() => handleAssignInCharge(className)}
+                                        className="w-8 h-8 rounded-full bg-white dark:bg-white/10 flex items-center justify-center text-slate-400 hover:text-brand-primary shadow-sm border border-slate-100 dark:border-white/5 shrink-0 transition-colors"
+                                        title="Change Lead"
+                                    >
+                                        <Edit2 size={12} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => handleAssignInCharge(className)}
+                                    className="flex items-center justify-center gap-2 w-full py-2 group/btn"
+                                >
+                                    <div className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center text-slate-400 group-hover/btn:border-brand-primary group-hover/btn:text-brand-primary transition-colors">
+                                        <UserPlus size={14} />
+                                    </div>
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover/btn:text-brand-primary transition-colors">Assign Lead</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Action Footer (Always Visible, neatly spaced) */}
+                    <div className="grid grid-cols-5 border-t border-slate-100 dark:border-white/10 divide-x divide-slate-100 dark:divide-white/10">
+                        <button
+                            onClick={() => handleEditClass(className)}
+                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-brand-primary transition-colors"
+                            title="Edit Configuration"
+                        >
+                            <Edit2 size={16} />
+                        </button>
+                        <button
+                            onClick={() => handleManageSubjects(className)}
+                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-blue-500 transition-colors"
+                            title="Manage Curriculum"
+                        >
+                            <BookOpen size={16} />
+                        </button>
+                        <button
+                            onClick={() => document.getElementById(`import-students-${className}`)?.click()}
+                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-emerald-500 transition-colors"
+                            title="Import Students CSV"
+                        >
+                            <UploadCloud size={16} />
+                        </button>
+                        <button
+                            onClick={() => handleExportClassStudents(className)}
+                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-indigo-500 transition-colors"
+                            title="Export Students CSV"
+                        >
+                            <DownloadCloud size={16} />
+                        </button>
+                        <button
+                            onClick={() => handleDeleteClass(className)}
+                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                            title="Decommission Unit"
+                        >
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
+
+                    <input
+                        type="file"
+                        id={`import-students-${className}`}
+                        className="hidden"
+                        accept=".csv"
+                        onChange={(e) => handleImportStudents(e, className)}
+                    />
                 </div>
             </div>
         );
     };
 
     return (
-        <div className="space-y-6 md:space-y-10 animate-fade-in font-outfit pb-20 px-4 md:px-0">
+        <div className="space-y-6 md:space-y-10 animate-fade-in font-outfit pb-20">
             {/* Action Header */}
             <div className="relative">
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
@@ -559,20 +736,20 @@ export const ClassesPage = () => {
             </div>
 
             {/* Stats Summary */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 {[
                     { label: 'Total Classes', value: classes.length, icon: GraduationCap, color: 'text-brand-primary dark:text-white', bg: 'bg-brand-primary/10 dark:bg-white/10' },
                     { label: 'School Levels', value: schoolClasses.length, icon: Users, color: 'text-emerald-500 dark:text-brand-accent', bg: 'bg-emerald-500/10 dark:bg-brand-accent/10' },
                     { label: 'College Years', value: collegeClasses.length, icon: GraduationCap, color: 'text-amber-500 dark:text-white', bg: 'bg-amber-500/10 dark:bg-white/10' },
                     { label: 'Revenue Types', value: Object.keys(feeStructure).length, icon: Users, color: 'text-brand-accent dark:text-brand-accent', bg: 'bg-brand-accent/10 dark:bg-brand-accent/20' },
                 ].map((stat, i) => (
-                    <div key={i} className="glass-card p-4 flex items-center gap-4 bg-white/5 dark:bg-[#001a33] backdrop-blur-sm border-white/10 dark:border-brand-accent/10 shadow-sm relative overflow-hidden group rounded-[var(--brand-radius,1.5rem)]">
-                        <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110", stat.bg)}>
-                            <stat.icon className={cn("w-6 h-6", stat.color)} />
+                    <div key={i} className="glass-card p-3 md:p-4 flex flex-col md:flex-row md:items-center gap-3 md:gap-4 bg-white/5 dark:bg-[#001a33] backdrop-blur-sm border-white/10 dark:border-brand-accent/10 shadow-sm relative overflow-hidden group rounded-[var(--brand-radius,1.5rem)]">
+                        <div className={cn("w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-110", stat.bg)}>
+                            <stat.icon className={cn("w-5 h-5 md:w-6 md:h-6", stat.color)} />
                         </div>
                         <div>
-                            <p className="text-[9px] font-black text-slate-400 dark:text-brand-accent/50 uppercase tracking-widest leading-tight">{stat.label}</p>
-                            <h4 className="text-xl font-black text-slate-800 dark:text-brand-accent leading-none mt-1">{stat.value}</h4>
+                            <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-brand-accent/50 uppercase tracking-widest leading-tight whitespace-nowrap">{stat.label}</p>
+                            <h4 className="text-lg md:text-xl font-black text-slate-800 dark:text-brand-accent leading-none mt-1">{stat.value}</h4>
                         </div>
                         <div className="absolute top-0 right-0 w-16 h-16 bg-white/5 dark:bg-brand-accent/5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/2"></div>
                     </div>

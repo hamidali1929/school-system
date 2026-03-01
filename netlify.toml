@@ -1,6 +1,11 @@
 [build]
-  command = "vite build"
+  command = "npm run build"
   publish = "dist"
+
+[[redirects]]
+  from = "/api/wa/*"
+  to = "https://school-system-backend.onrender.com/:splat"
+  status = 200
 
 [[redirects]]
   from = "/*"

@@ -37,5 +37,11 @@ export const MESSAGE_TEMPLATES = {
         `⏰ *LATE ARRIVAL* ⏰\n\nDear Parent,\nYour child *${studentName}* arrived *LATE* today (${date}). Please ensure timely arrival to avoid missing lessons.\n\nRegards,\n*${schoolName}*`,
 
     PAYMENT_RECEIPT: (studentName: string, amount: number, trxId: string, balance: number, schoolName: string) =>
-        `✅ *PAYMENT RECEIVED* ✅\n\nDear Parent,\nWe have received your payment of *Rs. ${amount}* for *${studentName}*.\n\n*Transaction ID:* ${trxId}\n*Current Balance:* Rs. ${balance}\n\nThank you for your timely payment.\n\nRegards,\n*${schoolName}*`
+        `✅ *PAYMENT RECEIVED* ✅\n\nDear Parent,\nWe have received your payment of *Rs. ${amount}* for *${studentName}*.\n\n*Transaction ID:* ${trxId}\n*Current Balance:* Rs. ${balance}\n\nThank you for your timely payment.\n\nRegards,\n*${schoolName}*`,
+
+    EXAM_RESULT_SUMMARY: (studentName: string, examName: string, percentage: string, grade: string, position: string, schoolName: string) =>
+        `🏆 *EXAM RESULT DECLARED* 🏆\n\nDear Parent,\nThe results for *${examName}* have been finalized for *${studentName}*.\n\n📊 *Performance Summary:*\n- *Percentage:* ${percentage}%\n- *Grade:* ${grade}\n- *Position:* ${position}\n\nCongratulations on the hard work!\n\nRegards,\n*${schoolName}*`,
+
+    MARKS_UPDATE: (studentName: string, examName: string, subject: string, obtained: number, total: number, schoolName: string) =>
+        `📝 *MARKS UPDATE* 📝\n\nDear Parent,\nMarks for *${subject}* in *${examName}* have been uploaded for *${studentName}*.\n\n*Score:* ${obtained} / ${total}\n\nRegards,\n*${schoolName}*`
 };

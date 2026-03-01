@@ -19,7 +19,7 @@ import { MobileArcMenu } from '../components/MobileArcMenu';
 import { StudentPanel } from '../pages/StudentPanel';
 import { ParentPanel } from '../pages/Parents';
 
-export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: string; role: string }; onLogout: () => void }) => {
+export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: string; role: string; permissions?: string[] }; onLogout: () => void }) => {
     const [activeTab, setActiveTab] = useState(user.role === 'teacher' ? 'attendance' : user.role === 'student' ? 'dashboard' : 'dashboard');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -47,7 +47,7 @@ export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: 
             case 'dashboard':
                 return <Dashboard onNavigate={setActiveTab} />;
             case 'students':
-                return user.role === 'admin' ? <Students /> : <StudentPanel />;
+                return (user.role === 'admin' || user.role === 'teacher') ? <Students /> : <StudentPanel />;
             case 'parents':
                 return <ParentPanel />;
             case 'classes':

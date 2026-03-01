@@ -19,9 +19,7 @@ export const sanitizeInput = (input: string): string => {
         .replace(/;/g, '')
         .replace(/--/g, '')
         .replace(/\/\*/g, '')
-        .replace(/\*\//g, '')
-        .replace(/'/g, "''")
-        .replace(/"/g, '""');
+        .replace(/\*\//g, '');
 
     // 3. Prevent common SQL keywords (optional but gives peace of mind)
     const sqlKeywords = ['DROP ', 'DELETE ', 'UPDATE ', 'INSERT ', 'UNION ', 'SELECT ', 'TRUNCATE '];

@@ -71,8 +71,29 @@ export const Teachers = () => {
 
     const handleExportTeachers = () => {
         if (filteredTeachers.length === 0) return;
-        const headers = ['ID', 'Name', 'Subject', 'Phone', 'Status', 'Classes', 'Email', 'Address'];
-        const csvRows = [headers.join(','), ...filteredTeachers.map(t => [t.id || '', `"${t.name}"`, `"${t.subject}"`, `"${t.phone || ''}"`, t.status, `"${(t.classes || []).join('; ')}"`, `"${t.email || ''}"`, `"${(t.address || '').replace(/"/g, '""')}"`].join(','))];
+        const headers = [
+            'ID                  ',
+            'Name                                ',
+            'Subject                             ',
+            'Phone               ',
+            'Status              ',
+            'Classes                             ',
+            'Email                               ',
+            'Address                                       '
+        ];
+        const csvRows = [
+            headers.join(','),
+            ...filteredTeachers.map(t => [
+                `"\t${(t.id || '').replace(/"/g, '""')}"`,
+                `"${(t.name || '').replace(/"/g, '""')}"`,
+                `"${(t.subject || '').replace(/"/g, '""')}"`,
+                `"\t${(t.phone || '').replace(/"/g, '""')}"`,
+                `"${t.status}"`,
+                `"${(t.classes || []).join('; ').replace(/"/g, '""')}"`,
+                `"${(t.email || '').replace(/"/g, '""')}"`,
+                `"${(t.address || '').replace(/"/g, '""')}"`
+            ].join(','))
+        ];
         const blob = new Blob([csvRows.join('\n')], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
@@ -89,18 +110,37 @@ export const Teachers = () => {
             const content = event.target?.result as string;
             const rows = content.split('\n').filter(r => r.trim());
             if (rows.length < 2) return;
-            const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+            const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/ /g, ''));
             let count = 0;
             rows.slice(1).forEach(row => {
-                const values = row.match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || [];
+                const values = [];
+                let insideQuote = false;
+                let currentWord = '';
+                for (let i = 0; i < row.length; i++) {
+                    const char = row[i];
+                    if (char === '"') {
+                        insideQuote = !insideQuote;
+                    } else if (char === ',' && !insideQuote) {
+                        values.push(currentWord);
+                        currentWord = '';
+                    } else {
+                        currentWord += char;
+                    }
+                }
+                values.push(currentWord);
+                const cleanValues = values.map(val => val.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+
                 const data: any = { status: 'Active', classes: [], permissions: [] };
                 headers.forEach((h, i) => {
-                    let v = (values[i] || '').trim().replace(/^"|"$/g, '').replace(/""/g, '"');
-                    if (h.includes('name')) data.name = v;
-                    else if (h.includes('subject')) data.subject = v;
-                    else if (h.includes('phone')) data.phone = v;
-                    else if (h.includes('email')) data.email = v;
-                    else if (h.includes('class')) data.classes = v.split(';').map(x => x.trim()).filter(Boolean);
+                    const v = cleanValues[i] || '';
+                    if (h === 'id') data.id = v;
+                    else if (h === 'name') data.name = v;
+                    else if (h === 'subject') data.subject = v;
+                    else if (h === 'phone') data.phone = v;
+                    else if (h === 'status') data.status = v;
+                    else if (h === 'classes') data.classes = v.split(';').map(x => x.trim()).filter(Boolean);
+                    else if (h === 'email') data.email = v;
+                    else if (h === 'address') data.address = v;
                 });
                 if (data.name && data.subject) {
                     addTeacher(data);

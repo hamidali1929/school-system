@@ -10,9 +10,9 @@ interface TeacherFormProps {
 }
 
 const ROLE_PRESETS: Record<string, string[]> = {
-    'Class Teacher': ['attendance_mark', 'results_manage', 'students_view', 'timetable_view'],
+    'Class Teacher': ['attendance_mark', 'results_manage', 'students_view', 'students_add', 'timetable_view'],
     'Subject Teacher': ['results_manage', 'timetable_view'],
-    'Administrator': ['attendance_mark', 'results_manage', 'students_view', 'timetable_view', 'library_access'],
+    'Administrator': ['attendance_mark', 'results_manage', 'students_view', 'students_add', 'timetable_view', 'library_access'],
     'Librarian': ['library_access', 'students_view'],
     'Custom': []
 };
@@ -21,12 +21,14 @@ const PERMISSIONS = [
     { id: 'attendance_mark', label: 'Mark Attendance', icon: 'CheckSquare', description: 'Permits marking daily student attendance' },
     { id: 'results_manage', label: 'Manage Results', icon: 'FileText', description: 'Enables data entry for exam marks' },
     { id: 'students_view', label: 'Student Directory', icon: 'Users', description: 'Access to student profiles & history' },
+    { id: 'students_add', label: 'Add Students', icon: 'UserPlus', description: 'Authority to register new students' },
     { id: 'timetable_view', label: 'Classroom Timetable', icon: 'Calendar', description: 'Edit and manage class schedules' },
-    { id: 'library_access', label: 'Library Control', icon: 'BookOpen', description: 'Manage books & borrowing records' }
+    { id: 'library_access', label: 'Library Control', icon: 'BookOpen', description: 'Manage books & borrowing records' },
+    { id: 'fees_manage', label: 'Financial Control', icon: 'DollarSign', description: 'Access to fee collection & ledgers' }
 ];
 
 export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
-    const { addTeacher, updateTeacher, settings, campuses } = useStore();
+    const { addTeacher, updateTeacher, settings, campuses, classes: allClasses } = useStore();
     const [isCameraOpen, setIsCameraOpen] = useState(false);
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,7 +63,8 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
         permissions: editTeacher?.permissions || ['timetable_view'],
         role: editTeacher?.role || 'Custom',
         classes: editTeacher?.classes || [],
-        baseSalary: editTeacher?.baseSalary || 0
+        baseSalary: editTeacher?.baseSalary || 0,
+        inchargeClass: editTeacher?.inchargeClass || ''
     });
 
     const [teacherPhoto, setTeacherPhoto] = useState<string | null>(editTeacher?.avatar || null);
@@ -411,6 +414,13 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
                                     <div className="space-y-1">
                                         <label className="text-[7px] font-black uppercase text-amber-600 font-outfit tracking-widest">Base Salary (PKR)</label>
                                         <input name="baseSalary" type="number" value={formData.baseSalary} onChange={handleInputChange} className="w-full bg-amber-500/5 border border-amber-500/20 text-amber-700 dark:text-yellow-400 rounded-lg px-2 py-1.5 text-[10px] font-black outline-none focus:ring-2 ring-amber-500/10" placeholder="0" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[7px] font-black uppercase text-emerald-600">Class Incharge</label>
+                                        <select name="inchargeClass" value={formData.inchargeClass} onChange={handleInputChange} className="w-full bg-emerald-500/5 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase outline-none">
+                                            <option value="">None</option>
+                                            {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
                                     </div>
                                 </div>
                             </section>
