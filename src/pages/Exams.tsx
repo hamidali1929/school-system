@@ -1520,7 +1520,7 @@ export const Exams = () => {
                                                 (classSubjects[selectedClass] || []).forEach((subj) => {
                                                     if (res.marks[subj] && res.marks[subj].obtained !== undefined && String(res.marks[subj].obtained) !== '') marksCount++;
                                                 });
-                                                return marksCount < classSubjCount; // Show if not all marks are entered
+                                                return classSubjCount === 0 || marksCount < classSubjCount; // Show if not all marks are entered OR if no subjects are defined yet
                                             })
                                             .map(s => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>);
                                     })()}

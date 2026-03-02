@@ -818,8 +818,13 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [settings.themeColors]);
 
-    const promoteStudents = (fromClass: string, toClass: string) => {
+    const promoteStudents = async (fromClass: string, toClass: string) => {
         setStudents(prev => prev.map(s => s.class === fromClass ? { ...s, class: toClass } : s));
+        try {
+            await supabase.from('students').update({ class: toClass }).eq('class', fromClass);
+        } catch (err) {
+            console.error('Promotion Sync Error:', err);
+        }
     };
 
     const sanitizeNumber = (val: any) => {
@@ -1213,8 +1218,15 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setTimetables(prev => ({ ...prev, ...newTimetables }));
     };
 
-    const bulkUpdateStudents = (studentIds: string[], updates: Partial<Student>) => {
+    const bulkUpdateStudents = async (studentIds: string[], updates: Partial<Student>) => {
         setStudents(prev => prev.map(s => studentIds.includes(s.id) ? { ...s, ...updates } : s));
+
+        try {
+            const { error } = await supabase.from('students').update(updates).in('id', studentIds);
+            if (error) console.error('Bulk Update Sync Error:', error);
+        } catch (err) {
+            console.error('Critical Bulk Update Error:', err);
+        }
 
         // Update examResults className for the active students if their class changed
         if (updates.class) {
