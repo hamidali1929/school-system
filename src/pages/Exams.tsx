@@ -27,10 +27,12 @@ export const Exams = () => {
     const canFinalizeResults = isAdmin || userProfile?.permissions?.includes('results_manage');
     const canManageSessions = isAdmin;
 
-    const [activeTab, setActiveTab] = useState<'manage' | 'marks' | 'results' | 'top' | 'custom' | 'campus_toppers'>('manage');
+    const [activeTab, setActiveTab] = useState<'manage' | 'marks' | 'results' | 'top' | 'custom' | 'campus_toppers' | 'range_toppers'>('manage');
     const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
     const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
     const [selectedClass, setSelectedClass] = useState<string | null>(currentUser?.role === 'teacher' && currentUser?.inchargeClass ? currentUser.inchargeClass : null);
+    const [selectedStartClass, setSelectedStartClass] = useState<string | null>(null);
+    const [selectedEndClass, setSelectedEndClass] = useState<string | null>(null);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
     const [certificateData, setCertificateData] = useState<null | Record<string, any>>(null);
     const [customCert, setCustomCert] = useState({
@@ -708,6 +710,210 @@ export const Exams = () => {
         XLSX.writeFile(wb, `Marks_${selectedClass}_${exam?.name || 'Exam'}.xlsx`);
 
         Swal.fire({ title: 'Exported', text: 'Marks template downloaded successfully.', icon: 'success', toast: true, position: 'top-end', timer: 3000 });
+    };
+
+    const handlePrintRangeToppers = () => {
+        if (!selectedExamId || !selectedCampus || !selectedStartClass || !selectedEndClass) {
+            Swal.fire({ title: 'Attention', text: 'Please select session, campus, and class range.', icon: 'warning' });
+            return;
+        }
+
+        const startIndex = classes.indexOf(selectedStartClass);
+        const endIndex = classes.indexOf(selectedEndClass);
+        if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
+            Swal.fire({ title: 'Invalid Range', text: 'Select a valid class range.', icon: 'error' });
+            return;
+        }
+
+        const selectedRange = classes.slice(startIndex, endIndex + 1);
+        const exam = exams.find(e => e.id === selectedExamId);
+
+        // Find all results for these classes in this campus
+        const rangeData = examResults.filter(r =>
+            r.examId === selectedExamId &&
+            selectedRange.includes(r.className) &&
+            students.find(s => s.id === r.studentId)?.campus === selectedCampus
+        ).sort((a, b) => b.percentage - a.percentage);
+
+        // Overall Top 3 in this range
+        const top3 = rangeData.slice(0, 3).map((r, idx) => ({
+            ...r,
+            pos: idx + 1,
+            student: students.find(s => s.id === r.studentId)
+        }));
+
+        if (top3.length === 0) {
+            Swal.fire({ title: 'No Data', text: 'No results found for the selected range.', icon: 'info' });
+            return;
+        }
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Range Toppers Report - ${selectedCampus}</title>
+                    <style>
+                        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
+                        @page { size: A4 portrait; margin: 10mm; }
+                        body { font-family: 'Outfit', sans-serif; padding: 0; margin: 0; color: #1e293b; background: white; }
+                        
+                        .page { padding: 40px; page-break-after: always; min-height: 250mm; display: flex; flex-direction: column; }
+                        .page:last-child { page-break-after: auto; }
+
+                        .main-header { text-align: center; margin-bottom: 40px; border-bottom: 3px solid #003366; padding-bottom: 25px; }
+                        .school-name { font-size: 36px; font-weight: 900; color: #003366; margin: 0; text-transform: uppercase; }
+                        .report-meta { font-size: 16px; font-weight: 700; color: #64748b; margin-top: 8px; text-transform: uppercase; letter-spacing: 2px; }
+                        .campus-tag { display: inline-block; background: #003366; color: white; padding: 8px 25px; border-radius: 50px; font-size: 14px; margin-top: 20px; font-weight: 800; }
+
+                        .range-info { margin: 30px 0; text-align: center; font-size: 18px; font-weight: 900; color: #003366; background: #f8fafc; padding: 15px; border-radius: 15px; border: 1px solid #e2e8f0; }
+
+                        /* Podiums for Top 3 */
+                        .podium-container { display: flex; justify-content: center; align-items: flex-end; gap: 20px; margin: 60px 0; height: 350px; }
+                        .podium-item { flex: 1; max-width: 250px; background: white; border: 1px solid #e2e8f0; border-radius: 20px; overflow: hidden; display: flex; flex-direction: column; align-items: center; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+                        .rank-1 { height: 350px; border-top: 8px solid #ffb81c; position: relative; z-index: 10; margin-bottom: 20px; }
+                        .rank-2 { height: 300px; border-top: 8px solid #94a3b8; }
+                        .rank-3 { height: 260px; border-top: 8px solid #ff7c00; }
+
+                        .rank-badge { width: 60px; height: 60px; border-radius: 15px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: white; font-size: 24px; margin-bottom: 20px; }
+                        .badge-1 { background: #ffb81c; }
+                        .badge-2 { background: #94a3b8; }
+                        .badge-3 { background: #ff7c00; }
+
+                        .topper-image { width: 80px; height: 80px; border-radius: 50%; background: #f1f5f9; display: flex; align-items: center; justify-content: center; font-size: 32px; margin-bottom: 15px; border: 4px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+                        .topper-name { font-weight: 900; font-size: 16px; color: #003366; text-transform: uppercase; text-align: center; line-height: 1.2; margin-bottom: 5px; }
+                        .topper-class { font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 15px; }
+                        .topper-score { font-size: 28px; font-weight: 900; color: #003366; }
+                        .topper-percent { font-size: 12px; font-weight: 700; color: #64748b; margin-top: -5px; }
+
+                        /* Detail Table */
+                        .data-table { width: 100%; border-collapse: collapse; margin-top: 30px; }
+                        .data-table th { background: #003366; color: white; padding: 15px; text-align: left; font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+                        .data-table td { padding: 15px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #1e293b; }
+                        .data-table tr:hover { background: #f8fafc; }
+
+                        .footer { margin-top: auto; border-top: 1px solid #e2e8f0; padding-top: 25px; display: flex; justify-content: space-between; font-size: 11px; font-weight: 700; color: #94a3b8; }
+                    </style>
+                </head>
+                <body>
+                    <!-- PAGE 1: Overall Champions Podium -->
+                    <div class="page">
+                        <div class="main-header">
+                            <h1 class="school-name">${settings.schoolName}</h1>
+                            <div class="report-meta">${exam?.name} (${exam?.session}) • OVERALL EXCELLENCE AWARDS</div>
+                            <div class="campus-tag">${selectedCampus} CAMPUS</div>
+                        </div>
+
+                        <div class="range-info">
+                            CROSS-CLASS CHAMPIONS: ${selectedStartClass} TO ${selectedEndClass}
+                        </div>
+
+                        <div class="podium-container">
+                            <!-- 2nd Place -->
+                            ${top3[1] ? `
+                                <div class="podium-item rank-2">
+                                    <div class="rank-badge badge-2">2</div>
+                                    <div class="topper-image">🥈</div>
+                                    <div class="topper-name">${top3[1].student?.name}</div>
+                                    <div class="topper-class">${top3[1].className}</div>
+                                    <div class="topper-score">${top3[1].percentage.toFixed(1)}%</div>
+                                    <div class="topper-percent">AGGREGATE SCORE</div>
+                                </div>
+                            ` : ''}
+
+                            <!-- 1st Place -->
+                            ${top3[0] ? `
+                                <div class="podium-item rank-1">
+                                    <div class="rank-badge badge-1">1</div>
+                                    <div class="topper-image">🥇</div>
+                                    <div class="topper-name" style="font-size: 20px;">${top3[0].student?.name}</div>
+                                    <div class="topper-class">${top3[0].className}</div>
+                                    <div class="topper-score" style="font-size: 36px; color: #b45309;">${top3[0].percentage.toFixed(1)}%</div>
+                                    <div class="topper-percent" style="color: #b45309;">OVERALL CHAMPION</div>
+                                </div>
+                            ` : ''}
+
+                            <!-- 3rd Place -->
+                            ${top3[2] ? `
+                                <div class="podium-item rank-3">
+                                    <div class="rank-badge badge-3">3</div>
+                                    <div class="topper-image">🥉</div>
+                                    <div class="topper-name">${top3[2].student?.name}</div>
+                                    <div class="topper-class">${top3[2].className}</div>
+                                    <div class="topper-score">${top3[2].percentage.toFixed(1)}%</div>
+                                    <div class="topper-percent">AGGREGATE SCORE</div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <div class="footer">
+                            <div>GENERATED ON ${new Date().toLocaleString().toUpperCase()}</div>
+                            <div>CHAMPIONS PODIUM • PAGE 1</div>
+                        </div>
+                    </div>
+
+                    <!-- PAGE 2: Full Benchmarks -->
+                    <div class="page">
+                        <div class="main-header">
+                            <h1 class="school-name">${settings.schoolName}</h1>
+                            <div class="report-meta">INSTITUTIONAL PERFORMANCE AUDIT</div>
+                            <div class="campus-tag">${selectedCampus} - Detailed Range Registry</div>
+                        </div>
+
+                        <div style="font-size: 14px; font-weight: 900; text-transform: uppercase; color: #003366; border-left: 4px solid #003366; padding-left: 15px; margin-bottom: 25px;">
+                            Full Merit List (Top 20 in Range)
+                        </div>
+
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 60px;">Rank</th>
+                                    <th>Student Details</th>
+                                    <th>Father Name</th>
+                                    <th>Class</th>
+                                    <th style="text-align: center;">Marks</th>
+                                    <th style="text-align: center;">Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rangeData.slice(0, 20).map((r, idx) => {
+            const s = students.find(std => std.id === r.studentId);
+            return `
+                                        <tr>
+                                            <td style="font-weight: 900; color: #003366;">#${idx + 1}</td>
+                                            <td>
+                                                <div style="font-weight: 900;">${s?.name}</div>
+                                                <div style="font-size: 10px; color: #94a3b8;">ID: ${s?.id}</div>
+                                            </td>
+                                            <td style="font-weight: 600;">${s?.fatherName || '---'}</td>
+                                            <td style="font-weight: 700; color: #003366;">${r.className}</td>
+                                            <td style="text-align: center; font-family: monospace;">${r.totalObtained} / ${r.totalPossible}</td>
+                                            <td style="text-align: center; font-weight: 900; color: #003366;">${r.percentage.toFixed(1)}%</td>
+                                        </tr>
+                                    `;
+        }).join('')}
+                            </tbody>
+                        </table>
+
+                        <div class="footer">
+                            <div>OFFICIAL RECOGNITION BUREAU</div>
+                            <div>DETAILED MERIT LIST • PAGE 2</div>
+                        </div>
+                    </div>
+
+                    <script>
+                        window.onload = function() {
+                            setTimeout(() => {
+                                window.print();
+                                // window.close();
+                            }, 500);
+                        };
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
     };
 
     const handlePrintCampusToppers = () => {
@@ -1529,6 +1735,7 @@ export const Exams = () => {
                         { id: 'results', label: 'Standings', icon: Trophy, visible: true },
                         { id: 'top', label: 'Top Rankers', icon: Medal, visible: true },
                         { id: 'campus_toppers', label: 'Campus Tops', icon: Building2, visible: true },
+                        { id: 'range_toppers', label: 'Range Tops', icon: Award, visible: true },
                         { id: 'custom', label: 'Special', icon: Award, visible: canManageSpecialAwards }
                     ].filter(t => t.visible).map(tab => (
                         <button
@@ -2745,6 +2952,143 @@ export const Exams = () => {
                                     </div>
                                 );
                             })}
+                        </div>
+                    )}
+                </div>
+            )}
+            {activeTab === 'range_toppers' && (
+                <div className="space-y-6">
+                    {/* Range Selectors */}
+                    <div className="bg-white/80 dark:bg-[#000816]/80 rounded-[1.5rem] md:rounded-[2rem] p-2 shadow-sm border border-slate-200/50 dark:border-white/5 grid grid-cols-1 md:grid-cols-4 gap-2">
+                        <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
+                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Session</label>
+                            <select
+                                value={selectedExamId || ''}
+                                onChange={(e) => setSelectedExamId(e.target.value)}
+                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
+                            >
+                                <option value="">Select Session...</option>
+                                {exams.filter(e => e.status === 'Finalized').map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
+                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Campus</label>
+                            <select
+                                value={selectedCampus || ''}
+                                onChange={(e) => setSelectedCampus(e.target.value)}
+                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
+                            >
+                                <option value="">Select Campus...</option>
+                                {(useStore().campuses || []).map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
+                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Start Class</label>
+                            <select
+                                value={selectedStartClass || ''}
+                                onChange={(e) => setSelectedStartClass(e.target.value)}
+                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
+                            >
+                                <option value="">Select Class...</option>
+                                {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
+                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">End Class</label>
+                            <select
+                                value={selectedEndClass || ''}
+                                onChange={(e) => setSelectedEndClass(e.target.value)}
+                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
+                            >
+                                <option value="">Select Class...</option>
+                                {classes.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="flex justify-center">
+                        <button
+                            onClick={handlePrintRangeToppers}
+                            disabled={!selectedExamId || !selectedCampus || !selectedStartClass || !selectedEndClass}
+                            className="px-12 py-4 bg-brand-primary text-white rounded-full text-[11px] font-black uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-primary/30 flex items-center gap-3 disabled:opacity-50 disabled:scale-100"
+                        >
+                            <Award className="w-5 h-5" /> Export Over-All Toppers
+                        </button>
+                    </div>
+
+                    {/* Overall Toppers Display */}
+                    {selectedExamId && selectedCampus && selectedStartClass && selectedEndClass ? (
+                        <div className="pt-10">
+                            {(() => {
+                                const startIndex = classes.indexOf(selectedStartClass);
+                                const endIndex = classes.indexOf(selectedEndClass);
+                                const selectedRange = classes.slice(startIndex, endIndex + 1);
+
+                                const rangeResults = examResults.filter(r =>
+                                    r.examId === selectedExamId &&
+                                    selectedRange.includes(r.className) &&
+                                    students.find(s => s.id === r.studentId)?.campus === selectedCampus
+                                ).sort((a, b) => b.percentage - a.percentage).slice(0, 3);
+
+                                if (rangeResults.length === 0) {
+                                    return (
+                                        <div className="py-20 text-center glass-card border-dashed">
+                                            <Award className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                            <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">No matching results in this range</p>
+                                        </div>
+                                    );
+                                }
+
+                                return (
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end max-w-5xl mx-auto px-4">
+                                        {[2, 1, 3].map((pos) => {
+                                            const res = rangeResults[pos - 1];
+                                            if (!res) return <div key={pos} className="hidden md:block"></div>;
+                                            const student = students.find(s => s.id === res.studentId);
+
+                                            return (
+                                                <div key={pos} className={cn(
+                                                    "bg-white dark:bg-[#000816] p-8 rounded-[2.5rem] flex flex-col items-center text-center relative border border-slate-100 dark:border-white/5 transition-all duration-500 hover:-translate-y-2",
+                                                    pos === 1 ? "md:pb-16 order-1 md:order-2 ring-4 ring-amber-400/20 shadow-2xl" :
+                                                        pos === 2 ? "order-2 md:order-1 opacity-90" : "order-3 opacity-80"
+                                                )}>
+                                                    <div className={cn(
+                                                        "w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-xl",
+                                                        pos === 1 ? "bg-amber-400 text-white" : pos === 2 ? "bg-slate-400 text-white" : "bg-orange-400 text-white"
+                                                    )}>
+                                                        <Trophy className="w-8 h-8" />
+                                                    </div>
+                                                    <div className="absolute top-4 right-4 font-black text-4xl text-slate-100 dark:text-white/5 select-none">#{pos}</div>
+
+                                                    <h4 className="font-black text-brand-primary dark:text-white uppercase text-sm tracking-tight mb-1">{student?.name}</h4>
+                                                    <div className="px-3 py-1 bg-slate-50 dark:bg-white/5 rounded-full text-[8px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                                                        {res.className} • {selectedCampus}
+                                                    </div>
+
+                                                    <div className="flex items-center gap-1 mb-2">
+                                                        {[...Array(5)].map((_, i) => (
+                                                            <Star key={i} className={cn("w-3 h-3", i < (5 - pos + 1) ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
+                                                        ))}
+                                                    </div>
+
+                                                    <div className="text-3xl md:text-4xl font-black text-brand-primary dark:text-brand-accent tabular-nums">
+                                                        {res.percentage.toFixed(1)}%
+                                                    </div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">Cross-Range Standing</p>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    ) : (
+                        <div className="py-32 text-center glass-card border-dashed">
+                            <Award className="w-16 h-16 text-slate-200 dark:text-brand-accent/10 mx-auto mb-4" />
+                            <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Select Campus & Class Range to Reveal Legends</p>
                         </div>
                     )}
                 </div>
