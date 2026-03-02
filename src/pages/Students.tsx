@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Download, Plus, X, FileText, Contact, Edit, Trash2, Camera, CheckCircle2, Users, DollarSign, Layers } from 'lucide-react';
+import { Search, Download, Plus, X, FileText, Contact, Edit, Trash2, Camera, CheckCircle2, Users, DollarSign, Layers, ArrowRightLeft } from 'lucide-react';
 import { useStore, type Student } from '../context/StoreContext';
 import { AdmissionForm } from '../components/AdmissionForm';
 import { BlankAdmissionForm } from '../components/BlankAdmissionForm';
@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, School, GraduationCap } from 'lucide-react';
 
 export const Students = () => {
-    const { students, deleteStudent, addStudent, settings, campuses, currentUser } = useStore();
+    const { students, deleteStudent, addStudent, settings, campuses, currentUser, bulkUpdateStudents, classes: systemClasses } = useStore();
     const canAddStudent = currentUser?.role === 'admin' || currentUser?.permissions?.includes('students_add');
     const isAdmin = currentUser?.role === 'admin';
     const canViewStudents = isAdmin || currentUser?.permissions?.includes('students_view') || currentUser?.permissions?.includes('students_add');
@@ -43,7 +43,7 @@ export const Students = () => {
 
         const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase()) ||
             s.id.toLowerCase().includes(search.toLowerCase());
-        const matchesClass = filterClass === 'All' || s.class.includes(filterClass);
+        const matchesClass = filterClass === 'All' || s.class === filterClass;
         const matchesStatus = statusFilter === 'All' || s.status === statusFilter;
         const matchesCampus = campusFilter === 'All' || s.campus === campusFilter;
         return matchesSearch && matchesClass && matchesStatus && matchesCampus;
@@ -345,6 +345,68 @@ export const Students = () => {
         });
     };
 
+    const handleBulkMigrate = async () => {
+        if (selectedIds.length === 0) return;
+
+        const classOptionsHtml = systemClasses.map(c => `<option value="${c}">${c}</option>`).join('');
+        const campusOptionsHtml = campuses.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+
+        const result = await Swal.fire({
+            title: 'Bulk Migrate Students',
+            html: `
+                <div class="flex flex-col gap-4 text-left">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Select New Class</label>
+                        <select id="migrate-class" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white">
+                            <option value="">Select a class...</option>
+                            ${classOptionsHtml}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">Update Campus (Optional)</label>
+                        <select id="migrate-campus" class="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-white">
+                            <option value="">Keep Same Campus</option>
+                            ${campusOptionsHtml}
+                        </select>
+                    </div>
+                </div>
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'Migrate Students',
+            confirmButtonColor: 'var(--brand-primary)',
+            preConfirm: () => {
+                const targetClass = (document.getElementById('migrate-class') as HTMLSelectElement).value;
+                const targetCampus = (document.getElementById('migrate-campus') as HTMLSelectElement).value;
+                if (!targetClass) {
+                    Swal.showValidationMessage('Please select a target class');
+                    return false;
+                }
+                return { targetClass, targetCampus };
+            }
+        });
+
+        if (result.isConfirmed && result.value) {
+            const updates: Partial<Student> = { class: result.value.targetClass };
+            if (result.value.targetCampus) {
+                updates.campus = result.value.targetCampus;
+            }
+
+            bulkUpdateStudents(selectedIds, updates);
+            setSelectedIds([]);
+
+            Swal.fire({
+                title: 'Migration Complete',
+                text: `${selectedIds.length} students migrated successfully.`,
+                icon: 'success',
+                toast: true,
+                position: 'top-end',
+                timer: 3000,
+                showConfirmButton: false
+            });
+        }
+    };
+
     const handleBulkDelete = () => {
         if (selectedIds.length === 0) return;
 
@@ -528,6 +590,13 @@ export const Students = () => {
                             )}
                             {selectedIds.length > 0 && (
                                 <>
+                                    <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
+                                    <button
+                                        onClick={handleBulkMigrate}
+                                        className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest transition-all shadow-lg flex items-center gap-2"
+                                    >
+                                        <ArrowRightLeft className="w-3.5 h-3.5" /> Migrate ({selectedIds.length})
+                                    </button>
                                     <div className="w-[1px] h-4 bg-white/10 mx-1"></div>
                                     <button
                                         onClick={() => setShowBulkFeeVouchers(true)}

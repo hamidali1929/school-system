@@ -1,0 +1,2 @@
+src/pages/Exams.tsx(5,27): error TS6133: 'Sparkles' is declared but its value is never read.
+src/pages/Exams.tsx(1240,11): error TS6133: 'selectedExam' is declared but its value is never read.

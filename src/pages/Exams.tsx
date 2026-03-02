@@ -1,9 +1,11 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import {
     Plus, Trophy, BookOpen, Users, Calendar,
     CheckCircle2, AlertCircle, Trash2, Medal, Calculator, Save,
-    Printer, Award, Star, Sparkles, ClipboardList, MessageSquare, Share2, Edit2
+    Printer, Award, Star, ClipboardList, MessageSquare, Share2, Edit2,
+    FileDown, FileUp
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { useStore } from '../context/StoreContext';
 import { MESSAGE_TEMPLATES } from '../utils/whatsapp';
 import * as htmlToImage from 'html-to-image';
@@ -25,12 +27,12 @@ export const Exams = () => {
     const canFinalizeResults = isAdmin || userProfile?.permissions?.includes('results_manage');
     const canManageSessions = isAdmin;
 
-    const [activeTab, setActiveTab] = useState<'manage' | 'marks' | 'results' | 'custom'>('manage');
+    const [activeTab, setActiveTab] = useState<'manage' | 'marks' | 'results' | 'top' | 'custom'>('manage');
     const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
     const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
     const [selectedClass, setSelectedClass] = useState<string | null>(currentUser?.role === 'teacher' && currentUser?.inchargeClass ? currentUser.inchargeClass : null);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-    const [certificateData, setCertificateData] = useState<any>(null);
+    const [certificateData, setCertificateData] = useState<null | Record<string, any>>(null);
     const [customCert, setCustomCert] = useState({
         name: '',
         category: '',
@@ -611,19 +613,7 @@ export const Exams = () => {
                                                 <span style="font-size: 13pt; color: var(--brand-accent); font-weight: 900;">#${result.position}</span>
                                             </div>
                                         ` : ''}
-                                        ${result.campusPosition && result.campusPosition <= 3 ? `
-                                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #cbd5e1; padding-bottom: 2px;">
-                                                <span class="summary-label" style="font-size: 7pt;">Campus Position</span>
-                                                <span style="font-size: 13pt; color: var(--brand-accent); font-weight: 900;">#${result.campusPosition}</span>
-                                            </div>
-                                        ` : ''}
-                                        ${result.schoolPosition && result.schoolPosition <= 3 ? `
-                                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                                <span class="summary-label" style="font-size: 7pt;">School Position</span>
-                                                <span style="font-size: 13pt; color: var(--brand-accent); font-weight: 900;">#${result.schoolPosition}</span>
-                                            </div>
-                                        ` : ''}
-                                        ${(!result.position || result.position > 3) && (!result.campusPosition || result.campusPosition > 3) && (!result.schoolPosition || result.schoolPosition > 3) ? `
+                                        ${(!result.position || result.position > 3) ? `
                                             <div style="display: flex; justify-content: space-between; align-items: center; height: 100%;">
                                                 <span class="summary-label">Position</span>
                                                 <span class="summary-value" style="font-size: 18pt; opacity: 0.5;">---</span>
@@ -682,6 +672,88 @@ export const Exams = () => {
             </script>
         `);
         WindowPrt.document.close();
+    };
+
+    const handleExportMarks = () => {
+        if (!selectedExamId || !selectedClass) {
+            Swal.fire({ title: 'Selections Required', text: 'Select an exam and class to export marks template.', icon: 'warning' });
+            return;
+        }
+
+        const exam = exams.find(e => e.id === selectedExamId);
+        const subjects = classSubjects[selectedClass] || [];
+        const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus));
+
+        const data = relevantStudents.map(student => {
+            const result = examResults.find(r => r.studentId === student.id && r.examId === selectedExamId);
+            const row: any = {
+                'Student ID': student.id,
+                'Name': student.name,
+                ' फादर नेम (Father Name)': student.fatherName || '',
+                'Campus': student.campus || ''
+            };
+
+            subjects.forEach(subject => {
+                const markData = result?.marks?.[subject];
+                row[`${subject} (Obtained)`] = markData?.obtained ?? '';
+                row[`${subject} (Total)`] = markData?.total ?? subjectTotalMarks?.[selectedClass]?.[subject] ?? 100;
+            });
+
+            return row;
+        });
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Marks");
+        XLSX.writeFile(wb, `Marks_${selectedClass}_${exam?.name || 'Exam'}.xlsx`);
+
+        Swal.fire({ title: 'Exported', text: 'Marks template downloaded successfully.', icon: 'success', toast: true, position: 'top-end', timer: 3000 });
+    };
+
+    const handleImportMarks = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file || !selectedExamId || !selectedClass) return;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const wsname = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[wsname];
+                const json = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+                let importCount = 0;
+                json.forEach(row => {
+                    const studentId = row['Student ID'];
+                    if (!studentId) return;
+
+                    Object.keys(row).forEach(key => {
+                        if (key.endsWith(' (Obtained)')) {
+                            const subject = key.replace(' (Obtained)', '');
+                            const obtained = row[key];
+                            const total = row[`${subject} (Total)`];
+                            if (obtained !== undefined && obtained !== '') {
+                                inputMarks(selectedExamId, selectedClass, studentId, subject, obtained, total);
+                                importCount++;
+                            }
+                        }
+                    });
+                });
+
+                Swal.fire({
+                    title: 'Import Complete',
+                    text: `Successfully updated marks for ${importCount} subject entries.`,
+                    icon: 'success'
+                });
+                // Reset file input
+                event.target.value = '';
+            } catch (err) {
+                console.error(err);
+                Swal.fire({ title: 'Import Failed', text: 'Ensure the file matches the exported template format.', icon: 'error' });
+            }
+        };
+        reader.readAsArrayBuffer(file);
     };
 
     const handleSendWhatsAppResult = async (data: { student: any, result: any, exam: any }, silent = false) => {
@@ -880,7 +952,7 @@ export const Exams = () => {
         if (selectedResults.length > 0) {
             results = results.filter(r => selectedResults.includes(r.studentId));
         }
-        const exam = selectedExamId ? exams.find(e => e.id === selectedExamId) : undefined;
+        const exam = exams.find(e => e.id === selectedExamId);
 
         if (results.length === 0) {
             Swal.fire({ title: 'No Results', text: `No results found for this class ${selectedCampus ? `in ${selectedCampus}` : ''}.`, icon: 'info' });
@@ -1237,7 +1309,7 @@ export const Exams = () => {
             WindowPrt.document.close();
         }
     };
-    const selectedExam = selectedExamId ? exams.find(e => e.id === selectedExamId) : undefined;
+
 
     return (
         <div className="space-y-6 animate-fade-in font-outfit">
@@ -1272,6 +1344,7 @@ export const Exams = () => {
                         { id: 'manage', label: 'Sessions', icon: Calendar, visible: true },
                         { id: 'marks', label: 'Marks', icon: Save, visible: true },
                         { id: 'results', label: 'Standings', icon: Trophy, visible: true },
+                        { id: 'top', label: 'Top Rankers', icon: Medal, visible: true },
                         { id: 'custom', label: 'Special', icon: Award, visible: canManageSpecialAwards }
                     ].filter(t => t.visible).map(tab => (
                         <button
@@ -1435,9 +1508,39 @@ export const Exams = () => {
                                     onChange={(e) => setSelectedStudentId(e.target.value)}
                                     className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-brand-primary dark:text-brand-accent outline-none appearance-none truncate cursor-pointer"
                                 >
-                                    <option value="">Select Profile...</option>
-                                    {students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus)).map(s => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>)}
+                                    <option value="" disabled>Select Student...</option>
+                                    {(() => {
+                                        const classSubjCount = (classSubjects[selectedClass] || []).length;
+                                        return students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus))
+                                            .filter(s => {
+                                                if (s.id === selectedStudentId) return true; // Always show currently selected
+                                                const res = examResults.find(r => r.studentId === s.id && r.examId === selectedExamId);
+                                                if (!res) return true; // No result yet
+                                                let marksCount = 0;
+                                                (classSubjects[selectedClass] || []).forEach((subj) => {
+                                                    if (res.marks[subj] && res.marks[subj].obtained !== undefined && String(res.marks[subj].obtained) !== '') marksCount++;
+                                                });
+                                                return marksCount < classSubjCount; // Show if not all marks are entered
+                                            })
+                                            .map(s => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>);
+                                    })()}
                                 </select>
+                            </div>
+                        )}
+
+                        {selectedClass && (
+                            <div className="flex items-center gap-1.5 px-2">
+                                <button
+                                    onClick={handleExportMarks}
+                                    title="Export Template"
+                                    className="p-3 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all active:scale-95 border border-indigo-100 dark:border-indigo-500/20"
+                                >
+                                    <FileDown className="w-4 h-4" />
+                                </button>
+                                <label className="p-3 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all active:scale-95 border border-emerald-100 dark:border-emerald-500/20 cursor-pointer">
+                                    <FileUp className="w-4 h-4" />
+                                    <input type="file" accept=".xlsx,.xls" onChange={handleImportMarks} className="hidden" />
+                                </label>
                             </div>
                         )}
                     </div>
@@ -1560,9 +1663,56 @@ export const Exams = () => {
                                                     <label className="text-[8px] font-black text-brand-primary dark:text-brand-accent uppercase tracking-[0.2em] block mb-2 ml-1">Score Obtained</label>
                                                     <div className="relative">
                                                         <input
+                                                            id={`mark-input-obtained-${subject.replace(/\\s+/g, '-')}`}
                                                             type="number"
                                                             value={subjectData.obtained !== undefined ? subjectData.obtained : ''}
                                                             onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, subject, e.target.value, subjectData.total)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    const subjectsList = classSubjects[selectedClass] || [];
+                                                                    const currentIndex = subjectsList.indexOf(subject);
+                                                                    if (currentIndex < subjectsList.length - 1) {
+                                                                        const nextSubject = subjectsList[currentIndex + 1];
+                                                                        const nextInputs = document.querySelectorAll(`input[id="mark-input-obtained-${nextSubject.replace(/\\s+/g, '-')}"]`);
+                                                                        for (let i = 0; i < nextInputs.length; i++) {
+                                                                            const el = nextInputs[i] as HTMLInputElement;
+                                                                            if (el.offsetParent !== null) { el.focus(); el.select(); return; }
+                                                                        }
+                                                                    } else {
+                                                                        // Next Student
+                                                                        const classSubjCount = subjectsList.length;
+
+                                                                        // All students in this class/campus
+                                                                        const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus));
+                                                                        const currentIndexInAll = relevantStudents.findIndex(s => s.id === selectedStudentId);
+
+                                                                        // Find the NEXT student who is incomplete
+                                                                        const nextIncompleteStudent = relevantStudents.find((s, idx) => {
+                                                                            if (idx <= currentIndexInAll) return false;
+                                                                            const res = examResults.find(r => r.studentId === s.id && r.examId === selectedExamId);
+                                                                            if (!res) return true;
+                                                                            let marksCount = 0;
+                                                                            subjectsList.forEach((subj) => {
+                                                                                if (res.marks[subj] && res.marks[subj].obtained !== undefined && String(res.marks[subj].obtained) !== '') marksCount++;
+                                                                            });
+                                                                            return marksCount < classSubjCount;
+                                                                        });
+
+                                                                        if (nextIncompleteStudent) {
+                                                                            setSelectedStudentId(nextIncompleteStudent.id);
+                                                                            setTimeout(() => {
+                                                                                const firstSubject = subjectsList[0];
+                                                                                const nextInputs = document.querySelectorAll(`input[id="mark-input-obtained-${firstSubject.replace(/\\s+/g, '-')}"]`);
+                                                                                for (let i = 0; i < nextInputs.length; i++) {
+                                                                                    const el = nextInputs[i] as HTMLInputElement;
+                                                                                    if (el.offsetParent !== null) { el.focus(); el.select(); return; }
+                                                                                }
+                                                                            }, 200);
+                                                                        }
+                                                                    }
+                                                                }
+                                                            }}
                                                             className="w-full bg-white dark:bg-slate-800 border-none text-center py-3 rounded-xl text-base font-[1000] text-brand-primary dark:text-brand-accent outline-none shadow-sm shadow-slate-200/50 dark:shadow-none focus:ring-2 focus:ring-brand-primary/40 dark:focus:ring-brand-accent/50 transition-all font-outfit placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:scale-105"
                                                             placeholder="--"
                                                         />
@@ -1633,9 +1783,56 @@ export const Exams = () => {
                                                     <td className="px-6 py-4">
                                                         <div className="max-w-[120px] mx-auto">
                                                             <input
+                                                                id={`mark-input-obtained-${subject.replace(/\\s+/g, '-')}`}
                                                                 type="number"
                                                                 value={subjectData.obtained !== undefined ? subjectData.obtained : ''}
                                                                 onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, subject, e.target.value, subjectData.total)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                        const subjectsList = classSubjects[selectedClass] || [];
+                                                                        const currentIndex = subjectsList.indexOf(subject);
+                                                                        if (currentIndex < subjectsList.length - 1) {
+                                                                            const nextSubject = subjectsList[currentIndex + 1];
+                                                                            const nextInputs = document.querySelectorAll(`input[id="mark-input-obtained-${nextSubject.replace(/\\s+/g, '-')}"]`);
+                                                                            for (let i = 0; i < nextInputs.length; i++) {
+                                                                                const el = nextInputs[i] as HTMLInputElement;
+                                                                                if (el.offsetParent !== null) { el.focus(); el.select(); return; }
+                                                                            }
+                                                                        } else {
+                                                                            // Next Student
+                                                                            const classSubjCount = subjectsList.length;
+
+                                                                            // All students in this class/campus
+                                                                            const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus));
+                                                                            const currentIndexInAll = relevantStudents.findIndex(s => s.id === selectedStudentId);
+
+                                                                            // Find the NEXT student who is incomplete
+                                                                            const nextIncompleteStudent = relevantStudents.find((s, idx) => {
+                                                                                if (idx <= currentIndexInAll) return false;
+                                                                                const res = examResults.find(r => r.studentId === s.id && r.examId === selectedExamId);
+                                                                                if (!res) return true;
+                                                                                let marksCount = 0;
+                                                                                subjectsList.forEach((subj) => {
+                                                                                    if (res.marks[subj] && res.marks[subj].obtained !== undefined && String(res.marks[subj].obtained) !== '') marksCount++;
+                                                                                });
+                                                                                return marksCount < classSubjCount;
+                                                                            });
+
+                                                                            if (nextIncompleteStudent) {
+                                                                                setSelectedStudentId(nextIncompleteStudent.id);
+                                                                                setTimeout(() => {
+                                                                                    const firstSubject = subjectsList[0];
+                                                                                    const nextInputs = document.querySelectorAll(`input[id="mark-input-obtained-${firstSubject.replace(/\\s+/g, '-')}"]`);
+                                                                                    for (let i = 0; i < nextInputs.length; i++) {
+                                                                                        const el = nextInputs[i] as HTMLInputElement;
+                                                                                        if (el.offsetParent !== null) { el.focus(); el.select(); return; }
+                                                                                    }
+                                                                                }, 200);
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }}
                                                                 className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 text-center py-2 rounded-[var(--brand-radius,0.75rem)] text-sm font-black focus:ring-2 ring-brand-primary/20 outline-none transition-all dark:text-white"
                                                                 placeholder="00"
                                                             />
@@ -1682,7 +1879,7 @@ export const Exams = () => {
                                 className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none truncate cursor-pointer"
                             >
                                 <option value="">All Campuses...</option>
-                                {(useStore() as any).campuses?.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                {(useStore()).campuses?.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
                             </select>
                         </div>
 
@@ -2067,6 +2264,102 @@ export const Exams = () => {
                         <div className="py-20 text-center glass-card border-dashed">
                             <Trophy className="w-12 h-12 text-slate-200 mx-auto mb-4" />
                             <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Select an Active and Finalized Session to view standings</p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {activeTab === 'top' && (
+                <div className="space-y-6">
+                    <div className="bg-white/80 dark:bg-[#000816]/80 rounded-[1.5rem] md:rounded-[2rem] p-4 shadow-sm border border-slate-200/50 dark:border-white/5 flex gap-4 max-w-md mx-auto relative">
+                        <div className="flex-1">
+                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Finalized Session</label>
+                            <select
+                                value={selectedExamId || ''}
+                                onChange={(e) => setSelectedExamId(e.target.value)}
+                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none truncate cursor-pointer"
+                            >
+                                <option value="">Select Session...</option>
+                                {exams.filter(e => e.status === 'Finalized').map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                            </select>
+                        </div>
+                    </div>
+
+                    {selectedExamId ? (
+                        <div className="space-y-12 pb-12">
+                            {/* School Top 3 */}
+                            <div>
+                                <h3 className="text-xl font-black text-center mb-8 uppercase text-slate-800 dark:text-white">Overall School Top Positions</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end max-w-5xl mx-auto">
+                                    {[2, 1, 3].map((pos) => {
+                                        const res = examResults.find(r => r.examId === selectedExamId && r.schoolPosition === pos);
+                                        if (!res) return <div key={pos} className="hidden md:block"></div>;
+                                        const student = students.find(s => s.id === res.studentId);
+                                        return (
+                                            <div key={pos} className={cn(
+                                                "glass-card p-6 md:p-8 flex flex-col items-center text-center relative animate-in slide-in-from-bottom-8 duration-700 shadow-xl",
+                                                pos === 1 ? "bg-gradient-to-br from-amber-50 to-amber-100/50 border-amber-200 scale-100 md:scale-110 z-10 order-1 md:order-2 dark:from-white/10 dark:to-white/5 dark:border-white/20" :
+                                                    pos === 2 ? "bg-slate-50 border-slate-200 order-2 md:order-1 dark:bg-white/5 dark:border-white/10" : "bg-orange-50 border-orange-200 order-3 dark:bg-white/5 dark:border-white/10"
+                                            )}>
+                                                <div className={cn(
+                                                    "w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg ring-4 ring-white",
+                                                    pos === 1 ? "bg-amber-400" : pos === 2 ? "bg-slate-300" : "bg-orange-300"
+                                                )}>
+                                                    <Trophy className="w-8 h-8 text-white" />
+                                                </div>
+                                                <h4 className="font-black text-slate-800 dark:text-white uppercase text-sm leading-tight">{student?.name}</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 mt-1">{student?.id} • {student?.class}</p>
+                                                <div className="my-4">
+                                                    <p className="text-3xl font-black text-slate-800 dark:text-white">{res.percentage.toFixed(1)}%</p>
+                                                </div>
+                                                <span className="px-3 py-1 bg-white/50 rounded-full text-[9px] font-black uppercase text-slate-500 tracking-widest border border-slate-200">
+                                                    School Position #{pos}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            {/* Campus Top 3 (Grouped by Campus) */}
+                            {Array.from(new Set(students.map(s => s.campus))).filter(Boolean).map(campus => {
+                                const campusResults = examResults.filter(r => r.examId === selectedExamId && r.campusPosition && r.campusPosition <= 3 && students.find(s => s.id === r.studentId)?.campus === campus);
+                                if (campusResults.length === 0) return null;
+                                return (
+                                    <div key={campus} className="pt-8 border-t border-slate-200 dark:border-white/10">
+                                        <h3 className="text-lg font-black text-center mb-8 uppercase text-slate-600 dark:text-slate-300">{campus} Top Positions</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end max-w-4xl mx-auto">
+                                            {[2, 1, 3].map((pos) => {
+                                                const res = campusResults.find(r => r.campusPosition === pos);
+                                                if (!res) return <div key={pos} className="hidden md:block"></div>;
+                                                const student = students.find(s => s.id === res.studentId);
+                                                return (
+                                                    <div key={pos} className={cn(
+                                                        "bg-white/60 dark:bg-white/5 backdrop-blur-sm p-5 md:p-6 rounded-2xl md:rounded-[2rem] flex flex-col items-center text-center relative border border-slate-200 dark:border-white/10 focus-within:ring",
+                                                        pos === 1 ? "scale-100 z-10 order-1 md:order-2 ring-2 ring-brand-primary/20 dark:ring-brand-accent/20" :
+                                                            pos === 2 ? "order-2 md:order-1" : "order-3"
+                                                    )}>
+                                                        <div className={cn(
+                                                            "w-10 h-10 rounded-xl flex items-center justify-center mb-3 shadow-md",
+                                                            pos === 1 ? "bg-amber-100 text-amber-600" : pos === 2 ? "bg-slate-100 text-slate-500" : "bg-orange-100 text-orange-600"
+                                                        )}>
+                                                            <Medal className="w-5 h-5" />
+                                                        </div>
+                                                        <h4 className="font-black text-slate-700 dark:text-white uppercase text-xs">{student?.name}</h4>
+                                                        <p className="text-[9px] font-bold text-slate-400 my-1">{student?.class}</p>
+                                                        <p className="text-xl font-black text-brand-primary dark:text-brand-accent">{res.percentage.toFixed(1)}%</p>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className="py-20 text-center glass-card border-dashed">
+                            <Award className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                            <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Select an Active Session</p>
                         </div>
                     )}
                 </div>

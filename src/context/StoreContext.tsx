@@ -280,6 +280,7 @@ interface AppState {
     updateTimetable: (className: string, timetable: WeeklyTimetable) => void;
     updateAllTimetables: (newTimetables: Record<string, WeeklyTimetable>) => void;
     promoteStudents: (fromClass: string, toClass: string) => void;
+    bulkUpdateStudents: (studentIds: string[], updates: Partial<Student>) => void;
     exams: Exam[];
     examResults: StudentExamResult[];
     addExam: (exam: Partial<Exam>) => void;
@@ -501,26 +502,14 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                     return obj;
                 };
 
-                // Merge Logic: Prioritize Supabase but keep unique LocalStorage records
+                // Source of truth: Supabase. Overwrite local state to prevent old/deleted data from resurrecting.
                 if (stuRes.data && !stuRes.error) {
                     const cloudStudents = cleanLegacy(stuRes.data as Student[]);
-                    setStudents(prev => {
-                        // If cloud has data, we merge. If local is empty, we just take cloud.
-                        // Filter out any default/empty INITIAL_STUDENTS if clound has content
-                        const filteredLocal = prev.filter(s => !s.id.startsWith('STU-00')); // Remove placeholders
-                        const localMap = new Map(filteredLocal.map(s => [s.id, s]));
-                        cloudStudents.forEach((s: Student) => localMap.set(s.id, s));
-                        return Array.from(localMap.values());
-                    });
+                    setStudents(cloudStudents);
                 }
                 if (tchRes.data && !tchRes.error) {
                     const cloudTeachers = cleanLegacy(tchRes.data as Teacher[]);
-                    setTeachers(prev => {
-                        const filteredLocal = prev.filter(t => !t.id.startsWith('TCH-')); // Remove defaults if needed
-                        const localMap = new Map(filteredLocal.map(t => [t.id, t]));
-                        cloudTeachers.forEach((t: Teacher) => localMap.set(t.id, t));
-                        return Array.from(localMap.values());
-                    });
+                    setTeachers(cloudTeachers);
                 }
 
                 if (appDataRes.data && !appDataRes.error) {
@@ -1141,6 +1130,37 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         // Update all students in this class
         if (oldName !== newName) {
             setStudents(prev => prev.map(s => s.class === oldName ? { ...s, class: newName } : s));
+
+            // Update Exam Results
+            setExamResults(prev => prev.map(er => er.className === oldName ? { ...er, className: newName } : er));
+
+            // Update Attendance records
+            setAttendance(prev => prev.map(att => att.class === oldName ? { ...att, class: newName } : att));
+
+            // Update Class-linked settings
+            setClassSubjects(prev => {
+                if (!prev[oldName]) return prev;
+                const next = { ...prev };
+                next[newName] = next[oldName];
+                delete next[oldName];
+                return next;
+            });
+
+            setSubjectTotalMarks(prev => {
+                if (!prev[oldName]) return prev;
+                const next = { ...prev };
+                next[newName] = next[oldName];
+                delete next[oldName];
+                return next;
+            });
+
+            setClassInCharge(prev => {
+                if (!prev[oldName]) return prev;
+                const next = { ...prev };
+                next[newName] = next[oldName];
+                delete next[oldName];
+                return next;
+            });
         }
     };
 
@@ -1193,6 +1213,24 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setTimetables(prev => ({ ...prev, ...newTimetables }));
     };
 
+    const bulkUpdateStudents = (studentIds: string[], updates: Partial<Student>) => {
+        setStudents(prev => prev.map(s => studentIds.includes(s.id) ? { ...s, ...updates } : s));
+
+        // Update examResults className for the active students if their class changed
+        if (updates.class) {
+            setExamResults(prev => prev.map(er => {
+                if (studentIds.includes(er.studentId)) {
+                    return { ...er, className: updates.class as string };
+                }
+                return er;
+            }));
+
+            // Note: History of attendance for these specific students stays in the old class 
+            // records unless we split the attendance objects, which is technically complex.
+            // However, they will now appear in the NEW class's attendance lists from today onwards.
+        }
+    };
+
     const addExam = (e: Partial<Exam>) => {
         const newExam: Exam = {
             id: `EXM-${Date.now()}`,
@@ -1232,18 +1270,25 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 }
 
                 r.marks = newMarks;
+
+                // Live metrics calculation
+                r.totalObtained = Object.values(newMarks).reduce((sum: number, m: any) => sum + (Number(m.obtained) || 0), 0);
+                r.totalPossible = Object.values(newMarks).reduce((sum: number, m: any) => sum + (Number(m.total) || 0), 0);
+                r.percentage = r.totalPossible > 0 ? (r.totalObtained / r.totalPossible) * 100 : 0;
+
                 updatedPrev[existingIndex] = r;
                 return updatedPrev;
             } else {
                 if (isMissing) return prev; // don't create if missing
+                const newMarks = { [subject]: { obtained: numericObtained, total } };
                 return [...prev, {
                     examId,
                     studentId,
                     className,
-                    marks: { [subject]: { obtained: numericObtained, total } },
-                    totalObtained: 0,
-                    totalPossible: 0,
-                    percentage: 0,
+                    marks: newMarks,
+                    totalObtained: numericObtained,
+                    totalPossible: total,
+                    percentage: total > 0 ? (numericObtained / total) * 100 : 0,
                     grade: 'N/A',
                     position: null
                 }];
@@ -1652,6 +1697,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             updateTimetable,
             updateAllTimetables,
             promoteStudents,
+            bulkUpdateStudents,
             exams,
             examResults,
             addExam,
