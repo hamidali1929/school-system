@@ -203,7 +203,7 @@ export const BlankAdmissionForm = ({ onClose }: BlankAdmissionFormProps) => {
                                 { label: 'Class Applied', value: '' },
                                 { label: 'Discipline', value: '' },
                                 { label: 'Shift/Group', value: '' },
-                                { label: 'Session', value: '2023-2024' },
+                                { label: 'Session', value: '2025-2026' },
                                 { label: 'Status', value: 'New Admission' }
                             ].map((item, i) => (
                                 <div key={i} className="bg-white border-[1.5px] border-slate-100 rounded-xl p-3 h-14 flex flex-col justify-center shadow-sm">

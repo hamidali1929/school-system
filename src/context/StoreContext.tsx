@@ -379,8 +379,8 @@ const INITIAL_SETTINGS: SchoolSettings = {
     location: "Mirza Road, Attock City",
     logo1: "/logo1.png",
     logo2: "/logo2.png",
-    academicSession: "2023-2024",
-    effectiveDate: "19-11-2023",
+    academicSession: "2025-2026",
+    effectiveDate: new Date().toLocaleDateString(),
     themeColors: {
         primary: '#003366',
         secondary: '#0ea5e9',
@@ -1238,7 +1238,8 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             classes: e.classes || [],
             date: e.date || new Date().toISOString().split('T')[0],
             status: 'In Progress',
-            createdAt: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            session: e.session
         };
         setExams(prev => [...prev, newExam]);
     };
