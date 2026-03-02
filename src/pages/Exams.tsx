@@ -3,7 +3,7 @@ import {
     Plus, Trophy, BookOpen, Users, Calendar,
     CheckCircle2, AlertCircle, Trash2, Medal, Calculator, Save,
     Printer, Award, Star, ClipboardList, MessageSquare, Share2, Edit2,
-    FileDown, FileUp
+    FileDown, FileUp, Building2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useStore } from '../context/StoreContext';
@@ -27,7 +27,7 @@ export const Exams = () => {
     const canFinalizeResults = isAdmin || userProfile?.permissions?.includes('results_manage');
     const canManageSessions = isAdmin;
 
-    const [activeTab, setActiveTab] = useState<'manage' | 'marks' | 'results' | 'top' | 'custom'>('manage');
+    const [activeTab, setActiveTab] = useState<'manage' | 'marks' | 'results' | 'top' | 'custom' | 'campus_toppers'>('manage');
     const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
     const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
     const [selectedClass, setSelectedClass] = useState<string | null>(currentUser?.role === 'teacher' && currentUser?.inchargeClass ? currentUser.inchargeClass : null);
@@ -710,6 +710,123 @@ export const Exams = () => {
         Swal.fire({ title: 'Exported', text: 'Marks template downloaded successfully.', icon: 'success', toast: true, position: 'top-end', timer: 3000 });
     };
 
+    const handlePrintCampusToppers = () => {
+        if (!selectedExamId || !selectedCampus) {
+            Swal.fire({ title: 'Attention', text: 'Please select an exam and a campus.', icon: 'warning' });
+            return;
+        }
+
+        const exam = exams.find(e => e.id === selectedExamId);
+        const campusData = examResults.filter(r => r.examId === selectedExamId && students.find(s => s.id === r.studentId)?.campus === selectedCampus);
+
+        const classToppers: Record<string, any[]> = {};
+        const activeClasses = exam?.classes || [];
+
+        activeClasses.forEach(cls => {
+            const classResults = campusData
+                .filter(r => r.className === cls)
+                .sort((a, b) => b.percentage - a.percentage)
+                .slice(0, 3);
+
+            if (classResults.length > 0) {
+                classToppers[cls] = classResults.map((r, idx) => ({
+                    ...r,
+                    pos: idx + 1,
+                    student: students.find(s => s.id === r.studentId)
+                }));
+            }
+        });
+
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        printWindow.document.write(`
+            <html>
+                <head>
+                    <title>Campus Toppers Report - ${selectedCampus}</title>
+                    <style>
+                        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
+                        body { font-family: 'Outfit', sans-serif; padding: 40px; color: #1e293b; background: white; }
+                        .header { text-align: center; margin-bottom: 40px; border-bottom: 3px solid #003366; padding-bottom: 20px; }
+                        .school-name { font-size: 32px; font-weight: 900; color: #003366; margin: 0; text-transform: uppercase; }
+                        .report-title { font-size: 18px; font-weight: 700; color: #64748b; margin-top: 5px; text-transform: uppercase; letter-spacing: 2px; }
+                        .campus-badge { display: inline-block; background: #003366; color: white; padding: 6px 20px; border-radius: 50px; font-size: 13px; margin-top: 15px; font-weight: 800; text-transform: uppercase; }
+                        .class-section { margin-bottom: 35px; page-break-inside: avoid; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+                        .class-header { background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; font-weight: 900; font-size: 13px; text-transform: uppercase; color: #003366; display: flex; justify-content: space-between; align-items: center; }
+                        table { width: 100%; border-collapse: collapse; }
+                        th { background: #f1f5f9; text-align: left; padding: 12px 20px; font-size: 10px; font-weight: 900; text-transform: uppercase; color: #475569; border: 1px solid #e2e8f0; }
+                        td { padding: 12px 20px; font-size: 12px; border: 1px solid #e2e8f0; color: #334155; }
+                        .pos-1 { background: #fffbeb; font-weight: 700; }
+                        .pos-1 td { border-color: #fef3c7; }
+                        .rank-badge { display: inline-block; width: 45px; text-align: center; padding: 4px 0; border-radius: 8px; font-weight: 900; font-size: 11px; color: white; }
+                        .rank-1 { background: #fbbf24; box-shadow: 0 4px 6px -1px rgba(251, 191, 36, 0.3); }
+                        .rank-2 { background: #94a3b8; }
+                        .rank-3 { background: #f97316; }
+                        .footer { margin-top: 60px; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; font-weight: 700; border-top: 1px solid #e2e8f0; padding-top: 25px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1 class="school-name">${settings.schoolName}</h1>
+                        <div class="report-title">Class-Wise Campus Toppers</div>
+                        <div class="report-title" style="font-size: 14px; color: #94a3b8;">Academic Session: ${exam?.session || 'N/A'} - ${exam?.name}</div>
+                        <div class="campus-badge">${selectedCampus} CAMPUS</div>
+                    </div>
+
+                    ${Object.entries(classToppers).map(([cls, toppers]) => `
+                        <div class="class-section">
+                            <div class="class-header">
+                                <span>Wing / Class: ${cls}</span>
+                                <span style="font-size: 10px; background: #003366; color: white; padding: 2px 10px; border-radius: 4px;">Top 3 Positions</span>
+                            </div>
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 80px; text-align: center;">Rank</th>
+                                        <th>Student Details</th>
+                                        <th>Father Name</th>
+                                        <th style="text-align: center;">Aggregate Score</th>
+                                        <th style="text-align: center;">Percentage</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${toppers.map(t => `
+                                        <tr class="pos-${t.pos}">
+                                            <td style="text-align: center;">
+                                                <span class="rank-badge rank-${t.pos}">${t.pos === 1 ? '🥇 1st' : t.pos === 2 ? '🥈 2nd' : '🥉 3rd'}</span>
+                                            </td>
+                                            <td>
+                                                <div style="font-weight: 900; color: #003366;">${t.student?.name}</div>
+                                                <div style="font-size: 9px; color: #94a3b8;">ID: ${t.student?.id}</div>
+                                            </td>
+                                            <td style="font-weight: 600;">${t.student?.fatherName || '---'}</td>
+                                            <td style="text-align: center; font-family: monospace; font-weight: 700;">${t.totalObtained} / ${t.totalPossible}</td>
+                                            <td style="text-align: center;">
+                                                <div style="font-weight: 900; color: ${t.pos === 1 ? '#b45309' : '#1e293b'}; font-size: 14px;">${t.percentage.toFixed(1)}%</div>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `).join('')}
+
+                    <div class="footer">
+                        <div>RECORDS BUREAU • GENERATED ON ${new Date().toLocaleString().toUpperCase()}</div>
+                        <div style="text-transform: uppercase; letter-spacing: 1px;">Institutional Academic Excellence Report</div>
+                    </div>
+
+                    <script>
+                        window.onload = function() {
+                            window.print();
+                        };
+                    </script>
+                </body>
+            </html>
+        `);
+        printWindow.document.close();
+    };
+
     const handleImportMarks = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file || !selectedExamId || !selectedClass) return;
@@ -1345,6 +1462,7 @@ export const Exams = () => {
                         { id: 'marks', label: 'Marks', icon: Save, visible: true },
                         { id: 'results', label: 'Standings', icon: Trophy, visible: true },
                         { id: 'top', label: 'Top Rankers', icon: Medal, visible: true },
+                        { id: 'campus_toppers', label: 'Campus Tops', icon: Building2, visible: true },
                         { id: 'custom', label: 'Special', icon: Award, visible: canManageSpecialAwards }
                     ].filter(t => t.visible).map(tab => (
                         <button
@@ -2469,6 +2587,100 @@ export const Exams = () => {
                             ))}
                         </div>
                     </div>
+                </div>
+            )}
+            {activeTab === 'campus_toppers' && (
+                <div className="space-y-6">
+                    {/* Selector Area */}
+                    <div className="bg-white/80 dark:bg-[#000816]/80 rounded-[1.5rem] md:rounded-[2rem] p-2 shadow-sm border border-slate-200/50 dark:border-white/5 flex flex-col md:flex-row gap-2">
+                        <div className="flex-1 relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
+                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Academic Session</label>
+                            <select
+                                value={selectedExamId || ''}
+                                onChange={(e) => setSelectedExamId(e.target.value)}
+                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none truncate cursor-pointer"
+                            >
+                                <option value="">Select Session...</option>
+                                {exams.filter(e => e.status === 'Finalized').map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                            </select>
+                        </div>
+
+                        <div className="flex-1 relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
+                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Target Campus</label>
+                            <select
+                                value={selectedCampus || ''}
+                                onChange={(e) => setSelectedCampus(e.target.value)}
+                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none truncate cursor-pointer"
+                            >
+                                <option value="">Select Campus...</option>
+                                {(useStore().campuses || []).map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                            </select>
+                        </div>
+
+                        {selectedExamId && selectedCampus && (
+                            <button
+                                onClick={handlePrintCampusToppers}
+                                className="px-8 py-3 bg-brand-primary text-white rounded-[1.25rem] md:rounded-[1.75rem] text-[10px] font-black uppercase tracking-widest hover:scale-[1.05] transition-all shadow-xl shadow-brand-primary/20 flex items-center justify-center gap-2"
+                            >
+                                <Printer className="w-4 h-4" /> Print Toppers Report
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Results Display */}
+                    {!selectedExamId || !selectedCampus ? (
+                        <div className="py-32 text-center glass-card border-dashed">
+                            <Building2 className="w-16 h-16 text-slate-200 dark:text-brand-accent/10 mx-auto mb-4" />
+                            <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Select Session & Campus to Reveal Toppers</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            {(exams.find(e => e.id === selectedExamId)?.classes || []).map(cls => {
+                                const classToppers = examResults
+                                    .filter(r => r.examId === selectedExamId && r.className === cls && students.find(s => s.id === r.studentId)?.campus === selectedCampus)
+                                    .sort((a, b) => b.percentage - a.percentage)
+                                    .slice(0, 3);
+
+                                if (classToppers.length === 0) return null;
+
+                                return (
+                                    <div key={cls} className="glass-card overflow-hidden flex flex-col hover:shadow-2xl transition-all duration-500 border-none">
+                                        <div className="bg-brand-primary p-4 flex justify-between items-center">
+                                            <h4 className="text-white font-black uppercase text-xs tracking-widest">{cls}</h4>
+                                            <Trophy className="w-4 h-4 text-brand-accent animate-pulse" />
+                                        </div>
+                                        <div className="p-4 space-y-4 flex-1 bg-white/50 dark:bg-[#000816]/50">
+                                            {classToppers.map((res, idx) => {
+                                                const student = students.find(s => s.id === res.studentId);
+                                                return (
+                                                    <div key={res.studentId} className="flex items-center gap-3 p-3 rounded-2xl bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 group hover:bg-brand-primary/5 transition-colors">
+                                                        <div className={cn(
+                                                            "w-10 h-10 rounded-xl flex items-center justify-center font-black text-white shadow-lg",
+                                                            idx === 0 ? "bg-amber-400 rotate-3" : idx === 1 ? "bg-slate-400 -rotate-3" : "bg-orange-400 rotate-1"
+                                                        )}>
+                                                            {idx + 1}
+                                                        </div>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-black text-brand-primary dark:text-white uppercase text-[11px] truncate">{student?.name}</p>
+                                                            <div className="flex items-center gap-2 mt-0.5">
+                                                                <Star className="w-3 h-3 text-brand-accent fill-brand-accent" />
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{res.percentage.toFixed(1)}% Score</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-[9px] font-black text-brand-primary dark:text-brand-accent uppercase tracking-tighter">
+                                                                {idx === 0 ? 'Topper' : idx === 1 ? 'Runner' : '3rd'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
                 </div>
             )}
         </div>
