@@ -746,79 +746,84 @@ export const Exams = () => {
                     <title>Campus Toppers Report - ${selectedCampus}</title>
                     <style>
                         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
-                        body { font-family: 'Outfit', sans-serif; padding: 40px; color: #1e293b; background: white; }
-                        .header { text-align: center; margin-bottom: 40px; border-bottom: 3px solid #003366; padding-bottom: 20px; }
-                        .school-name { font-size: 32px; font-weight: 900; color: #003366; margin: 0; text-transform: uppercase; }
-                        .report-title { font-size: 18px; font-weight: 700; color: #64748b; margin-top: 5px; text-transform: uppercase; letter-spacing: 2px; }
-                        .campus-badge { display: inline-block; background: #003366; color: white; padding: 6px 20px; border-radius: 50px; font-size: 13px; margin-top: 15px; font-weight: 800; text-transform: uppercase; }
-                        .class-section { margin-bottom: 35px; page-break-inside: avoid; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
-                        .class-header { background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; font-weight: 900; font-size: 13px; text-transform: uppercase; color: #003366; display: flex; justify-content: space-between; align-items: center; }
-                        table { width: 100%; border-collapse: collapse; }
-                        th { background: #f1f5f9; text-align: left; padding: 12px 20px; font-size: 10px; font-weight: 900; text-transform: uppercase; color: #475569; border: 1px solid #e2e8f0; }
-                        td { padding: 12px 20px; font-size: 12px; border: 1px solid #e2e8f0; color: #334155; }
-                        .pos-1 { background: #fffbeb; font-weight: 700; }
-                        .pos-1 td { border-color: #fef3c7; }
-                        .rank-badge { display: inline-block; width: 45px; text-align: center; padding: 4px 0; border-radius: 8px; font-weight: 900; font-size: 11px; color: white; }
-                        .rank-1 { background: #fbbf24; box-shadow: 0 4px 6px -1px rgba(251, 191, 36, 0.3); }
-                        .rank-2 { background: #94a3b8; }
-                        .rank-3 { background: #f97316; }
-                        .footer { margin-top: 60px; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; font-weight: 700; border-top: 1px solid #e2e8f0; padding-top: 25px; }
+                        @page { size: A4 landscape; margin: 10mm; }
+                        body { font-family: 'Outfit', sans-serif; padding: 20px; color: #1e293b; background: #f8fafc; }
+                        
+                        .main-header { text-align: center; margin-bottom: 30px; }
+                        .school-name { font-size: 28px; font-weight: 900; color: #003366; margin: 0; text-transform: uppercase; }
+                        .report-meta { font-size: 12px; font-weight: 700; color: #64748b; margin-top: 5px; text-transform: uppercase; letter-spacing: 1px; }
+                        .campus-tag { display: inline-block; background: #003366; color: white; padding: 4px 15px; border-radius: 50px; font-size: 11px; margin-top: 10px; font-weight: 800; }
+
+                        .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+                        
+                        .class-card { background: white; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; page-break-inside: avoid; }
+                        .card-header { background: #003366; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; color: white; }
+                        .card-header h3 { margin: 0; font-size: 14px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+                        .trophy-icon { font-size: 16px; opacity: 0.8; }
+
+                        .toppers-list { padding: 15px; }
+                        .topper-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: #f8fafc; border-radius: 15px; margin-bottom: 10px; border: 1px solid #f1f5f9; }
+                        
+                        .rank-badge { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 900; color: white; font-size: 16px; flex-shrink: 0; }
+                        .rank-1 { background: #ffb81c; box-shadow: 0 4px 10px rgba(255, 184, 28, 0.3); }
+                        .rank-2 { background: #94a3b8; box-shadow: 0 4px 10px rgba(148, 163, 184, 0.3); }
+                        .rank-3 { background: #ff7c00; box-shadow: 0 4px 10px rgba(255, 124, 0, 0.3); }
+
+                        .student-info { flex: 1; min-width: 0; }
+                        .student-name { font-weight: 900; color: #003366; font-size: 12px; text-transform: uppercase; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                        .student-score { font-size: 9px; font-weight: 800; color: #94a3b8; display: flex; align-items: center; gap: 4px; }
+                        .star { color: #ffb81c; }
+
+                        .rank-label { font-size: 8px; font-weight: 900; color: #1e293b; text-transform: uppercase; letter-spacing: 1px; opacity: 0.8; }
+
+                        .footer { margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 15px; display: flex; justify-content: space-between; font-size: 9px; font-weight: 700; color: #94a3b8; }
                     </style>
                 </head>
                 <body>
-                    <div class="header">
+                    <div class="main-header">
                         <h1 class="school-name">${settings.schoolName}</h1>
-                        <div class="report-title">Class-Wise Campus Toppers</div>
-                        <div class="report-title" style="font-size: 14px; color: #94a3b8;">Academic Session: ${exam?.session || 'N/A'} - ${exam?.name}</div>
-                        <div class="campus-badge">${selectedCampus} CAMPUS</div>
+                        <div class="report-meta">${exam?.name} (${exam?.session}) • POSITIONS REPORT</div>
+                        <div class="campus-tag">${selectedCampus} CAMPUS</div>
                     </div>
 
-                    ${Object.entries(classToppers).map(([cls, toppers]) => `
-                        <div class="class-section">
-                            <div class="class-header">
-                                <span>Wing / Class: ${cls}</span>
-                                <span style="font-size: 10px; background: #003366; color: white; padding: 2px 10px; border-radius: 4px;">Top 3 Positions</span>
-                            </div>
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th style="width: 80px; text-align: center;">Rank</th>
-                                        <th>Student Details</th>
-                                        <th>Father Name</th>
-                                        <th style="text-align: center;">Aggregate Score</th>
-                                        <th style="text-align: center;">Percentage</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                    <div class="cards-grid">
+                        ${Object.entries(classToppers).map(([cls, toppers]) => `
+                            <div class="class-card">
+                                <div class="card-header">
+                                    <h3>${cls}</h3>
+                                    <span class="trophy-icon">🏆</span>
+                                </div>
+                                <div class="toppers-list">
                                     ${toppers.map(t => `
-                                        <tr class="pos-${t.pos}">
-                                            <td style="text-align: center;">
-                                                <span class="rank-badge rank-${t.pos}">${t.pos === 1 ? '🥇 1st' : t.pos === 2 ? '🥈 2nd' : '🥉 3rd'}</span>
-                                            </td>
-                                            <td>
-                                                <div style="font-weight: 900; color: #003366;">${t.student?.name}</div>
-                                                <div style="font-size: 9px; color: #94a3b8;">ID: ${t.student?.id}</div>
-                                            </td>
-                                            <td style="font-weight: 600;">${t.student?.fatherName || '---'}</td>
-                                            <td style="text-align: center; font-family: monospace; font-weight: 700;">${t.totalObtained} / ${t.totalPossible}</td>
-                                            <td style="text-align: center;">
-                                                <div style="font-weight: 900; color: ${t.pos === 1 ? '#b45309' : '#1e293b'}; font-size: 14px;">${t.percentage.toFixed(1)}%</div>
-                                            </td>
-                                        </tr>
+                                        <div class="topper-row">
+                                            <div class="rank-badge rank-${t.pos}">${t.pos}</div>
+                                            <div class="student-info">
+                                                <div class="student-name">${t.student?.name}</div>
+                                                <div class="student-score">
+                                                    <span class="star">★</span> ${t.percentage.toFixed(1)}% SCORE
+                                                </div>
+                                            </div>
+                                            <div class="rank-label">
+                                                ${t.pos === 1 ? 'TOPPER' : t.pos === 2 ? 'RUNNER' : t.pos === 3 ? '3RD' : ''}
+                                            </div>
+                                        </div>
                                     `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
 
                     <div class="footer">
-                        <div>RECORDS BUREAU • GENERATED ON ${new Date().toLocaleString().toUpperCase()}</div>
-                        <div style="text-transform: uppercase; letter-spacing: 1px;">Institutional Academic Excellence Report</div>
+                        <div>GENERATED ON ${new Date().toLocaleString().toUpperCase()}</div>
+                        <div style="text-transform: uppercase;">© ${new Date().getFullYear()} ${settings.schoolName} - ACADEMIC EXCELLENCE BUREAU</div>
                     </div>
 
                     <script>
                         window.onload = function() {
-                            window.print();
+                            setTimeout(() => {
+                                window.print();
+                                // window.close();
+                            }, 500);
                         };
                     </script>
                 </body>
