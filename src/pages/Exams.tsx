@@ -31,8 +31,7 @@ export const Exams = () => {
     const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
     const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
     const [selectedClass, setSelectedClass] = useState<string | null>(currentUser?.role === 'teacher' && currentUser?.inchargeClass ? currentUser.inchargeClass : null);
-    const [selectedStartClass, setSelectedStartClass] = useState<string | null>(null);
-    const [selectedEndClass, setSelectedEndClass] = useState<string | null>(null);
+    const [selectedClassesForRange, setSelectedClassesForRange] = useState<string[]>([]);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
     const [certificateData, setCertificateData] = useState<null | Record<string, any>>(null);
     const [customCert, setCustomCert] = useState({
@@ -245,6 +244,9 @@ export const Exams = () => {
         const primaryColor = sanitizeColor(settings.themeColors?.primary, '#003366');
         const accentColor = sanitizeColor(settings.themeColors?.accent, '#fbbf24');
 
+        // De-duplicate subjects to avoid double entries
+        const uniqueSubjects = Array.from(new Set(allClassSubjects.map(s => s.trim()))).filter(Boolean);
+
         return `
             <html>
                 <head>
@@ -264,10 +266,6 @@ export const Exams = () => {
                             box-sizing: border-box; 
                             -webkit-print-color-adjust: exact; 
                             font-weight: bold !important;
-                            /* Force fallback for modern Tailwind variables that use oklch */
-                            --tw-ring-color: rgba(0,0,0,0) !important;
-                            --tw-shadow-color: rgba(0,0,0,0) !important;
-                            --tw-outline-color: rgba(0,0,0,0) !important;
                         }
                         body { 
                             margin: 0; padding: 0; 
@@ -288,7 +286,6 @@ export const Exams = () => {
                             overflow: hidden;
                         }
 
-                        /* Institutional Frame */
                         .outer-frame {
                             height: 100%;
                             width: 100%;
@@ -371,7 +368,6 @@ export const Exams = () => {
                             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
                         }
 
-                        /* Student Profile */
                         .profile-section {
                             display: grid;
                             grid-template-columns: repeat(4, 1fr);
@@ -402,7 +398,6 @@ export const Exams = () => {
                             text-overflow: ellipsis;
                         }
 
-                        /* Result Table */
                         .table-wrapper {
                             flex: 1;
                             margin-bottom: 6mm;
@@ -414,7 +409,6 @@ export const Exams = () => {
                             border: 2px solid #0f172a;
                             border-radius: 12px;
                             overflow: hidden;
-                            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
                         }
                         th {
                             background: #f1f5f9;
@@ -464,7 +458,6 @@ export const Exams = () => {
                             font-weight: 900;
                         }
 
-                        /* Summary Metrics */
                         .summary-grid {
                             display: grid;
                             grid-template-columns: 1.2fr 1fr;
@@ -472,7 +465,7 @@ export const Exams = () => {
                             margin-bottom: 6mm;
                         }
                         .summary-box {
-                            border: 2px solid var(--brand-primary);
+                            border: 2px solid #000000;
                             border-radius: 15px;
                             padding: 12px 20px;
                             display: flex;
@@ -480,9 +473,9 @@ export const Exams = () => {
                             align-items: center;
                             background: linear-gradient(to right, white, #f8fafc);
                         }
-                        .summary-label { font-size: 8pt; font-weight: 800; color: #64748b; text-transform: uppercase; }
-                        .summary-value { font-size: 22pt; font-weight: 900; color: var(--brand-primary); }
-                        .summary-accent { font-size: 26pt; font-weight: 900; color: var(--brand-accent); }
+                        .summary-label { font-size: 8pt; font-weight: 800; color: #000000; text-transform: uppercase; }
+                        .summary-value { font-size: 22pt; font-weight: 900; color: #000000; }
+                        .summary-accent { font-size: 26pt; font-weight: 900; color: #000000; }
 
                         .remarks-area {
                             background: #fffbeb;
@@ -494,7 +487,6 @@ export const Exams = () => {
                         .remarks-area h4 { margin: 0 0 4px; font-size: 8pt; color: #92400e; text-transform: uppercase; }
                         .remarks-area p { margin: 0; font-size: 10.5pt; font-weight: 600; font-style: italic; color: #451a03; }
 
-                        /* Signatures */
                         .signature-row {
                             display: flex;
                             justify-content: space-between;
@@ -506,24 +498,9 @@ export const Exams = () => {
                         .sig-line { border-top: 1.5px solid var(--brand-primary); margin-bottom: 5px; opacity: 0.5; }
                         .sig-label { font-size: 8pt; font-weight: 800; color: #64748b; text-transform: uppercase; }
 
-                        .seal-box {
-                            width: 70px; height: 70px;
-                            border: 1px dashed var(--brand-primary);
-                            border-radius: 50%;
-                            display: flex; align-items: center; justify-content: center;
-                            font-size: 7px; color: var(--brand-primary); opacity: 0.2;
-                            text-align: center; line-height: 1.2;
-                        }
-
                         .watermark {
                             position: absolute; top: 55%; left: 50%; transform: translate(-50%, -50%);
                             width: 140mm; height: 140mm; opacity: 0.04; pointer-events: none;
-                        }
-
-                        .qr-code {
-                            position: absolute; bottom: 8mm; left: 8mm;
-                            width: 15mm; height: 15mm;
-                            border: 1px solid #e2e8f0;
                         }
                     </style>
                 </head>
@@ -540,8 +517,8 @@ export const Exams = () => {
                                     <div class="school-info">
                                         <h1>${(settings.schoolName || "PIONEER'S SUPERIOR").replace(/['"”’]+/g, "'")}</h1>
                                         <p>${settings.subTitle || 'Institute of Higher Secondary Education'}</p>
-                                        ${student.campus ? `<div style="display: inline-block; background: #0f172a; color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 9pt; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-top: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2);">${student.campus}</div>` : ''}
-                                        <div style="font-size: 14pt; font-weight: 800; color: var(--brand-primary); margin-top: 5px; text-transform: uppercase;">${exam.name}</div>
+                                        ${student.campus ? `<div style="display: inline-block; background: #000000; color: #fff; padding: 4px 16px; border-radius: 20px; font-size: 9pt; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; margin-top: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2);">${student.campus}</div>` : ''}
+                                        <div style="font-size: 14pt; font-weight: 900; color: #000000; margin-top: 5px; text-transform: uppercase;">${exam.name}</div>
                                     </div>
                                     <div class="logo-container">
                                         <img src="${settings.logo2 || settings.logo1 || ''}">
@@ -551,10 +528,10 @@ export const Exams = () => {
                                 <div class="document-banner">STUDENT PROGRESS REPORT CARD</div>
                                 
                                 <div style="text-align: center; margin-bottom: 4mm; margin-top: 2mm;">
-                                    <h2 style="margin: 0; font-size: 26pt; font-weight: 900; color: var(--brand-primary); text-transform: uppercase; letter-spacing: 1px;">${student.name}</h2>
+                                    <h2 style="margin: 0; font-size: 26pt; font-weight: 900; color: #000000; text-transform: uppercase; letter-spacing: 1px;">${student.name}</h2>
                                 </div>
 
-                                <div class="profile-section" style="grid-template-columns: repeat(4, 1fr);">
+                                <div class="profile-section">
                                     <div class="profile-item"><label>Father Name</label><span>${student.fatherName || '---'}</span></div>
                                     <div class="profile-item"><label>Admission No</label><span>${student.admissionId || student.id}</span></div>
                                     <div class="profile-item"><label>Class</label><span>${result.className}</span></div>
@@ -574,7 +551,7 @@ export const Exams = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            ${allClassSubjects.filter(subName => {
+                                            ${uniqueSubjects.filter(subName => {
             const m = result.marks[subName];
             return m && m.obtained !== undefined && m.obtained !== '';
         }).map(subName => {
@@ -589,9 +566,9 @@ export const Exams = () => {
             return `
                                                     <tr>
                                                         <td class="subject-name">${subName}</td>
-                                                        <td style="font-weight: 900; color: #0f172a; font-size: 10.5pt;">${m.total}</td>
-                                                        <td style="font-weight: 900; color: #0f172a; font-size: 10.5pt;">${m.obtained}</td>
-                                                        <td style="font-weight: 900; color: #64748b; font-size: 10.5pt;">${perc.toFixed(0)}%</td>
+                                                        <td style="font-weight: 900; color: #000000; font-size: 10.5pt;">${m.total}</td>
+                                                        <td style="font-weight: 900; color: #000000; font-size: 10.5pt;">${m.obtained}</td>
+                                                        <td style="font-weight: 900; color: #000000; font-size: 10.5pt;">${perc.toFixed(0)}%</td>
                                                         <td>
                                                             <div class="bar-container"><div class="bar-fill" style="width: ${perc}%; background: ${barColor}"></div></div>
                                                         </td>
@@ -608,38 +585,32 @@ export const Exams = () => {
                                         <div><div class="summary-label">Total Marks</div><div class="summary-value">${result.totalObtained} <span style="font-size: 15pt; opacity: 0.8; font-weight: 900;">/ ${result.totalPossible}</span></div></div>
                                         <div style="text-align: right"><div class="summary-label">Percentage</div><div class="summary-accent">${result.percentage.toFixed(1)}%</div></div>
                                     </div>
-                                    <div class="summary-box" style="display: flex; flex-direction: column; align-items: stretch; gap: 4px; padding: 10px 15px;">
-                                        ${result.position && result.position <= 3 ? `
-                                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #cbd5e1; padding-bottom: 2px;">
-                                                <span class="summary-label" style="font-size: 7pt;">Class Position</span>
-                                                <span style="font-size: 13pt; color: var(--brand-accent); font-weight: 900;">#${result.position}</span>
-                                            </div>
-                                        ` : ''}
-                                        ${(!result.position || result.position > 3) ? `
-                                            <div style="display: flex; justify-content: space-between; align-items: center; height: 100%;">
-                                                <span class="summary-label">Position</span>
-                                                <span class="summary-value" style="font-size: 18pt; opacity: 0.5;">---</span>
-                                            </div>
-                                        ` : ''}
-                                    </div>
                                     <div class="summary-box">
-                                        <div><div class="summary-label">Grade</div><div class="summary-accent" style="color: var(--brand-primary); font-size: 28pt;">${result.grade}</div></div>
+                                        <div style="display: flex; flex-direction: column; width: 100%;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                                                <span class="summary-label">Final Position</span>
+                                                <span class="summary-accent" style="font-size: 24pt;">#${result.position || '---'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="summary-box" style="grid-column: span 2;">
+                                        <div><div class="summary-label">Final Grade</div><div class="summary-accent" style="font-size: 32pt;">${result.grade}</div></div>
                                         <div style="text-align: right">
-                                            <div class="summary-label">Status</div>
-                                            <div style="font-size: 14pt; font-weight: 900; color: ${result.percentage >= 40 ? '#10b981' : '#ef4444'}">${result.percentage >= 40 ? 'PASSED' : 'FAILED'}</div>
+                                            <div class="summary-label">Qualifying Status</div>
+                                            <div style="font-size: 20pt; font-weight: 900; color: ${result.percentage >= 40 ? '#000000' : '#000000'}">${result.percentage >= 40 ? 'PASSED' : 'FAILED'}</div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; margin-bottom: 10mm; padding-right: 10mm; padding-left: 0;">
-                                    <div class="remarks-area" style="margin-bottom: 0; width: fit-content; min-width: 200px; max-width: 60%; padding-right: 40px;">
-                                        <h4>Remarks</h4>
+                                <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: auto; margin-bottom: 10mm; padding-right: 10mm;">
+                                    <div class="remarks-area" style="margin-bottom: 0; min-width: 250px; max-width: 70%;">
+                                        <h4>Official Assessment Remark</h4>
                                         <p>${result.remarks || 'Pending Finalization'}</p>
                                     </div>
                                     <div class="sig-block" style="margin-bottom: 5px;"><div class="sig-line"></div><div class="sig-label">Academic Incharge</div></div>
                                 </div>
 
-                                <div class="signature-row" style="justify-content: space-between; margin-top: 0;">
+                                <div class="signature-row">
                                     <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Director</div></div>
                                     <div class="sig-block"><div class="sig-line"></div><div class="sig-label">Principal</div></div>
                                 </div>
@@ -713,19 +684,12 @@ export const Exams = () => {
     };
 
     const handlePrintRangeToppers = () => {
-        if (!selectedExamId || !selectedCampus || !selectedStartClass || !selectedEndClass) {
-            Swal.fire({ title: 'Attention', text: 'Please select session, campus, and class range.', icon: 'warning' });
+        if (!selectedExamId || !selectedCampus || selectedClassesForRange.length === 0) {
+            Swal.fire({ title: 'Attention', text: 'Please select session, campus, and classes.', icon: 'warning' });
             return;
         }
 
-        const startIndex = classes.indexOf(selectedStartClass);
-        const endIndex = classes.indexOf(selectedEndClass);
-        if (startIndex === -1 || endIndex === -1 || startIndex > endIndex) {
-            Swal.fire({ title: 'Invalid Range', text: 'Select a valid class range.', icon: 'error' });
-            return;
-        }
-
-        const selectedRange = classes.slice(startIndex, endIndex + 1);
+        const selectedRange = selectedClassesForRange;
         const exam = exams.find(e => e.id === selectedExamId);
 
         // Find all results for these classes in this campus
@@ -805,9 +769,9 @@ export const Exams = () => {
                             <div class="campus-tag">${selectedCampus} CAMPUS</div>
                         </div>
 
-                        <div class="range-info">
-                            CROSS-CLASS CHAMPIONS: ${selectedStartClass} TO ${selectedEndClass}
-                        </div>
+                    <div class="range-info">
+                        SELECTED WINGS: ${selectedRange.join(', ')}
+                    </div>
 
                         <div class="podium-container">
                             <!-- 2nd Place -->
@@ -1119,9 +1083,11 @@ export const Exams = () => {
 
                     Object.keys(row).forEach(key => {
                         if (key.endsWith(' (Obtained)')) {
-                            const subject = key.replace(' (Obtained)', '');
+                            const originalSubject = key.replace(' (Obtained)', '');
+                            const subject = originalSubject.trim();
                             const obtained = row[key];
-                            const total = row[`${subject} (Total)`];
+                            const totalKey = Object.keys(row).find(k => k.trim() === `${subject} (Total)`);
+                            const total = totalKey ? row[totalKey] : 100;
                             if (obtained !== undefined && obtained !== '') {
                                 inputMarks(selectedExamId, selectedClass, studentId, subject, obtained, total);
                                 importCount++;
@@ -1145,10 +1111,44 @@ export const Exams = () => {
         reader.readAsArrayBuffer(file);
     };
 
+    const handleEditMarksFromStandings = (res: any) => {
+        const student = students.find(s => s.id === res.studentId);
+        if (student) {
+            setSelectedExamId(res.examId);
+            setSelectedClass(res.className);
+            if (student.campus) setSelectedCampus(student.campus);
+            setSelectedStudentId(res.studentId);
+            setActiveTab('marks');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    };
+
     const handleSendWhatsAppResult = async (data: { student: any, result: any, exam: any }, silent = false) => {
         const { student, exam } = data;
         let { result } = data;
         if (!student || !result || !exam) return Promise.reject('Missing data');
+
+        // Calculate relative position based on current filters (class and campus)
+        const campusResults = examResults.filter(r => {
+            if (r.examId !== exam.id || r.className !== result.className) return false;
+            // If student has a campus, only compare within that campus
+            if (student.campus) {
+                const s = students.find(st => st.id === r.studentId);
+                return s?.campus?.trim().toLowerCase() === student.campus?.trim().toLowerCase();
+            }
+            return true;
+        }).sort((a, b) => b.percentage - a.percentage);
+
+        const relativePosition = campusResults.findIndex(r => r.studentId === student.id) + 1;
+
+        if (!silent) {
+            Swal.fire({
+                title: 'Generating PDF',
+                text: 'Preparing high-quality marksheet...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+        }
 
         // Robust calculation: If result isn't finalized, calculate stats on-the-fly
         const marks = Object.values(result.marks || {}) as { obtained: number, total: number }[];
@@ -1173,6 +1173,7 @@ export const Exams = () => {
         // Clone result with calculated values for perfect PDF rendering
         const finalResult = {
             ...result,
+            position: relativePosition,
             totalObtained: result.totalObtained || totalObtained,
             totalPossible: result.totalPossible || totalPossible,
             percentage: result.percentage || percentage,
@@ -1268,7 +1269,7 @@ export const Exams = () => {
             if (selectedClass && selectedClass !== 'All' && r.className !== selectedClass) return false;
             if (selectedCampus) {
                 const s = students.find(stud => stud.id === r.studentId);
-                return s?.campus === selectedCampus;
+                return s?.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase();
             }
             return true;
         });
@@ -1276,6 +1277,9 @@ export const Exams = () => {
         if (selectedResults.length > 0) {
             results = results.filter(r => selectedResults.includes(r.studentId));
         }
+
+        // Sort by percentage to ensure correct relative ranking for the printed cards
+        results.sort((a, b) => b.percentage - a.percentage);
 
         const exam = exams.find(e => e.id === selectedExamId);
 
@@ -1295,7 +1299,8 @@ export const Exams = () => {
             const classTitle = result.className;
             const allClassSubjects = classSubjects[classTitle] || Object.keys(result.marks || {});
 
-            const cardHTML = generateResultCardHTML(student, result, exam, settings, allClassSubjects);
+            // Pass the relative index as the position for the printed card
+            const cardHTML = generateResultCardHTML(student, { ...result, position: index + 1 }, exam, settings, allClassSubjects);
 
             const bodyContentMatch = cardHTML.match(/<body>([\s\S]*?)<\/body>/);
             const headContentMatch = cardHTML.match(/<head>([\s\S]*?)<\/head>/);
@@ -1333,7 +1338,7 @@ export const Exams = () => {
             if (selectedClass && selectedClass !== 'All' && r.className !== selectedClass) return false;
             if (selectedCampus) {
                 const s = students.find(stud => stud.id === r.studentId);
-                return s?.campus === selectedCampus;
+                return s?.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase();
             }
             return true;
         });
@@ -1341,6 +1346,10 @@ export const Exams = () => {
         if (selectedResults.length > 0) {
             results = results.filter(r => selectedResults.includes(r.studentId));
         }
+
+        // Sort by percentage to ensure correct relative ranking for the sent cards
+        results.sort((a, b) => b.percentage - a.percentage);
+
         const exam = exams.find(e => e.id === selectedExamId);
 
         if (results.length === 0) {
@@ -1371,7 +1380,9 @@ export const Exams = () => {
             const student = students.find(s => s.id === res.studentId);
             if (student) {
                 try {
-                    await handleSendWhatsAppResult({ student, result: res, exam }, true);
+                    // Pass the relative index as the position (index in sorted results array)
+                    const relIndex = results.indexOf(res);
+                    await handleSendWhatsAppResult({ student, result: { ...res, position: relIndex + 1 }, exam }, true);
                     count++;
                 } catch (e) { console.error(e); }
                 // Small delay to keep UI breathing
@@ -1901,19 +1912,36 @@ export const Exams = () => {
                                 >
                                     <option value="" disabled>Select Student...</option>
                                     {(() => {
-                                        const classSubjCount = (classSubjects[selectedClass] || []).length;
-                                        return students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus))
-                                            .filter(s => {
-                                                if (s.id === selectedStudentId) return true; // Always show currently selected
-                                                const res = examResults.find(r => r.studentId === s.id && r.examId === selectedExamId);
-                                                if (!res) return true; // No result yet
+                                        const cleanSelectedCampus = selectedCampus?.trim().toLowerCase();
+                                        const relevantStudents = students.filter(s =>
+                                            s.class === selectedClass &&
+                                            (!cleanSelectedCampus || s.campus?.trim().toLowerCase() === cleanSelectedCampus)
+                                        );
+
+                                        const subjects = classSubjects[selectedClass] || [];
+                                        const classSubjCount = subjects.length;
+
+                                        return relevantStudents.map(s => {
+                                            const res = examResults.find(r => r.studentId === s.id && r.examId === selectedExamId);
+                                            let isCompleted = false;
+
+                                            if (res && classSubjCount > 0) {
                                                 let marksCount = 0;
-                                                (classSubjects[selectedClass] || []).forEach((subj) => {
-                                                    if (res.marks[subj] && res.marks[subj].obtained !== undefined && String(res.marks[subj].obtained) !== '') marksCount++;
+                                                subjects.forEach((subj) => {
+                                                    const cleanSubj = subj.trim();
+                                                    // Try both trimmed and untrimmed keys for backwards compatibility
+                                                    const mark = res.marks[cleanSubj] || res.marks[subj];
+                                                    if (mark && mark.obtained !== undefined && String(mark.obtained) !== '') marksCount++;
                                                 });
-                                                return classSubjCount === 0 || marksCount < classSubjCount; // Show if not all marks are entered OR if no subjects are defined yet
-                                            })
-                                            .map(s => <option key={s.id} value={s.id}>{s.name} ({s.id})</option>);
+                                                isCompleted = marksCount >= classSubjCount;
+                                            }
+
+                                            return (
+                                                <option key={s.id} value={s.id}>
+                                                    {isCompleted ? '✓ ' : ''}{s.name} ({s.id})
+                                                </option>
+                                            );
+                                        });
                                     })()}
                                 </select>
                             </div>
@@ -1961,6 +1989,30 @@ export const Exams = () => {
                                     >
                                         <Share2 className="w-4 h-4" />
                                         <span className="whitespace-nowrap">Distribute</span>
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            const student = students.find(s => s.id === selectedStudentId);
+                                            const exam = exams.find(e => e.id === selectedExamId);
+                                            const result = examResults.find(r => r.studentId === selectedStudentId && r.examId === selectedExamId);
+                                            if (student && exam && result) {
+                                                // Calculate relative position
+                                                const campusResults = examResults.filter(r => {
+                                                    if (r.examId !== selectedExamId || r.className !== selectedClass) return false;
+                                                    if (student.campus) {
+                                                        const s = students.find(st => st.id === r.studentId);
+                                                        return s?.campus?.trim().toLowerCase() === student.campus?.trim().toLowerCase();
+                                                    }
+                                                    return true;
+                                                }).sort((a, b) => b.percentage - a.percentage);
+                                                const pos = campusResults.findIndex(r => r.studentId === student.id) + 1;
+                                                handlePrintResultCard({ student, result: { ...result, position: pos }, exam });
+                                            }
+                                        }}
+                                        className="col-span-1 sm:w-auto px-4 py-2.5 bg-white/20 hover:bg-white/30 text-white rounded-[1rem] text-[9.5px] font-black uppercase tracking-widest transition-all flex flex-col sm:flex-row items-center justify-center gap-1.5 shadow-sm"
+                                    >
+                                        <Printer className="w-4 h-4" />
+                                        <span className="whitespace-nowrap">Print</span>
                                     </button>
                                     <button
                                         onClick={() => {
@@ -2308,246 +2360,124 @@ export const Exams = () => {
 
                     {selectedExamId && selectedClass ? (
                         <div className="space-y-8">
-                            {/* Podium (Top 3) */}
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
-                                {[2, 1, 3].map((pos) => {
-                                    const res = examResults.find(r => {
-                                        if (r.examId !== selectedExamId || r.position !== pos) return false;
+                            {(() => {
+                                // Dynamic Ranking for the UI (Podium and Merit List)
+                                const cleanCampus = selectedCampus?.trim().toLowerCase();
+                                const filteredRankingResults = examResults
+                                    .filter(r => {
+                                        if (r.examId !== selectedExamId) return false;
                                         if (selectedClass && selectedClass !== 'All' && r.className !== selectedClass) return false;
-                                        if (selectedCampus) {
+                                        if (cleanCampus) {
                                             const s = students.find(stud => stud.id === r.studentId);
-                                            return s?.campus === selectedCampus;
+                                            return s?.campus?.trim().toLowerCase() === cleanCampus;
                                         }
                                         return true;
-                                    });
-                                    if (!res) return null;
-                                    const student = students.find(s => s.id === res.studentId);
+                                    })
+                                    .sort((a, b) => b.percentage - a.percentage);
 
-                                    return (
-                                        <div key={pos} className={cn(
-                                            "glass-card p-6 md:p-8 flex flex-col items-center text-center relative animate-in slide-in-from-bottom-8 duration-700",
-                                            pos === 1 ? "bg-gradient-to-br from-brand-primary/5 to-brand-accent/10 border-brand-accent/30 scale-100 md:scale-110 z-10 order-1 md:order-2 dark:bg-white/5" :
-                                                pos === 2 ? "bg-white dark:bg-white/5 order-2 md:order-1" : "bg-white dark:bg-white/5 order-3",
-                                        )}>
-                                            <div className={cn(
-                                                "w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg ring-4 ring-white",
-                                                pos === 1 ? "bg-amber-400" : pos === 2 ? "bg-slate-300" : "bg-orange-300"
-                                            )}>
-                                                <Trophy className="w-8 h-8 text-white" />
-                                            </div>
-                                            <div className="mb-4">
-                                                <h4 className="font-black text-brand-primary dark:text-white uppercase text-sm leading-tight">{student?.name}</h4>
-                                                <p className="text-[10px] font-bold text-slate-400 mt-1">{student?.id}</p>
-                                            </div>
-                                            <div className="space-y-1 mb-6">
-                                                <p className="text-2xl font-black text-brand-primary dark:text-white">{res.percentage.toFixed(1)}%</p>
-                                                <div className="flex items-center gap-1.5 justify-center">
-                                                    <Medal className={cn("w-3 h-3", pos === 1 ? "text-amber-500" : pos === 2 ? "text-slate-400" : "text-orange-400")} />
-                                                    <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Rank #{pos}</span>
-                                                </div>
-                                            </div>
+                                return (
+                                    <>
+                                        {/* Podium (Top 3) */}
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-end">
+                                            {[2, 1, 3].map((pos) => {
+                                                const res = filteredRankingResults[pos - 1]; // First in filtered list is #1
+                                                if (!res) return null;
+                                                const student = students.find(s => s.id === res.studentId);
 
-                                            <div className="flex flex-col gap-2 w-full">
-                                                <button
-                                                    onClick={() => {
-                                                        const data = { student, result: res, exam: exams.find(e => e.id === selectedExamId) };
-                                                        handleSendWhatsAppResult(data);
-                                                    }}
-                                                    className="px-4 py-2 bg-green-500 text-white rounded-[var(--brand-radius,0.5rem)] text-[8px] font-black uppercase tracking-widest hover:bg-green-600 transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Share2 className="w-3 h-3" /> WhatsApp Marksheet
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        const data = { student, result: res, exam: exams.find(e => e.id === selectedExamId) };
-                                                        setCertificateData(data);
-                                                        handlePrintCertificate(data);
-                                                    }}
-                                                    className="px-4 py-2 bg-brand-primary text-white rounded-[var(--brand-radius,0.5rem)] text-[8px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2"
-                                                >
-                                                    <Printer className="w-3 h-3" /> Print Certificate
-                                                </button>
-                                            </div>
-
-                                            <div className={cn(
-                                                "absolute -top-3 px-4 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border shadow-sm",
-                                                pos === 1 ? "bg-brand-accent text-brand-primary border-brand-accent" : "bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-white/10"
-                                            )}>
-                                                {pos === 1 ? 'Champion' : pos === 2 ? 'Runner Up' : '3rd Place'}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Full List */}
-                            <div className="glass-card overflow-hidden">
-                                <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedResults.length > 0 && selectedResults.length === examResults.filter(r => r.examId === selectedExamId && r.className === selectedClass && (selectedCampus ? students.find(s => s.id === r.studentId)?.campus === selectedCampus : true)).length}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    const allFilteredIds = examResults
-                                                        .filter(r => r.examId === selectedExamId && r.className === selectedClass && (selectedCampus ? students.find(s => s.id === r.studentId)?.campus === selectedCampus : true))
-                                                        .map(r => r.studentId);
-                                                    setSelectedResults(allFilteredIds);
-                                                } else {
-                                                    setSelectedResults([]);
-                                                }
-                                            }}
-                                            className="w-4 h-4 accent-brand-primary"
-                                        />
-                                        <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Institutional Merit List</h4>
-                                    </div>
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase">Class Strength: {students.filter(s => s.class === selectedClass).length}</span>
-                                </div>
-                                {/* Mobile Merit List View - Premium Native App Style */}
-                                <div className="md:hidden bg-slate-50/80 dark:bg-[#000816] p-3 md:p-4 space-y-3.5">
-                                    {examResults
-                                        .filter(r => {
-                                            if (r.examId !== selectedExamId) return false;
-                                            if (selectedClass && selectedClass !== 'All' && r.className !== selectedClass) return false;
-                                            if (selectedCampus) {
-                                                const s = students.find(stud => stud.id === r.studentId);
-                                                return s?.campus === selectedCampus;
-                                            }
-                                            return true;
-                                        })
-                                        .sort((a, b) => b.percentage - a.percentage)
-                                        .map((res, index) => {
-                                            const student = students.find(s => s.id === res.studentId);
-                                            const isTop3 = index < 3;
-
-                                            return (
-                                                <div key={res.studentId} className={cn(
-                                                    "bg-white dark:bg-slate-900 rounded-[1.25rem] p-4 shadow-sm border overflow-hidden relative transition-all active:scale-[0.98]",
-                                                    isTop3 ? "border-brand-primary/20 dark:border-brand-accent/20" : "border-slate-100 dark:border-white/5",
-                                                    selectedResults.includes(res.studentId) ? "ring-2 ring-brand-primary ring-inset" : ""
-                                                )}>
-                                                    {isTop3 && (
-                                                        <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-400/10 dark:bg-amber-400/5 rounded-full blur-2xl pointer-events-none"></div>
-                                                    )}
-
-                                                    <div className="flex flex-row items-center gap-3.5 relative z-10">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedResults.includes(res.studentId)}
-                                                            onChange={() => {
-                                                                if (selectedResults.includes(res.studentId)) {
-                                                                    setSelectedResults(selectedResults.filter(id => id !== res.studentId));
-                                                                } else {
-                                                                    setSelectedResults([...selectedResults, res.studentId]);
-                                                                }
-                                                            }}
-                                                            className="w-4 h-4 accent-brand-primary"
-                                                        />
+                                                return (
+                                                    <div key={pos} className={cn(
+                                                        "glass-card p-6 md:p-8 flex flex-col items-center text-center relative animate-in slide-in-from-bottom-8 duration-700",
+                                                        pos === 1 ? "bg-gradient-to-br from-brand-primary/5 to-brand-accent/10 border-brand-accent/30 scale-100 md:scale-110 z-10 order-1 md:order-2 dark:bg-white/5" :
+                                                            pos === 2 ? "bg-white dark:bg-white/5 order-2 md:order-1" : "bg-white dark:bg-white/5 order-3",
+                                                    )}>
                                                         <div className={cn(
-                                                            "w-10 h-10 rounded-[0.85rem] flex items-center justify-center text-xs font-[1000] shadow-inner border shrink-0",
-                                                            index === 0 ? "bg-gradient-to-br from-amber-300 to-amber-500 text-white border-amber-200" :
-                                                                index === 1 ? "bg-gradient-to-br from-slate-300 to-slate-400 text-white border-slate-200" :
-                                                                    index === 2 ? "bg-gradient-to-br from-orange-300 to-orange-400 text-white border-orange-200" :
-                                                                        "bg-slate-50 dark:bg-white/5 text-slate-500 border-slate-200/50 dark:border-white/5"
+                                                            "w-12 h-12 md:w-16 md:h-16 rounded-2xl flex items-center justify-center mb-4 shadow-lg ring-4 ring-white",
+                                                            pos === 1 ? "bg-amber-400" : pos === 2 ? "bg-slate-300" : "bg-orange-300"
                                                         )}>
-                                                            #{index + 1}
+                                                            <Trophy className="w-8 h-8 text-white" />
                                                         </div>
-
-                                                        <div className="flex-1 min-w-0 py-0.5">
-                                                            <h4 className="text-[14px] font-[1000] text-slate-800 dark:text-white uppercase tracking-tight truncate leading-tight mb-1">{student?.name}</h4>
-                                                            <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                                                <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase">{student?.id}</span>
+                                                        <div className="mb-4">
+                                                            <h4 className="font-black text-brand-primary dark:text-white uppercase text-sm leading-tight">{student?.name}</h4>
+                                                            <p className="text-[10px] font-bold text-slate-400 mt-1">{student?.id}</p>
+                                                        </div>
+                                                        <div className="space-y-1 mb-6">
+                                                            <p className="text-2xl font-black text-brand-primary dark:text-white">{res.percentage.toFixed(1)}%</p>
+                                                            <div className="flex items-center gap-1.5 justify-center">
+                                                                <Medal className={cn("w-3 h-3", pos === 1 ? "text-amber-500" : pos === 2 ? "text-slate-400" : "text-orange-400")} />
+                                                                <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">Rank #{pos}</span>
                                                             </div>
                                                         </div>
 
-                                                        <div className="text-right shrink-0">
-                                                            <div className={cn(
-                                                                "text-lg font-[1000] leading-none mb-1",
-                                                                isTop3 ? "text-amber-500 dark:text-amber-400" : "text-brand-primary dark:text-brand-accent"
-                                                            )}>{res.percentage.toFixed(1)}%</div>
+                                                        <div className="flex flex-col gap-2 w-full">
+                                                            <button
+                                                                onClick={() => {
+                                                                    const data = { student, result: { ...res, position: pos }, exam: exams.find(e => e.id === selectedExamId) };
+                                                                    handleSendWhatsAppResult(data);
+                                                                }}
+                                                                className="px-4 py-2 bg-green-500 text-white rounded-[var(--brand-radius,0.5rem)] text-[8px] font-black uppercase tracking-widest hover:bg-green-600 transition-all flex items-center justify-center gap-2"
+                                                            >
+                                                                <Share2 className="w-3 h-3" /> WhatsApp Marksheet
+                                                            </button>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const data = { student, result: { ...res, position: pos }, exam: exams.find(e => e.id === selectedExamId) };
+                                                                    setCertificateData(data);
+                                                                    handlePrintCertificate(data);
+                                                                }}
+                                                                className="px-4 py-2 bg-brand-primary text-white rounded-[var(--brand-radius,0.5rem)] text-[8px] font-black uppercase tracking-widest hover:opacity-90 transition-all flex items-center justify-center gap-2"
+                                                            >
+                                                                <Printer className="w-3 h-3" /> Print Certificate
+                                                            </button>
+                                                        </div>
+
+                                                        <div className={cn(
+                                                            "absolute -top-3 px-4 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border shadow-sm",
+                                                            pos === 1 ? "bg-brand-accent text-brand-primary border-brand-accent" : "bg-white dark:bg-slate-800 text-slate-400 border-slate-100 dark:border-white/10"
+                                                        )}>
+                                                            {pos === 1 ? 'Champion' : pos === 2 ? 'Runner Up' : '3rd Place'}
                                                         </div>
                                                     </div>
+                                                );
+                                            })}
+                                        </div>
 
-                                                    <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-slate-100/60 dark:border-white/5 relative z-10">
-                                                        <button
-                                                            onClick={() => handlePrintResultCard({ student, result: res, exam: exams.find(e => e.id === selectedExamId) })}
-                                                            className="flex flex-col items-center justify-center gap-2 py-2.5 px-1 rounded-xl bg-blue-50/60 dark:bg-blue-500/10 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-colors"
-                                                        >
-                                                            <ClipboardList className="w-4 h-4" />
-                                                            <span className="text-[7.5px] font-black uppercase tracking-widest whitespace-nowrap">Mark Sheet</span>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => handleSendWhatsAppResult({ student, result: res, exam: exams.find(e => e.id === selectedExamId) })}
-                                                            className="flex flex-col items-center justify-center gap-2 py-2.5 px-1 rounded-xl bg-emerald-50/60 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 transition-colors"
-                                                        >
-                                                            <Share2 className="w-4 h-4" />
-                                                            <span className="text-[7.5px] font-black uppercase tracking-widest whitespace-nowrap">WhatsApp</span>
-                                                        </button>
-                                                        <button
-                                                            onClick={() => { const d = { student, result: res, exam: exams.find(e => e.id === selectedExamId) }; handlePrintCertificate(d); }}
-                                                            className="flex flex-col items-center justify-center gap-2 py-2.5 px-1 rounded-xl bg-amber-50/60 dark:bg-amber-500/10 hover:bg-amber-100 text-amber-600 dark:text-amber-400 transition-colors"
-                                                        >
-                                                            <Printer className="w-4 h-4" />
-                                                            <span className="text-[7.5px] font-black uppercase tracking-widest whitespace-nowrap">Certificate</span>
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                </div>
-
-                                <div className="hidden md:block overflow-x-auto custom-scrollbar">
-                                    <table className="w-full min-w-[1000px]">
-                                        <thead className="bg-white">
-                                            <tr>
-                                                <th className="px-6 py-4 text-left border-r border-slate-50 sticky left-0 bg-white z-10">
+                                        {/* Full List */}
+                                        <div className="glass-card overflow-hidden">
+                                            <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                                <div className="flex items-center gap-3">
                                                     <input
                                                         type="checkbox"
-                                                        checked={selectedResults.length > 0 && selectedResults.length === examResults.filter(r => r.examId === selectedExamId && r.className === selectedClass && (selectedCampus ? students.find(s => s.id === r.studentId)?.campus === selectedCampus : true)).length}
+                                                        checked={selectedResults.length > 0 && selectedResults.length === filteredRankingResults.length}
                                                         onChange={(e) => {
                                                             if (e.target.checked) {
-                                                                const allFilteredIds = examResults
-                                                                    .filter(r => r.examId === selectedExamId && r.className === selectedClass && (selectedCampus ? students.find(s => s.id === r.studentId)?.campus === selectedCampus : true))
-                                                                    .map(r => r.studentId);
-                                                                setSelectedResults(allFilteredIds);
+                                                                setSelectedResults(filteredRankingResults.map(r => r.studentId));
                                                             } else {
                                                                 setSelectedResults([]);
                                                             }
                                                         }}
                                                         className="w-4 h-4 accent-brand-primary"
                                                     />
-                                                </th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-300 tracking-widest border-r border-slate-50">Pos</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-300 tracking-widest">Student Name</th>
-                                                <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest">Subjects</th>
-                                                <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest">Total</th>
-                                                <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest">Percentage</th>
-                                                <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest">Grade</th>
-                                                <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-300 tracking-widest">Assessment Remark</th>
-                                                <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest sticky right-0 bg-white z-10 border-l border-slate-50">Actions</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {examResults
-                                                .filter(r => {
-                                                    if (r.examId !== selectedExamId) return false;
-                                                    if (selectedClass && selectedClass !== 'All' && r.className !== selectedClass) return false;
-                                                    if (selectedCampus) {
-                                                        const s = students.find(stud => stud.id === r.studentId);
-                                                        return s?.campus === selectedCampus;
-                                                    }
-                                                    return true;
-                                                })
-                                                .sort((a, b) => b.percentage - a.percentage)
-                                                .map((res, index) => {
+                                                    <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Institutional Merit List</h4>
+                                                </div>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase">Class Strength: {filteredRankingResults.length}</span>
+                                            </div>
+                                            {/* Mobile Merit List View - Premium Native App Style */}
+                                            <div className="md:hidden bg-slate-50/80 dark:bg-[#000816] p-3 md:p-4 space-y-3.5">
+                                                {filteredRankingResults.map((res, index) => {
                                                     const student = students.find(s => s.id === res.studentId);
+                                                    const isTop3 = index < 3;
+
                                                     return (
-                                                        <tr key={res.studentId} className={cn(
-                                                            "group hover:bg-slate-50 transition-colors",
-                                                            index < 3 ? "bg-blue-50/20" : "",
-                                                            selectedResults.includes(res.studentId) ? "bg-brand-primary/[0.03]" : ""
+                                                        <div key={res.studentId} className={cn(
+                                                            "bg-white dark:bg-slate-900 rounded-[1.25rem] p-4 shadow-sm border overflow-hidden relative transition-all active:scale-[0.98]",
+                                                            isTop3 ? "border-brand-primary/20 dark:border-brand-accent/20" : "border-slate-100 dark:border-white/5",
+                                                            selectedResults.includes(res.studentId) ? "ring-2 ring-brand-primary ring-inset" : ""
                                                         )}>
-                                                            <td className="px-6 py-4 border-r border-slate-50 sticky left-0 bg-white z-10 group-hover:bg-slate-100 transition-colors">
+                                                            {isTop3 && (
+                                                                <div className="absolute -top-12 -right-12 w-32 h-32 bg-amber-400/10 dark:bg-amber-400/5 rounded-full blur-2xl pointer-events-none"></div>
+                                                            )}
+
+                                                            <div className="flex flex-row items-center gap-3.5 relative z-10">
                                                                 <input
                                                                     type="checkbox"
                                                                     checked={selectedResults.includes(res.studentId)}
@@ -2560,96 +2490,223 @@ export const Exams = () => {
                                                                     }}
                                                                     className="w-4 h-4 accent-brand-primary"
                                                                 />
-                                                            </td>
-                                                            <td className="px-6 py-4 border-r border-slate-50">
                                                                 <div className={cn(
-                                                                    "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black",
-                                                                    index === 0 ? "bg-amber-400 text-white shadow-lg" :
-                                                                        index === 1 ? "bg-slate-300 text-white" :
-                                                                            index === 2 ? "bg-orange-300 text-white" :
-                                                                                "bg-slate-100 text-slate-400"
+                                                                    "w-10 h-10 rounded-[0.85rem] flex items-center justify-center text-xs font-[1000] shadow-inner border shrink-0",
+                                                                    index === 0 ? "bg-gradient-to-br from-amber-300 to-amber-500 text-white border-amber-200" :
+                                                                        index === 1 ? "bg-gradient-to-br from-slate-300 to-slate-400 text-white border-slate-200" :
+                                                                            index === 2 ? "bg-gradient-to-br from-orange-300 to-orange-400 text-white border-orange-200" :
+                                                                                "bg-slate-50 dark:bg-white/5 text-slate-500 border-slate-200/50 dark:border-white/5"
                                                                 )}>
-                                                                    {index + 1}
+                                                                    #{index + 1}
                                                                 </div>
-                                                            </td>
-                                                            <td className="px-6 py-4">
-                                                                <div>
-                                                                    <p className="text-xs font-black text-brand-primary dark:text-white uppercase">{student?.name}</p>
-                                                                    <p className="text-[9px] font-bold text-slate-400 mt-0.5">{student?.id}</p>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <span className="text-[10px] font-bold text-slate-500">{Object.keys(res.marks || {}).length} / {(classSubjects[selectedClass] || []).length}</span>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <span className="text-xs font-black text-brand-primary dark:text-white">{res.totalObtained} / {res.totalPossible}</span>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <div className="flex items-center gap-2 justify-center">
-                                                                    <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
-                                                                        <div
-                                                                            className={cn(
-                                                                                "h-full rounded-full transition-all duration-1000",
-                                                                                res.percentage >= 80 ? "bg-emerald-500" : res.percentage >= 60 ? "bg-blue-500" : "bg-amber-500"
-                                                                            )}
-                                                                            style={{ width: `${res.percentage}%` }}
-                                                                        />
+
+                                                                <div className="flex-1 min-w-0 py-0.5">
+                                                                    <h4 className="text-[14px] font-[1000] text-slate-800 dark:text-white uppercase tracking-tight truncate leading-tight mb-1">{student?.name}</h4>
+                                                                    <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                                                        <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase">{student?.id}</span>
                                                                     </div>
-                                                                    <span className="text-xs font-black text-brand-primary dark:text-white">{res.percentage.toFixed(1)}%</span>
                                                                 </div>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center">
-                                                                <span className={cn(
-                                                                    "px-3 py-1 rounded-lg text-[10px] font-black",
-                                                                    res.grade === 'A+' ? "bg-emerald-100 text-emerald-600" :
-                                                                        res.grade === 'A' ? "bg-emerald-50 text-emerald-600" :
-                                                                            res.grade === 'F' ? "bg-rose-100 text-rose-600" :
-                                                                                "bg-blue-50 text-blue-600"
-                                                                )}>
-                                                                    {res.grade}
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-left">
-                                                                <p className="text-[10px] text-slate-500 font-medium italic leading-relaxed truncate max-w-[150px]">
-                                                                    {res.remarks || 'Pending...'}
-                                                                </p>
-                                                            </td>
-                                                            <td className="px-6 py-4 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 group-hover:bg-slate-50 transition-colors border-l border-slate-50">
-                                                                <div className="flex items-center justify-center gap-1">
-                                                                    <button
-                                                                        onClick={() => handlePrintResultCard({ student, result: res, exam: exams.find(e => e.id === selectedExamId) })}
-                                                                        className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
-                                                                        title="Generate Result Card"
-                                                                    >
-                                                                        <ClipboardList className="w-4 h-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleSendWhatsAppResult({ student, result: res, exam: exams.find(e => e.id === selectedExamId) })}
-                                                                        className="p-2 text-slate-400 hover:text-green-600 transition-colors"
-                                                                        title="Send Marksheet PDF via WhatsApp"
-                                                                    >
-                                                                        <Share2 className="w-4 h-4" />
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            const data = { student, result: res, exam: exams.find(e => e.id === selectedExamId) };
-                                                                            setCertificateData(data);
-                                                                            handlePrintCertificate(data);
-                                                                        }}
-                                                                        className="p-2 text-slate-400 hover:text-brand-primary transition-colors"
-                                                                        title="Print Certificate"
-                                                                    >
-                                                                        <Printer className="w-4 h-4" />
-                                                                    </button>
+
+                                                                <div className="text-right shrink-0">
+                                                                    <div className={cn(
+                                                                        "text-lg font-[1000] leading-none mb-1",
+                                                                        isTop3 ? "text-amber-500 dark:text-amber-400" : "text-brand-primary dark:text-brand-accent"
+                                                                    )}>{res.percentage.toFixed(1)}%</div>
                                                                 </div>
-                                                            </td>
-                                                        </tr>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-4 gap-2 mt-4 pt-4 border-t border-slate-100/60 dark:border-white/5 relative z-10">
+                                                                <button
+                                                                    onClick={() => handleEditMarksFromStandings(res)}
+                                                                    className="flex flex-col items-center justify-center gap-2 py-2.5 px-1 rounded-xl bg-slate-50/60 dark:bg-white/10 hover:bg-slate-100 text-slate-600 dark:text-slate-300 transition-colors"
+                                                                >
+                                                                    <Edit2 className="w-4 h-4" />
+                                                                    <span className="text-[7.5px] font-black uppercase tracking-widest whitespace-nowrap">Edit</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handlePrintResultCard({ student, result: { ...res, position: index + 1 }, exam: exams.find(e => e.id === selectedExamId) })}
+                                                                    className="flex flex-col items-center justify-center gap-2 py-2.5 px-1 rounded-xl bg-blue-50/60 dark:bg-blue-500/10 hover:bg-blue-100 text-blue-600 dark:text-blue-400 transition-colors"
+                                                                >
+                                                                    <ClipboardList className="w-4 h-4" />
+                                                                    <span className="text-[7.5px] font-black uppercase tracking-widest whitespace-nowrap">Mark Sheet</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleSendWhatsAppResult({ student, result: { ...res, position: index + 1 }, exam: exams.find(e => e.id === selectedExamId) })}
+                                                                    className="flex flex-col items-center justify-center gap-2 py-2.5 px-1 rounded-xl bg-emerald-50/60 dark:bg-emerald-500/10 hover:bg-emerald-100 text-emerald-600 dark:text-emerald-400 transition-colors"
+                                                                >
+                                                                    <Share2 className="w-4 h-4" />
+                                                                    <span className="text-[7.5px] font-black uppercase tracking-widest whitespace-nowrap">WhatsApp</span>
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => { const d = { student, result: { ...res, position: index + 1 }, exam: exams.find(e => e.id === selectedExamId) }; handlePrintCertificate(d); }}
+                                                                    className="flex flex-col items-center justify-center gap-2 py-2.5 px-1 rounded-xl bg-amber-50/60 dark:bg-amber-500/10 hover:bg-amber-100 text-amber-600 dark:text-amber-400 transition-colors"
+                                                                >
+                                                                    <Printer className="w-4 h-4" />
+                                                                    <span className="text-[7.5px] font-black uppercase tracking-widest whitespace-nowrap">Certificate</span>
+                                                                </button>
+                                                            </div>
+                                                        </div>
                                                     );
                                                 })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
+                                            </div>
+
+                                            <div className="hidden md:block overflow-x-auto custom-scrollbar">
+                                                <table className="w-full min-w-[1000px]">
+                                                    <thead className="bg-white">
+                                                        <tr>
+                                                            <th className="px-6 py-4 text-left border-r border-slate-50 sticky left-0 bg-white z-10">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedResults.length > 0 && selectedResults.length === filteredRankingResults.length}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) {
+                                                                            setSelectedResults(filteredRankingResults.map(r => r.studentId));
+                                                                        } else {
+                                                                            setSelectedResults([]);
+                                                                        }
+                                                                    }}
+                                                                    className="w-4 h-4 accent-brand-primary"
+                                                                />
+                                                            </th>
+                                                            <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-300 tracking-widest border-r border-slate-50">Pos</th>
+                                                            <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-300 tracking-widest">Student Name</th>
+                                                            <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest">Subjects</th>
+                                                            <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest">Total</th>
+                                                            <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest">Percentage</th>
+                                                            <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest">Grade</th>
+                                                            <th className="px-6 py-4 text-left text-[9px] font-black uppercase text-slate-300 tracking-widest">Assessment Remark</th>
+                                                            <th className="px-6 py-4 text-center text-[9px] font-black uppercase text-slate-300 tracking-widest sticky right-0 bg-white z-10 border-l border-slate-50">Actions</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-slate-50">
+                                                        {filteredRankingResults.map((res, index) => {
+                                                            const student = students.find(s => s.id === res.studentId);
+                                                            const exam = exams.find(e => e.id === selectedExamId);
+                                                            return (
+                                                                <tr key={res.studentId} className={cn(
+                                                                    "group hover:bg-slate-50 transition-colors",
+                                                                    index < 3 ? "bg-blue-50/20" : "",
+                                                                    selectedResults.includes(res.studentId) ? "bg-brand-primary/[0.03]" : ""
+                                                                )}>
+                                                                    <td className="px-6 py-4 border-r border-slate-50 sticky left-0 bg-white z-10 group-hover:bg-slate-100 transition-colors">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={selectedResults.includes(res.studentId)}
+                                                                            onChange={() => {
+                                                                                if (selectedResults.includes(res.studentId)) {
+                                                                                    setSelectedResults(selectedResults.filter(id => id !== res.studentId));
+                                                                                } else {
+                                                                                    setSelectedResults([...selectedResults, res.studentId]);
+                                                                                }
+                                                                            }}
+                                                                            className="w-4 h-4 accent-brand-primary"
+                                                                        />
+                                                                    </td>
+                                                                    <td className="px-6 py-4 border-r border-slate-50">
+                                                                        <div className={cn(
+                                                                            "w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-[1000] text-slate-900 border border-slate-200 shadow-sm transition-all",
+                                                                            index === 0 ? "bg-amber-400 text-white shadow-lg border-amber-500" :
+                                                                                index === 1 ? "bg-slate-300 text-white" :
+                                                                                    index === 2 ? "bg-orange-300 text-white" :
+                                                                                        "bg-white"
+                                                                        )}>
+                                                                            {index + 1}
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4">
+                                                                        <div>
+                                                                            <p className="text-xs font-black text-brand-primary dark:text-white uppercase truncate max-w-[180px]">{student?.name}</p>
+                                                                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{student?.id}</p>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-center">
+                                                                        <span className="text-[10px] font-black text-slate-400">
+                                                                            {Object.keys(res.marks || {}).length} / {(classSubjects[res.className] || []).length}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-center">
+                                                                        <div className="flex flex-col items-center">
+                                                                            <span className="text-[11px] font-[1000] text-brand-primary dark:text-white leading-none mb-1">
+                                                                                {res.totalObtained} / {res.totalPossible}
+                                                                            </span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-center">
+                                                                        <div className="flex flex-col items-center gap-1.5">
+                                                                            <div className="w-12 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                                                                <div
+                                                                                    className={cn(
+                                                                                        "h-full rounded-full transition-all duration-1000",
+                                                                                        res.percentage >= 80 ? "bg-emerald-500" : res.percentage >= 60 ? "bg-blue-500" : "bg-amber-500"
+                                                                                    )}
+                                                                                    style={{ width: `${res.percentage}%` }}
+                                                                                />
+                                                                            </div>
+                                                                            <span className="text-xs font-[1000] text-slate-900 dark:text-white">{res.percentage.toFixed(1)}%</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-center">
+                                                                        <span className={cn(
+                                                                            "px-3 py-1 rounded-lg text-[10px] font-black",
+                                                                            res.grade === 'A+' ? "bg-emerald-100 text-emerald-600" :
+                                                                                res.grade === 'A' ? "bg-emerald-50 text-emerald-600" :
+                                                                                    res.grade === 'F' ? "bg-rose-100 text-rose-600" :
+                                                                                        "bg-blue-50 text-blue-600"
+                                                                        )}>
+                                                                            {res.grade}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-left">
+                                                                        <p className="text-[10px] text-slate-500 font-medium italic leading-relaxed truncate max-w-[150px]">
+                                                                            {res.remarks || 'Pending...'}
+                                                                        </p>
+                                                                    </td>
+                                                                    <td className="px-6 py-4 text-center sticky right-0 bg-white dark:bg-slate-900 z-10 group-hover:bg-slate-50 transition-colors border-l border-slate-50">
+                                                                        <div className="flex items-center justify-center gap-1">
+                                                                            <button
+                                                                                onClick={() => handleEditMarksFromStandings(res)}
+                                                                                className="p-2 text-slate-400 hover:text-brand-primary transition-colors"
+                                                                                title="Edit Marks"
+                                                                            >
+                                                                                <Edit2 className="w-4 h-4" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handlePrintResultCard({ student, result: { ...res, position: index + 1 }, exam })}
+                                                                                className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                                                                                title="Generate Result Card"
+                                                                            >
+                                                                                <ClipboardList className="w-4 h-4" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => handleSendWhatsAppResult({ student, result: { ...res, position: index + 1 }, exam })}
+                                                                                className="p-2 text-slate-400 hover:text-green-600 transition-colors"
+                                                                                title="Send Marksheet PDF via WhatsApp"
+                                                                            >
+                                                                                <Share2 className="w-4 h-4" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    const data = { student, result: { ...res, position: index + 1 }, exam };
+                                                                                    setCertificateData(data);
+                                                                                    handlePrintCertificate(data);
+                                                                                }}
+                                                                                className="p-2 text-slate-400 hover:text-brand-primary transition-colors"
+                                                                                title="Print Certificate"
+                                                                            >
+                                                                                <Printer className="w-4 h-4" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
                     ) : (
                         <div className="py-20 text-center glass-card border-dashed">
@@ -2959,138 +3016,160 @@ export const Exams = () => {
             {activeTab === 'range_toppers' && (
                 <div className="space-y-6">
                     {/* Range Selectors */}
-                    <div className="bg-white/80 dark:bg-[#000816]/80 rounded-[1.5rem] md:rounded-[2rem] p-2 shadow-sm border border-slate-200/50 dark:border-white/5 grid grid-cols-1 md:grid-cols-4 gap-2">
-                        <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
-                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Session</label>
-                            <select
-                                value={selectedExamId || ''}
-                                onChange={(e) => setSelectedExamId(e.target.value)}
-                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
-                            >
-                                <option value="">Select Session...</option>
-                                {exams.filter(e => e.status === 'Finalized').map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                            </select>
+                    <div className="bg-white/80 dark:bg-[#000816]/80 rounded-[1.5rem] md:rounded-[2rem] p-4 shadow-sm border border-slate-200/50 dark:border-white/5 space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
+                                <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Session</label>
+                                <select
+                                    value={selectedExamId || ''}
+                                    onChange={(e) => setSelectedExamId(e.target.value)}
+                                    className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
+                                >
+                                    <option value="">Select Session...</option>
+                                    {exams.filter(e => e.status === 'Finalized').map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
+                                <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Campus</label>
+                                <select
+                                    value={selectedCampus || ''}
+                                    onChange={(e) => setSelectedCampus(e.target.value)}
+                                    className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
+                                >
+                                    <option value="">Select Campus...</option>
+                                    {(useStore().campuses || []).map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                </select>
+                            </div>
                         </div>
 
-                        <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
-                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Campus</label>
-                            <select
-                                value={selectedCampus || ''}
-                                onChange={(e) => setSelectedCampus(e.target.value)}
-                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
-                            >
-                                <option value="">Select Campus...</option>
-                                {(useStore().campuses || []).map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
-                            </select>
+                        <div>
+                            <div className="flex justify-between items-center mb-4 px-2">
+                                <label className="text-[10px] font-[1000] uppercase text-slate-500 tracking-widest">Select Wings for Comparison</label>
+                                <div className="flex gap-4">
+                                    <button
+                                        onClick={() => setSelectedClassesForRange(classes)}
+                                        className="text-[9px] font-black uppercase text-brand-primary hover:scale-105 transition-transform"
+                                    >
+                                        Select All
+                                    </button>
+                                    <button
+                                        onClick={() => setSelectedClassesForRange([])}
+                                        className="text-[9px] font-black uppercase text-rose-500 hover:scale-105 transition-transform"
+                                    >
+                                        Clear All
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                                {classes.map(cls => (
+                                    <label
+                                        key={cls}
+                                        className={cn(
+                                            "relative flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all duration-300",
+                                            selectedClassesForRange.includes(cls)
+                                                ? "bg-brand-primary text-white border-brand-primary shadow-lg shadow-brand-primary/20 scale-[1.02]"
+                                                : "bg-slate-50 dark:bg-white/5 border-slate-100 dark:border-white/5 text-slate-600 dark:text-slate-400 hover:border-brand-primary/30"
+                                        )}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedClassesForRange.includes(cls)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    setSelectedClassesForRange([...selectedClassesForRange, cls]);
+                                                } else {
+                                                    setSelectedClassesForRange(selectedClassesForRange.filter(c => c !== cls));
+                                                }
+                                            }}
+                                            className="hidden"
+                                        />
+                                        <span className="text-[10px] font-black uppercase truncate text-center w-full">{cls}</span>
+                                        {selectedClassesForRange.includes(cls) && <CheckCircle2 className="w-3 h-3 absolute right-2 top-2" />}
+                                    </label>
+                                ))}
+                            </div>
                         </div>
 
-                        <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
-                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">Start Class</label>
-                            <select
-                                value={selectedStartClass || ''}
-                                onChange={(e) => setSelectedStartClass(e.target.value)}
-                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
+                        <div className="flex justify-center">
+                            <button
+                                onClick={handlePrintRangeToppers}
+                                disabled={!selectedExamId || !selectedCampus || selectedClassesForRange.length === 0}
+                                className="px-12 py-4 bg-brand-primary text-white rounded-full text-[11px] font-black uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-primary/30 flex items-center gap-3 disabled:opacity-50 disabled:scale-100"
                             >
-                                <option value="">Select Class...</option>
-                                {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
+                                <Award className="w-5 h-5" /> Export Over-All Toppers
+                            </button>
                         </div>
 
-                        <div className="relative bg-slate-50/50 dark:bg-white/5 rounded-[1.25rem] md:rounded-[1.75rem] px-4 py-2 border border-slate-100 dark:border-white/5 hover:border-brand-primary/20 transition-colors focus-within:ring-2 focus-within:ring-brand-primary/20">
-                            <label className="text-[7.5px] font-black uppercase text-brand-primary/60 dark:text-brand-accent/60 tracking-[0.2em] block mb-0.5">End Class</label>
-                            <select
-                                value={selectedEndClass || ''}
-                                onChange={(e) => setSelectedEndClass(e.target.value)}
-                                className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none cursor-pointer"
-                            >
-                                <option value="">Select Class...</option>
-                                {classes.map(c => <option key={c} value={c}>{c}</option>)}
-                            </select>
-                        </div>
-                    </div>
+                        {/* Overall Toppers Display */}
+                        {selectedExamId && selectedCampus && selectedClassesForRange.length > 0 ? (
+                            <div className="pt-10">
+                                {(() => {
+                                    const rangeResults = examResults.filter(r =>
+                                        r.examId === selectedExamId &&
+                                        selectedClassesForRange.includes(r.className) &&
+                                        students.find(s => s.id === r.studentId)?.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase()
+                                    ).sort((a, b) => b.percentage - a.percentage).slice(0, 3);
 
-                    <div className="flex justify-center">
-                        <button
-                            onClick={handlePrintRangeToppers}
-                            disabled={!selectedExamId || !selectedCampus || !selectedStartClass || !selectedEndClass}
-                            className="px-12 py-4 bg-brand-primary text-white rounded-full text-[11px] font-black uppercase tracking-[0.2em] hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-brand-primary/30 flex items-center gap-3 disabled:opacity-50 disabled:scale-100"
-                        >
-                            <Award className="w-5 h-5" /> Export Over-All Toppers
-                        </button>
-                    </div>
+                                    if (rangeResults.length === 0) {
+                                        return (
+                                            <div className="py-20 text-center glass-card border-dashed">
+                                                <Award className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                                <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">No matching results for selected classes</p>
+                                            </div>
+                                        );
+                                    }
 
-                    {/* Overall Toppers Display */}
-                    {selectedExamId && selectedCampus && selectedStartClass && selectedEndClass ? (
-                        <div className="pt-10">
-                            {(() => {
-                                const startIndex = classes.indexOf(selectedStartClass);
-                                const endIndex = classes.indexOf(selectedEndClass);
-                                const selectedRange = classes.slice(startIndex, endIndex + 1);
-
-                                const rangeResults = examResults.filter(r =>
-                                    r.examId === selectedExamId &&
-                                    selectedRange.includes(r.className) &&
-                                    students.find(s => s.id === r.studentId)?.campus === selectedCampus
-                                ).sort((a, b) => b.percentage - a.percentage).slice(0, 3);
-
-                                if (rangeResults.length === 0) {
                                     return (
-                                        <div className="py-20 text-center glass-card border-dashed">
-                                            <Award className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                                            <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">No matching results in this range</p>
-                                        </div>
-                                    );
-                                }
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end max-w-5xl mx-auto px-4">
+                                            {[2, 1, 3].map((pos) => {
+                                                const res = rangeResults[pos - 1];
+                                                if (!res) return <div key={pos} className="hidden md:block"></div>;
+                                                const student = students.find(s => s.id === res.studentId);
 
-                                return (
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-end max-w-5xl mx-auto px-4">
-                                        {[2, 1, 3].map((pos) => {
-                                            const res = rangeResults[pos - 1];
-                                            if (!res) return <div key={pos} className="hidden md:block"></div>;
-                                            const student = students.find(s => s.id === res.studentId);
-
-                                            return (
-                                                <div key={pos} className={cn(
-                                                    "bg-white dark:bg-[#000816] p-8 rounded-[2.5rem] flex flex-col items-center text-center relative border border-slate-100 dark:border-white/5 transition-all duration-500 hover:-translate-y-2",
-                                                    pos === 1 ? "md:pb-16 order-1 md:order-2 ring-4 ring-amber-400/20 shadow-2xl" :
-                                                        pos === 2 ? "order-2 md:order-1 opacity-90" : "order-3 opacity-80"
-                                                )}>
-                                                    <div className={cn(
-                                                        "w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-xl",
-                                                        pos === 1 ? "bg-amber-400 text-white" : pos === 2 ? "bg-slate-400 text-white" : "bg-orange-400 text-white"
+                                                return (
+                                                    <div key={pos} className={cn(
+                                                        "bg-white dark:bg-[#000816] p-8 rounded-[2.5rem] flex flex-col items-center text-center relative border border-slate-100 dark:border-white/5 transition-all duration-500 hover:-translate-y-2",
+                                                        pos === 1 ? "md:pb-16 order-1 md:order-2 ring-4 ring-amber-400/20 shadow-2xl" :
+                                                            pos === 2 ? "order-2 md:order-1 opacity-90" : "order-3 opacity-80"
                                                     )}>
-                                                        <Trophy className="w-8 h-8" />
-                                                    </div>
-                                                    <div className="absolute top-4 right-4 font-black text-4xl text-slate-100 dark:text-white/5 select-none">#{pos}</div>
+                                                        <div className={cn(
+                                                            "w-16 h-16 rounded-2xl flex items-center justify-center mb-6 shadow-xl",
+                                                            pos === 1 ? "bg-amber-400 text-white" : pos === 2 ? "bg-slate-400 text-white" : "bg-orange-400 text-white"
+                                                        )}>
+                                                            <Trophy className="w-8 h-8" />
+                                                        </div>
+                                                        <div className="absolute top-4 right-4 font-black text-4xl text-slate-100 dark:text-white/5 select-none">#{pos}</div>
 
-                                                    <h4 className="font-black text-brand-primary dark:text-white uppercase text-sm tracking-tight mb-1">{student?.name}</h4>
-                                                    <div className="px-3 py-1 bg-slate-50 dark:bg-white/5 rounded-full text-[8px] font-black text-slate-500 uppercase tracking-widest mb-4">
-                                                        {res.className} • {selectedCampus}
-                                                    </div>
+                                                        <h4 className="font-black text-brand-primary dark:text-white uppercase text-sm tracking-tight mb-1">{student?.name}</h4>
+                                                        <div className="px-3 py-1 bg-slate-50 dark:bg-white/5 rounded-full text-[8px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                                                            {res.className} • {selectedCampus}
+                                                        </div>
 
-                                                    <div className="flex items-center gap-1 mb-2">
-                                                        {[...Array(5)].map((_, i) => (
-                                                            <Star key={i} className={cn("w-3 h-3", i < (5 - pos + 1) ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
-                                                        ))}
-                                                    </div>
+                                                        <div className="flex items-center gap-1 mb-2">
+                                                            {[...Array(5)].map((_, i) => (
+                                                                <Star key={i} className={cn("w-3 h-3", i < (5 - pos + 1) ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
+                                                            ))}
+                                                        </div>
 
-                                                    <div className="text-3xl md:text-4xl font-black text-brand-primary dark:text-brand-accent tabular-nums">
-                                                        {res.percentage.toFixed(1)}%
+                                                        <div className="text-3xl md:text-4xl font-black text-brand-primary dark:text-brand-accent tabular-nums">
+                                                            {res.percentage.toFixed(1)}%
+                                                        </div>
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">Cross-Range Standing</p>
                                                     </div>
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mt-1">Cross-Range Standing</p>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                );
-                            })()}
-                        </div>
-                    ) : (
-                        <div className="py-32 text-center glass-card border-dashed">
-                            <Award className="w-16 h-16 text-slate-200 dark:text-brand-accent/10 mx-auto mb-4" />
-                            <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Select Campus & Class Range to Reveal Legends</p>
-                        </div>
-                    )}
+                                                );
+                                            })}
+                                        </div>
+                                    )
+                                })()}
+                            </div>
+                        ) : (
+                            <div className="py-32 text-center glass-card border-dashed">
+                                <Award className="w-16 h-16 text-slate-200 dark:text-brand-accent/10 mx-auto mb-4" />
+                                <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Select Session, Campus & Classes to Reveal Legends</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
         </div>

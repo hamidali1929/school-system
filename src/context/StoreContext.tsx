@@ -1266,6 +1266,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const inputMarks = (examId: string, className: string, studentId: string, subject: string, obtained: number | string, total: number = 100) => {
+        const cleanSubject = subject.trim();
         setExamResults(prev => {
             const existingIndex = prev.findIndex(r => r.examId === examId && r.studentId === studentId);
             const isMissing = obtained === '' || (typeof obtained === 'string' && obtained.trim() === '') || obtained === null || obtained === undefined;
@@ -1274,12 +1275,13 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             if (existingIndex >= 0) {
                 const updatedPrev = [...prev];
                 const r = { ...updatedPrev[existingIndex] };
+                r.className = className; // Update class in case student was moved
                 const newMarks = { ...r.marks };
 
                 if (isMissing) {
-                    delete newMarks[subject];
+                    delete newMarks[cleanSubject];
                 } else {
-                    newMarks[subject] = { obtained: numericObtained, total };
+                    newMarks[cleanSubject] = { obtained: numericObtained, total };
                 }
 
                 r.marks = newMarks;
@@ -1293,7 +1295,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 return updatedPrev;
             } else {
                 if (isMissing) return prev; // don't create if missing
-                const newMarks = { [subject]: { obtained: numericObtained, total } };
+                const newMarks = { [cleanSubject]: { obtained: numericObtained, total } };
                 return [...prev, {
                     examId,
                     studentId,
@@ -1328,10 +1330,25 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             // Map students for quick campus lookup
             const studentMap = new Map(students.map(s => [s.id, s.campus]));
 
-            // 1. Get ALL results for this exam to calculate global rankings
-            const allExamResults = prev.filter(r => r.examId === examId).map(res => {
-                const totalObtained = Object.values(res.marks).reduce((sum, m) => sum + (Number(m.obtained) || 0), 0);
-                const totalPossible = Object.values(res.marks).reduce((sum, m) => sum + (Number(m.total) || 0), 0);
+            // 1. Get UNIQUE results for this exam (handle cases where same student exists in multiple classes)
+            // We'll take the LATEST record for each student
+            const uniqueResultsMap = new Map();
+            prev.filter(r => r.examId === examId).forEach(r => {
+                uniqueResultsMap.set(r.studentId, r);
+            });
+
+            const allExamResults = Array.from(uniqueResultsMap.values()).map(res => {
+                // Ensure unique subject names by trimming and merging if necessary
+                const cleanMarks: Record<string, any> = {};
+                Object.keys(res.marks).forEach(sub => {
+                    const cleanSub = sub.trim();
+                    if (!cleanMarks[cleanSub]) {
+                        cleanMarks[cleanSub] = res.marks[sub];
+                    }
+                });
+
+                const totalObtained = Object.values(cleanMarks).reduce((sum, m) => sum + (Number(m.obtained) || 0), 0);
+                const totalPossible = Object.values(cleanMarks).reduce((sum, m) => sum + (Number(m.total) || 0), 0);
                 const percentage = totalPossible > 0 ? (totalObtained / totalPossible) * 100 : 0;
 
                 let grade = 'F';
@@ -1345,7 +1362,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 else if (percentage >= 51) grade = 'C';
                 else if (percentage >= 40) grade = 'D';
 
-                return { ...res, totalObtained, totalPossible, percentage, grade };
+                return { ...res, marks: cleanMarks, totalObtained, totalPossible, percentage, grade };
             });
 
             // 2. Global (School) Sorted
@@ -1380,7 +1397,17 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 };
             });
 
-            const otherResults = prev.filter(r => !(r.examId === examId && r.className === className));
+            // Clean up prev by removing ALL old records for this exam for the students in this class
+            // This ensures we don't have duplicates across different classes for the same student
+            const studentIdsInThisClass = new Set(updatedClassResults.map(r => r.studentId));
+            const otherResults = prev.filter(r => {
+                // Remove if it belongs to this class/exam
+                if (r.examId === examId && r.className === className) return false;
+                // ALSO remove if it's the SAME EXAM but student is now in this class (handles cross-class duplicates)
+                if (r.examId === examId && studentIdsInThisClass.has(r.studentId)) return false;
+                return true;
+            });
+
             return [...otherResults, ...updatedClassResults];
         });
 
