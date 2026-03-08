@@ -94,9 +94,13 @@ export const TimetablePage = () => {
         setIsGenerating(true);
 
         const wingClasses = classes.filter(c => {
-            if (activeWing === 'primary') return !c.includes('(Boys)') && !c.includes('(Girls)') && !['9th', '10th', '1st Year', '2nd Year'].some(p => c.includes(p));
-            if (activeWing === 'boys') return c.includes('(Boys)');
-            return c.includes('(Girls)');
+            if (wingAssignments[c]) return wingAssignments[c] === activeWing;
+            const classLow = c.toLowerCase();
+            const isGirls = classLow.includes('girls');
+            const isBoys = classLow.includes('boys') || ['9th', '10th', '1st year', '2nd year', 'inter', 'matric'].some(p => classLow.includes(p));
+            if (activeWing === 'girls') return isGirls;
+            if (activeWing === 'boys') return isBoys && !isGirls;
+            return !isBoys && !isGirls;
         });
         const periods = periodSettings[activeWing] || [];
 
@@ -141,95 +145,101 @@ export const TimetablePage = () => {
 
         const newTimetables = { ...timetables };
 
-        wingClasses.forEach(cls => {
-            const clsSubjects = [...(classSubjects[cls] || [])];
-            const clsAssignedTeachers = subjectTeachers[cls] || {};
-            const tableKey = getTimetableKey(cls);
-            const clsTimetable = { ...(newTimetables[tableKey] || {}) };
+        // Process each day to allow cross-class teacher availability checking
+        DAYS.forEach(day => {
+            // Sort classes to process those with more subjects first (higher complexity)
+            const sortedWingClasses = [...wingClasses].sort((a, b) =>
+                (classSubjects[b]?.length || 0) - (classSubjects[a]?.length || 0)
+            );
 
-            DAYS.forEach(day => {
-                const daySlots: any[] = [];
-                const shuffledSubjects = [...clsSubjects].sort(() => Math.random() - 0.5);
-                const usedInClassToday = new Set<string>();
+            periods.forEach((p, pIdx) => {
+                if (p.isBreak || p.label.toUpperCase().includes('ASSEMBLY')) {
+                    sortedWingClasses.forEach(cls => {
+                        const tableKey = getTimetableKey(cls);
+                        if (!newTimetables[tableKey]) newTimetables[tableKey] = {};
+                        if (!newTimetables[tableKey][day]) newTimetables[tableKey][day] = [];
 
-                periods.forEach((p, pIdx) => {
-                    if (p.isBreak) {
-                        daySlots.push({ subject: 'BREAK', teacherId: '', startTime: p.start, endTime: p.end });
-                        resetFatigue(day);
-                    } else if (p.label.toUpperCase().includes('ASSEMBLY')) {
-                        daySlots.push({ subject: 'ASSEMBLY', teacherId: '', startTime: p.start, endTime: p.end });
-                    } else {
-                        if (usedInClassToday.size >= clsSubjects.length) usedInClassToday.clear();
-                        let assigned = false;
-
-                        const findTeacher = (subj: string, strictFatigue: boolean) => {
-                            // 1. Priority: Assigned designated teacher for this subject in this class
-                            const prefId = clsAssignedTeachers[subj];
-                            if (prefId) {
-                                const prefTeacher = teachers.find(t => t.id === prefId);
-                                if (prefTeacher &&
-                                    prefTeacher.status === 'Active' &&
-                                    prefTeacher.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
-                                    isTeacherFree(prefId, day, pIdx)) {
-
-                                    if (!strictFatigue || getConsecutive(day, prefId) < 6) { // Slightly relaxed fatigue for manual picks
-                                        return prefTeacher;
-                                    }
-                                }
-                            }
-
-                            // 2. Secondary: Any teacher with matching subject title in the same campus
-                            let potential = teachers.filter(t =>
-                                t.status === 'Active' &&
-                                (t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase()) &&
-                                (t.subject?.toLowerCase().includes(subj.toLowerCase()) || (t as any).classes?.includes(cls)) &&
-                                isTeacherFree(t.id, day, pIdx)
-                            );
-                            if (strictFatigue) potential = potential.filter(t => getConsecutive(day, t.id) < 4);
-
-                            if (potential.length > 0) return potential[Math.floor(Math.random() * potential.length)];
-
-                            // 3. Last Resort: Any free teacher in the campus (Emergency fill)
-                            const anyFreeInCampus = teachers.filter(t =>
-                                t.status === 'Active' &&
-                                t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
-                                isTeacherFree(t.id, day, pIdx)
-                            );
-                            if (anyFreeInCampus.length > 0) return anyFreeInCampus[Math.floor(Math.random() * anyFreeInCampus.length)];
-
-                            return null;
+                        const label = p.isBreak ? 'BREAK' : 'ASSEMBLY';
+                        newTimetables[tableKey][day][pIdx] = {
+                            subject: label, teacherId: '', startTime: p.start, endTime: p.end
                         };
+                    });
+                    resetFatigue(day);
+                    return;
+                }
 
-                        for (const subj of shuffledSubjects) {
-                            if (!usedInClassToday.has(subj)) {
-                                const teacher = findTeacher(subj, true) || findTeacher(subj, false);
-                                if (teacher) {
-                                    daySlots.push({ subject: subj, teacherId: teacher.id, startTime: p.start, endTime: p.end });
-                                    markTeacherBusy(teacher.id, day, pIdx);
-                                    usedInClassToday.add(subj);
-                                    assigned = true;
-                                    break;
-                                }
+                // For this specific period across all wing classes
+                sortedWingClasses.forEach(cls => {
+                    const tableKey = getTimetableKey(cls);
+                    if (!newTimetables[tableKey]) newTimetables[tableKey] = {};
+                    if (!newTimetables[tableKey][day]) newTimetables[tableKey][day] = [];
+
+                    const clsSubjects = classSubjects[cls] || [];
+                    const clsAssignedTeachers = subjectTeachers[cls] || {};
+
+                    // Priority sorting for subjects: Scarcity matching
+                    // Subjects with fewer matching available teachers should be prioritized
+                    const sortedSubjects = [...clsSubjects].sort((a, b) => {
+                        const countA = teachers.filter(t => t.subject?.toLowerCase().includes(a.toLowerCase())).length;
+                        const countB = teachers.filter(t => t.subject?.toLowerCase().includes(b.toLowerCase())).length;
+                        return countA - countB;
+                    });
+
+                    let assigned = false;
+
+                    const findBestTeacher = (subj: string) => {
+                        // 1. Designated teacher (Faculty Allocation)
+                        const prefId = clsAssignedTeachers[subj];
+                        if (prefId) {
+                            const prefT = teachers.find(t => t.id === prefId);
+                            if (prefT && prefT.status === 'Active' &&
+                                prefT.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
+                                isTeacherFree(prefId, day, pIdx)) {
+                                return prefT;
                             }
                         }
 
-                        if (!assigned) {
-                            for (const subj of shuffledSubjects) {
-                                const teacher = findTeacher(subj, false);
-                                if (teacher) {
-                                    daySlots.push({ subject: subj, teacherId: teacher.id, startTime: p.start, endTime: p.end });
-                                    markTeacherBusy(teacher.id, day, pIdx);
-                                    assigned = true;
-                                    break;
-                                }
-                            }
+                        // 2. Subject Specialist in this campus
+                        const specialists = teachers.filter(t =>
+                            t.status === 'Active' &&
+                            t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
+                            t.subject?.toLowerCase().includes(subj.toLowerCase()) &&
+                            isTeacherFree(t.id, day, pIdx)
+                        ).sort((a, b) => getConsecutive(day, a.id) - getConsecutive(day, b.id)); // Favor less fatigued
+
+                        if (specialists.length > 0) return specialists[0];
+
+                        // 3. Any Free Teacher in this campus (Emergency Fill)
+                        const freeTeachers = teachers.filter(t =>
+                            t.status === 'Active' &&
+                            t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
+                            isTeacherFree(t.id, day, pIdx)
+                        ).sort((a, b) => getConsecutive(day, a.id) - getConsecutive(day, b.id));
+
+                        if (freeTeachers.length > 0) return freeTeachers[0];
+
+                        return null;
+                    };
+
+                    for (const subj of sortedSubjects) {
+                        const teacher = findBestTeacher(subj);
+                        if (teacher) {
+                            newTimetables[tableKey][day][pIdx] = {
+                                subject: subj, teacherId: teacher.id, startTime: p.start, endTime: p.end
+                            };
+                            markTeacherBusy(teacher.id, day, pIdx);
+                            assigned = true;
+                            break;
                         }
-                        if (!assigned) daySlots.push({ subject: 'FREE', teacherId: '', startTime: p.start, endTime: p.end });
+                    }
+
+                    if (!assigned) {
+                        newTimetables[tableKey][day][pIdx] = {
+                            subject: 'FREE', teacherId: '', startTime: p.start, endTime: p.end
+                        };
                     }
                 });
-                clsTimetable[day] = daySlots;
             });
-            newTimetables[tableKey] = clsTimetable;
         });
 
         updateAllTimetables(newTimetables);
@@ -251,7 +261,11 @@ export const TimetablePage = () => {
     const getAvailableTeachers = (day: string, periodIdx: number) => {
         const busyMap = getTeacherWorkload(day, periodIdx);
         const busyIds = new Set(Object.keys(busyMap));
-        return teachers.filter(t => !busyIds.has(t.id) && t.status === 'Active' && (!selectedCampus || (t.campus || campuses[0]?.name || 'Dr Manzoor Campus') === selectedCampus));
+        return teachers.filter(t =>
+            !busyIds.has(t.id) &&
+            t.status === 'Active' &&
+            (!selectedCampus || t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase())
+        );
     };
 
     const getFatigueStats = () => {
@@ -670,7 +684,10 @@ export const TimetablePage = () => {
         const currentSlot = currentTable[periodIdx] || { subject: 'FREE', teacherId: '', startTime: '', endTime: '' };
         const h = document.documentElement.classList.contains('dark');
         const clsSubjects = classSubjects[cls] || [];
-        const clsTeachers = teachers.filter(t => t.status === 'Active' && (t.campus || campuses[0]?.name || 'Dr Manzoor Campus') === selectedCampus);
+        const clsTeachers = teachers.filter(t =>
+            t.status === 'Active' &&
+            t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase()
+        );
 
         const { value: formValues } = await Swal.fire({
             title: `<span class="font-outfit uppercase font-black text-lg">Edit Period Slot</span>`,
