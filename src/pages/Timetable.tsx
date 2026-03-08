@@ -27,7 +27,18 @@ export const TimetablePage = () => {
     const [draggedSlot, setDraggedSlot] = useState<{ cls: string, day: string, pIdx: number } | null>(null);
     const timetableRef = useRef<HTMLDivElement>(null);
 
-    const campusClasses = classes; // Simplified to show all classes so they don't disappear in timetable
+    const campusClasses = classes.filter(c => {
+        const hasStudents = students.some(s =>
+            s.class?.trim().toLowerCase() === c.trim().toLowerCase() &&
+            s.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase()
+        );
+        const hasTeachers = teachers.some(t =>
+            t.classes.some(tc => tc.trim().toLowerCase() === c.trim().toLowerCase()) &&
+            t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase()
+        );
+        // Also show if it was manually assigned to a wing for this specific view
+        return hasStudents || hasTeachers;
+    });
 
     const getTimetableKey = (cls: string) => `${selectedCampus}_${cls}`;
 
