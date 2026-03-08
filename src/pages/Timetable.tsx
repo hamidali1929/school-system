@@ -36,8 +36,12 @@ export const TimetablePage = () => {
             t.classes.some(tc => tc.trim().toLowerCase() === c.trim().toLowerCase()) &&
             t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase()
         );
-        // Also show if it was manually assigned to a wing for this specific view
-        return hasStudents || hasTeachers;
+
+        // Also show if it's Globally Empty (newly created), so it can be set up
+        const isGloballyEmpty = !students.some(s => s.class?.trim().toLowerCase() === c.trim().toLowerCase()) &&
+            !teachers.some(t => t.classes.some(tc => tc.trim().toLowerCase() === c.trim().toLowerCase()));
+
+        return hasStudents || hasTeachers || isGloballyEmpty;
     });
 
     const getTimetableKey = (cls: string) => `${selectedCampus}_${cls}`;
@@ -983,14 +987,18 @@ export const TimetablePage = () => {
 
     const WingSection = ({ group }: { group: 'primary' | 'boys' | 'girls' }) => {
         const wingClasses = campusClasses.filter(c => {
+            const classLow = c.toLowerCase();
             // Priority 1: Manual Assignment
             if (wingAssignments[c]) return wingAssignments[c] === group;
 
-            const isBoys = c.includes('(Boys)') || c.includes('9th') || c.includes('10th') || c.includes('1st Year') || c.includes('2nd Year');
-            const isGirls = c.includes('(Girls)');
+            // Priority 2: Automatic Fallback
+            const isGirls = classLow.includes('girls');
+            const isBoys = classLow.includes('boys') || ['9th', '10th', '1st year', '2nd year', 'inter', 'matric'].some(p => classLow.includes(p));
 
-            if (group === 'boys') return isBoys;
+            // Girls take precedence if 'Girls' is in the name (e.g. 9th Girls)
             if (group === 'girls') return isGirls;
+            if (group === 'boys') return isBoys && !isGirls;
+
             // Primary wing: No specific gender tag and not high school/college
             return !isBoys && !isGirls;
         });
