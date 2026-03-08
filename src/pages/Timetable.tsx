@@ -145,14 +145,20 @@ export const TimetablePage = () => {
 
         const newTimetables = { ...timetables };
 
-        // Process each day to allow cross-class teacher availability checking
+        const newTimetables = { ...timetables };
+
+        // Process each day
         DAYS.forEach(day => {
-            // Sort classes to process those with more subjects first (higher complexity)
+            // Track subjects used in each class today to prevent repeats
+            const subjectsUsedToday: Record<string, Set<string>> = {};
+
+            // Sort classes to process those with more subjects first
             const sortedWingClasses = [...wingClasses].sort((a, b) =>
                 (classSubjects[b]?.length || 0) - (classSubjects[a]?.length || 0)
             );
 
             periods.forEach((p, pIdx) => {
+                // Handle Break / Assembly
                 if (p.isBreak || p.label.toUpperCase().includes('ASSEMBLY')) {
                     sortedWingClasses.forEach(cls => {
                         const tableKey = getTimetableKey(cls);
@@ -174,12 +180,22 @@ export const TimetablePage = () => {
                     if (!newTimetables[tableKey]) newTimetables[tableKey] = {};
                     if (!newTimetables[tableKey][day]) newTimetables[tableKey][day] = [];
 
+                    if (!subjectsUsedToday[cls]) subjectsUsedToday[cls] = new Set();
+
                     const clsSubjects = classSubjects[cls] || [];
                     const clsAssignedTeachers = subjectTeachers[cls] || {};
 
-                    // Priority sorting for subjects: Scarcity matching
-                    // Subjects with fewer matching available teachers should be prioritized
-                    const sortedSubjects = [...clsSubjects].sort((a, b) => {
+                    // Filter out subjects already used today to avoid repetition
+                    let availableSubjects = clsSubjects.filter(s => !subjectsUsedToday[cls].has(s));
+
+                    // If no subjects left but still periods, allow reuse (reset used set)
+                    if (availableSubjects.length === 0 && clsSubjects.length > 0) {
+                        subjectsUsedToday[cls].clear();
+                        availableSubjects = [...clsSubjects];
+                    }
+
+                    // Scarcity sorting for available subjects
+                    availableSubjects.sort((a, b) => {
                         const countA = teachers.filter(t => t.subject?.toLowerCase().includes(a.toLowerCase())).length;
                         const countB = teachers.filter(t => t.subject?.toLowerCase().includes(b.toLowerCase())).length;
                         return countA - countB;
@@ -188,31 +204,33 @@ export const TimetablePage = () => {
                     let assigned = false;
 
                     const findBestTeacher = (subj: string) => {
-                        // 1. Designated teacher (Faculty Allocation)
+                        const campusLower = selectedCampus.trim().toLowerCase();
+
+                        // 1. Designated teacher
                         const prefId = clsAssignedTeachers[subj];
                         if (prefId) {
                             const prefT = teachers.find(t => t.id === prefId);
                             if (prefT && prefT.status === 'Active' &&
-                                prefT.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
+                                prefT.campus?.trim().toLowerCase() === campusLower &&
                                 isTeacherFree(prefId, day, pIdx)) {
                                 return prefT;
                             }
                         }
 
-                        // 2. Subject Specialist in this campus
+                        // 2. Subject Specialist
                         const specialists = teachers.filter(t =>
                             t.status === 'Active' &&
-                            t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
+                            t.campus?.trim().toLowerCase() === campusLower &&
                             t.subject?.toLowerCase().includes(subj.toLowerCase()) &&
                             isTeacherFree(t.id, day, pIdx)
-                        ).sort((a, b) => getConsecutive(day, a.id) - getConsecutive(day, b.id)); // Favor less fatigued
+                        ).sort((a, b) => getConsecutive(day, a.id) - getConsecutive(day, b.id));
 
                         if (specialists.length > 0) return specialists[0];
 
-                        // 3. Any Free Teacher in this campus (Emergency Fill)
+                        // 3. Any Free Teacher (Emergency Fill)
                         const freeTeachers = teachers.filter(t =>
                             t.status === 'Active' &&
-                            t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
+                            t.campus?.trim().toLowerCase() === campusLower &&
                             isTeacherFree(t.id, day, pIdx)
                         ).sort((a, b) => getConsecutive(day, a.id) - getConsecutive(day, b.id));
 
@@ -221,13 +239,14 @@ export const TimetablePage = () => {
                         return null;
                     };
 
-                    for (const subj of sortedSubjects) {
+                    for (const subj of availableSubjects) {
                         const teacher = findBestTeacher(subj);
                         if (teacher) {
                             newTimetables[tableKey][day][pIdx] = {
                                 subject: subj, teacherId: teacher.id, startTime: p.start, endTime: p.end
                             };
                             markTeacherBusy(teacher.id, day, pIdx);
+                            subjectsUsedToday[cls].add(subj);
                             assigned = true;
                             break;
                         }
