@@ -9,7 +9,7 @@ import Swal from 'sweetalert2';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const TimetablePage = () => {
-    const { timetables, updateTimetable, teachers, classes, periodSettings, updatePeriodSettings, currentUser, settings, classSubjects, subjectTeachers, campuses, students } = useStore();
+    const { timetables, updateTimetable, updateAllTimetables, teachers, classes, periodSettings, updatePeriodSettings, currentUser, settings, classSubjects, subjectTeachers, campuses, students } = useStore();
     const [selectedDay, setSelectedDay] = useState(DAYS[new Date().getDay() === 0 ? 0 : new Date().getDay() - 1]);
     const [activeWing, setActiveWing] = useState<'primary' | 'boys' | 'girls'>('primary');
     const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
@@ -151,16 +151,41 @@ export const TimetablePage = () => {
                         let assigned = false;
 
                         const findTeacher = (subj: string, strictFatigue: boolean) => {
+                            // 1. Priority: Assigned designated teacher for this subject in this class
+                            const prefId = clsAssignedTeachers[subj];
+                            if (prefId) {
+                                const prefTeacher = teachers.find(t => t.id === prefId);
+                                if (prefTeacher &&
+                                    prefTeacher.status === 'Active' &&
+                                    prefTeacher.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
+                                    isTeacherFree(prefId, day, pIdx)) {
+
+                                    if (!strictFatigue || getConsecutive(day, prefId) < 6) { // Slightly relaxed fatigue for manual picks
+                                        return prefTeacher;
+                                    }
+                                }
+                            }
+
+                            // 2. Secondary: Any teacher with matching subject title in the same campus
                             let potential = teachers.filter(t =>
                                 t.status === 'Active' &&
-                                (t.campus === selectedCampus) &&
+                                (t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase()) &&
                                 (t.subject?.toLowerCase().includes(subj.toLowerCase()) || (t as any).classes?.includes(cls)) &&
                                 isTeacherFree(t.id, day, pIdx)
                             );
                             if (strictFatigue) potential = potential.filter(t => getConsecutive(day, t.id) < 4);
-                            const prefId = clsAssignedTeachers[subj];
-                            if (prefId && potential.find(t => t.id === prefId)) return teachers.find(t => t.id === prefId);
-                            return potential.length > 0 ? potential[Math.floor(Math.random() * potential.length)] : null;
+
+                            if (potential.length > 0) return potential[Math.floor(Math.random() * potential.length)];
+
+                            // 3. Last Resort: Any free teacher in the campus (Emergency fill)
+                            const anyFreeInCampus = teachers.filter(t =>
+                                t.status === 'Active' &&
+                                t.campus?.trim().toLowerCase() === selectedCampus.trim().toLowerCase() &&
+                                isTeacherFree(t.id, day, pIdx)
+                            );
+                            if (anyFreeInCampus.length > 0) return anyFreeInCampus[Math.floor(Math.random() * anyFreeInCampus.length)];
+
+                            return null;
                         };
 
                         for (const subj of shuffledSubjects) {
@@ -195,7 +220,7 @@ export const TimetablePage = () => {
             newTimetables[tableKey] = clsTimetable;
         });
 
-        wingClasses.forEach(cls => updateTimetable(getTimetableKey(cls), newTimetables[cls]));
+        updateAllTimetables(newTimetables);
 
         setIsGenerating(false);
         Swal.fire({
@@ -388,7 +413,8 @@ export const TimetablePage = () => {
     };
 
     (window as any).assignProxy = (cls: string, day: string, pIdx: number, teacherId: string) => {
-        const newTable = { ...(timetables[cls] || {}) };
+        const tableKey = getTimetableKey(cls);
+        const newTable = { ...(timetables[tableKey] || {}) };
         newTable[day] = [...(newTable[day] || [])];
         const oldSlot = newTable[day][pIdx];
         newTable[day][pIdx] = { ...oldSlot, teacherId };
@@ -953,7 +979,8 @@ export const TimetablePage = () => {
                                                     e.preventDefault();
                                                     if (!draggedSlot || draggedSlot.cls !== cls || draggedSlot.pIdx === i) return;
 
-                                                    const newTable = { ...(timetables[cls] || {}) };
+                                                    const tableKey = getTimetableKey(cls);
+                                                    const newTable = { ...(timetables[tableKey] || {}) };
                                                     const daySlots = [...(newTable[selectedDay] || [])];
 
                                                     // Swap slots
