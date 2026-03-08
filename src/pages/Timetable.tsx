@@ -145,11 +145,8 @@ export const TimetablePage = () => {
 
         const newTimetables = { ...timetables };
 
-        const newTimetables = { ...timetables };
-
         // Process each day
         DAYS.forEach(day => {
-            // Track subjects used in each class today to prevent repeats
             const subjectsUsedToday: Record<string, Set<string>> = {};
 
             // Sort classes to process those with more subjects first
@@ -158,7 +155,20 @@ export const TimetablePage = () => {
             );
 
             periods.forEach((p, pIdx) => {
-                // Handle Break / Assembly
+                // FORCE ASSEMBLY as the FIRST SLOT (pIdx 0)
+                if (pIdx === 0) {
+                    sortedWingClasses.forEach(cls => {
+                        const tableKey = getTimetableKey(cls);
+                        if (!newTimetables[tableKey]) newTimetables[tableKey] = {};
+                        if (!newTimetables[tableKey][day]) newTimetables[tableKey][day] = [];
+                        newTimetables[tableKey][day][pIdx] = {
+                            subject: 'ASSEMBLY', teacherId: '', startTime: p.start, endTime: p.end
+                        };
+                    });
+                    resetFatigue(day);
+                    return;
+                }
+
                 if (p.isBreak || p.label.toUpperCase().includes('ASSEMBLY')) {
                     sortedWingClasses.forEach(cls => {
                         const tableKey = getTimetableKey(cls);
@@ -185,20 +195,19 @@ export const TimetablePage = () => {
                     const clsSubjects = classSubjects[cls] || [];
                     const clsAssignedTeachers = subjectTeachers[cls] || {};
 
-                    // Filter out subjects already used today to avoid repetition
                     let availableSubjects = clsSubjects.filter(s => !subjectsUsedToday[cls].has(s));
-
-                    // If no subjects left but still periods, allow reuse (reset used set)
                     if (availableSubjects.length === 0 && clsSubjects.length > 0) {
                         subjectsUsedToday[cls].clear();
                         availableSubjects = [...clsSubjects];
                     }
 
-                    // Scarcity sorting for available subjects
+                    // Strict designated teacher check: Prioritize subjects where assigned teacher is FREE
                     availableSubjects.sort((a, b) => {
-                        const countA = teachers.filter(t => t.subject?.toLowerCase().includes(a.toLowerCase())).length;
-                        const countB = teachers.filter(t => t.subject?.toLowerCase().includes(b.toLowerCase())).length;
-                        return countA - countB;
+                        const tIdA = clsAssignedTeachers[a];
+                        const tIdB = clsAssignedTeachers[b];
+                        const freeA = tIdA ? (isTeacherFree(tIdA, day, pIdx) ? 0 : 1) : 2;
+                        const freeB = tIdB ? (isTeacherFree(tIdB, day, pIdx) ? 0 : 1) : 2;
+                        return freeA - freeB;
                     });
 
                     let assigned = false;
@@ -206,18 +215,22 @@ export const TimetablePage = () => {
                     const findBestTeacher = (subj: string) => {
                         const campusLower = selectedCampus.trim().toLowerCase();
 
-                        // 1. Designated teacher
+                        // 1. Strict Designated teacher preference
                         const prefId = clsAssignedTeachers[subj];
                         if (prefId) {
                             const prefT = teachers.find(t => t.id === prefId);
+                            // If user has set a teacher, we ONLY use that teacher for this subject
                             if (prefT && prefT.status === 'Active' &&
                                 prefT.campus?.trim().toLowerCase() === campusLower &&
                                 isTeacherFree(prefId, day, pIdx)) {
                                 return prefT;
                             }
+                            // If the preferred teacher is BUSY, we cannot assign this subject in this slot 
+                            // because user said "teacher change na kro us class mein"
+                            return null;
                         }
 
-                        // 2. Subject Specialist
+                        // 2. Fallback Specialists (Only for subjects WITHOUT a designated teacher)
                         const specialists = teachers.filter(t =>
                             t.status === 'Active' &&
                             t.campus?.trim().toLowerCase() === campusLower &&
@@ -227,7 +240,7 @@ export const TimetablePage = () => {
 
                         if (specialists.length > 0) return specialists[0];
 
-                        // 3. Any Free Teacher (Emergency Fill)
+                        // 3. Last Resort: Any Free (Emergency Fill)
                         const freeTeachers = teachers.filter(t =>
                             t.status === 'Active' &&
                             t.campus?.trim().toLowerCase() === campusLower &&
