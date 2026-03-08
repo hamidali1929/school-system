@@ -713,6 +713,40 @@ export const TimetablePage = () => {
                     </div>
                 </div>
             `,
+            didOpen: () => {
+                const subjSelect = document.getElementById('swal-subject') as HTMLSelectElement;
+                const teacherSelect = document.getElementById('swal-teacher') as HTMLSelectElement;
+                const secSubjSelect = document.getElementById('swal-sec-subject') as HTMLSelectElement;
+                const secTeacherSelect = document.getElementById('swal-sec-teacher') as HTMLSelectElement;
+
+                const filterTeachers = (sSelect: HTMLSelectElement, tSelect: HTMLSelectElement) => {
+                    const subj = sSelect.value.toLowerCase();
+                    const currentVal = tSelect.value;
+
+                    if (['free', 'break', 'assembly', ''].includes(subj)) {
+                        tSelect.innerHTML = '<option value="">NA</option>';
+                        return;
+                    }
+
+                    const filtered = clsTeachers.filter(t =>
+                        (t.subject?.toLowerCase().includes(subj)) ||
+                        (subjectTeachers[cls]?.[sSelect.value] === t.id)
+                    );
+
+                    tSelect.innerHTML = '<option value="">Select Teacher...</option>' +
+                        clsTeachers.map(t => {
+                            const isMatch = filtered.some(ft => ft.id === t.id);
+                            return `<option value="${t.id}" ${currentVal === t.id ? 'selected' : ''} style="display: ${isMatch ? 'block' : 'none'}; opacity: ${isMatch ? '1' : '0.3'}">${t.name} ${isMatch ? '' : '(Other)'}</option>`;
+                        }).join('');
+                };
+
+                subjSelect.addEventListener('change', () => filterTeachers(subjSelect, teacherSelect));
+                secSubjSelect.addEventListener('change', () => filterTeachers(secSubjSelect, secTeacherSelect));
+
+                // Initial filter
+                filterTeachers(subjSelect, teacherSelect);
+                if (secSubjSelect.value) filterTeachers(secSubjSelect, secTeacherSelect);
+            },
             showCancelButton: true,
             confirmButtonText: 'Update Slot',
             confirmButtonColor: 'var(--brand-primary)',
