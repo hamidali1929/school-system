@@ -22,15 +22,7 @@ export const TimetablePage = () => {
     const [draggedSlot, setDraggedSlot] = useState<{ cls: string, day: string, pIdx: number } | null>(null);
     const timetableRef = useRef<HTMLDivElement>(null);
 
-    const campusClasses = classes.filter(c => {
-        const hasStudents = students.some(s =>
-            s.class === c && s.campus?.toLowerCase() === selectedCampus.toLowerCase()
-        );
-        const hasTeachers = teachers.some(t =>
-            t.classes.includes(c) && t.campus?.toLowerCase() === selectedCampus.toLowerCase()
-        );
-        return hasStudents || hasTeachers;
-    });
+    const campusClasses = classes; // Simplified to show all classes so they don't disappear in timetable
 
     const getTimetableKey = (cls: string) => `${selectedCampus}_${cls}`;
 
@@ -900,9 +892,13 @@ export const TimetablePage = () => {
 
     const WingSection = ({ group }: { group: 'primary' | 'boys' | 'girls' }) => {
         const wingClasses = campusClasses.filter(c => {
-            if (group === 'primary') return !c.includes('(Boys)') && !c.includes('(Girls)') && !['9th', '10th', '1st Year', '2nd Year'].some(p => c.includes(p));
-            if (group === 'boys') return c.includes('(Boys)');
-            return c.includes('(Girls)');
+            const isBoys = c.includes('(Boys)') || c.includes('9th') || c.includes('10th') || c.includes('1st Year') || c.includes('2nd Year');
+            const isGirls = c.includes('(Girls)');
+
+            if (group === 'boys') return isBoys;
+            if (group === 'girls') return isGirls;
+            // Primary wing: No specific gender tag and not high school/college
+            return !isBoys && !isGirls;
         });
         const periods = periodSettings[group] || [];
 
@@ -1269,9 +1265,11 @@ export const TimetablePage = () => {
                             >
                                 <option value="">Select Class for Full Week Analysis...</option>
                                 {campusClasses.filter(c => {
-                                    if (activeWing === 'primary') return !c.includes('(Boys)') && !c.includes('(Girls)') && !['9th', '10th', '1st Year', '2nd Year'].some(p => c.includes(p));
-                                    if (activeWing === 'boys') return c.includes('(Boys)');
-                                    return c.includes('(Girls)');
+                                    const isBoys = c.includes('(Boys)') || c.includes('9th') || c.includes('10th') || c.includes('1st Year') || c.includes('2nd Year');
+                                    const isGirls = c.includes('(Girls)');
+                                    if (activeWing === 'boys') return isBoys;
+                                    if (activeWing === 'girls') return isGirls;
+                                    return !isBoys && !isGirls;
                                 }).map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>
