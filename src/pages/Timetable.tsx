@@ -9,17 +9,30 @@ import Swal from 'sweetalert2';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const TimetablePage = () => {
-    const { timetables, updateTimetable, teachers, classes, periodSettings, updatePeriodSettings, currentUser, settings, classSubjects, subjectTeachers } = useStore();
+    const { timetables, updateTimetable, teachers, classes, periodSettings, updatePeriodSettings, currentUser, settings, classSubjects, subjectTeachers, campuses, students } = useStore();
     const [selectedDay, setSelectedDay] = useState(DAYS[new Date().getDay() === 0 ? 0 : new Date().getDay() - 1]);
     const [activeWing, setActiveWing] = useState<'primary' | 'boys' | 'girls'>('primary');
     const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
     const [isExamMode, setIsExamMode] = useState(false);
     const [targetClass, setTargetClass] = useState<string>('');
+    const [selectedCampus, setSelectedCampus] = useState<string>(campuses[0]?.name || '');
     const [targetTeacher, setTargetTeacher] = useState<string>('');
     const [density, setDensity] = useState<'comfortable' | 'compact'>('compact');
     const [isGenerating, setIsGenerating] = useState(false);
     const [draggedSlot, setDraggedSlot] = useState<{ cls: string, day: string, pIdx: number } | null>(null);
     const timetableRef = useRef<HTMLDivElement>(null);
+
+    const campusClasses = classes.filter(c => {
+        const hasStudents = students.some(s =>
+            s.class === c && s.campus?.toLowerCase() === selectedCampus.toLowerCase()
+        );
+        const hasTeachers = teachers.some(t =>
+            t.classes.includes(c) && t.campus?.toLowerCase() === selectedCampus.toLowerCase()
+        );
+        return hasStudents || hasTeachers;
+    });
+
+    const getTimetableKey = (cls: string) => `${selectedCampus}_${cls}`;
 
     const canEditTimetable = currentUser?.role === 'admin' || currentUser?.role === 'ACADEMIC_HEAD';
 
@@ -40,7 +53,8 @@ export const TimetablePage = () => {
     const getTeacherWorkload = (day: string, periodIdx: number) => {
         const busyMap: Record<string, string[]> = {};
         classes.forEach(cls => {
-            const dayTable = timetables[cls]?.[day];
+            const tableKey = getTimetableKey(cls);
+            const dayTable = timetables[tableKey]?.[day];
             if (dayTable && dayTable[periodIdx]) {
                 const slot = dayTable[periodIdx];
                 if (slot.teacherId) {
@@ -105,7 +119,8 @@ export const TimetablePage = () => {
         classes.forEach(c => {
             if (!wingClasses.includes(c)) {
                 DAYS.forEach(day => {
-                    (timetables[c]?.[day] || []).forEach((slot, pIdx) => {
+                    const tableKey = getTimetableKey(c);
+                    (timetables[tableKey]?.[day] || []).forEach((slot, pIdx) => {
                         if (slot.teacherId) markTeacherBusy(slot.teacherId, day, pIdx);
                     });
                 });
@@ -117,7 +132,8 @@ export const TimetablePage = () => {
         wingClasses.forEach(cls => {
             const clsSubjects = [...(classSubjects[cls] || [])];
             const clsAssignedTeachers = subjectTeachers[cls] || {};
-            const clsTimetable = { ...(newTimetables[cls] || {}) };
+            const tableKey = getTimetableKey(cls);
+            const clsTimetable = { ...(newTimetables[tableKey] || {}) };
 
             DAYS.forEach(day => {
                 const daySlots: any[] = [];
@@ -137,6 +153,7 @@ export const TimetablePage = () => {
                         const findTeacher = (subj: string, strictFatigue: boolean) => {
                             let potential = teachers.filter(t =>
                                 t.status === 'Active' &&
+                                (t.campus === selectedCampus) &&
                                 (t.subject?.toLowerCase().includes(subj.toLowerCase()) || (t as any).classes?.includes(cls)) &&
                                 isTeacherFree(t.id, day, pIdx)
                             );
@@ -175,10 +192,10 @@ export const TimetablePage = () => {
                 });
                 clsTimetable[day] = daySlots;
             });
-            newTimetables[cls] = clsTimetable;
+            newTimetables[tableKey] = clsTimetable;
         });
 
-        wingClasses.forEach(cls => updateTimetable(cls, newTimetables[cls]));
+        wingClasses.forEach(cls => updateTimetable(getTimetableKey(cls), newTimetables[cls]));
 
         setIsGenerating(false);
         Swal.fire({
@@ -197,7 +214,7 @@ export const TimetablePage = () => {
     const getAvailableTeachers = (day: string, periodIdx: number) => {
         const busyMap = getTeacherWorkload(day, periodIdx);
         const busyIds = new Set(Object.keys(busyMap));
-        return teachers.filter(t => !busyIds.has(t.id) && t.status === 'Active');
+        return teachers.filter(t => !busyIds.has(t.id) && t.status === 'Active' && (!selectedCampus || (t.campus || campuses[0]?.name || 'Dr Manzoor Campus') === selectedCampus));
     };
 
     const getFatigueStats = () => {
@@ -212,7 +229,8 @@ export const TimetablePage = () => {
 
             for (let i = 0; i < pLength; i++) {
                 let isTeaching = false;
-                Object.values(timetables).forEach(table => {
+                Object.entries(timetables).forEach(([tableKey, table]) => {
+                    if (!tableKey.startsWith(`${selectedCampus}_`)) return;
                     const slot = table[selectedDay]?.[i];
                     if (slot?.teacherId === t.id) isTeaching = true;
                 });
@@ -298,7 +316,8 @@ export const TimetablePage = () => {
             });
 
             // 4. Effort/Load Balance (Consecutive periods today)
-            const todayBusyCount = Object.values(timetables).reduce((acc, table) => {
+            const todayBusyCount = Object.entries(timetables).reduce((acc, [tableKey, table]) => {
+                if (!tableKey.startsWith(`${selectedCampus}_`)) return acc;
                 const dayTable = table[day] || [];
                 return acc + dayTable.filter(slot => slot.teacherId === t.id).length;
             }, 0);
@@ -373,7 +392,7 @@ export const TimetablePage = () => {
         newTable[day] = [...(newTable[day] || [])];
         const oldSlot = newTable[day][pIdx];
         newTable[day][pIdx] = { ...oldSlot, teacherId };
-        updateTimetable(cls, newTable);
+        updateTimetable(getTimetableKey(cls), newTable);
         Swal.close();
 
         Swal.fire({
@@ -609,11 +628,11 @@ export const TimetablePage = () => {
 
     const handleEditSlot = async (cls: string, day: string, periodIdx: number) => {
         if (!canEditTimetable) return;
-        const currentTable = timetables[cls]?.[day] || [];
+        const currentTable = timetables[getTimetableKey(cls)]?.[day] || [];
         const currentSlot = currentTable[periodIdx] || { subject: 'FREE', teacherId: '', startTime: '', endTime: '' };
         const h = document.documentElement.classList.contains('dark');
         const clsSubjects = classSubjects[cls] || [];
-        const clsTeachers = teachers.filter(t => t.status === 'Active');
+        const clsTeachers = teachers.filter(t => t.status === 'Active' && (t.campus || campuses[0]?.name || 'Dr Manzoor Campus') === selectedCampus);
 
         const { value: formValues } = await Swal.fire({
             title: `<span class="font-outfit uppercase font-black text-lg">Edit Period Slot</span>`,
@@ -684,10 +703,10 @@ export const TimetablePage = () => {
         });
 
         if (formValues) {
-            const newTable = { ...(timetables[cls] || {}) };
+            const newTable = { ...(timetables[getTimetableKey(cls)] || {}) };
             newTable[day] = [...(newTable[day] || [])];
             newTable[day][periodIdx] = formValues;
-            updateTimetable(cls, newTable);
+            updateTimetable(getTimetableKey(cls), newTable);
         }
     };
 
@@ -705,12 +724,13 @@ export const TimetablePage = () => {
             if (activeWing === 'primary') return !c.includes('(Boys)') && !c.includes('(Girls)') && !['9th', '10th', '1st Year', '2nd Year'].some(p => c.includes(p));
             if (activeWing === 'boys') return c.includes('(Boys)');
             return c.includes('(Girls)');
-        });
+        }).filter(c => campusClasses.includes(c));
         const periods = periodSettings[activeWing] || [];
 
         const generateDayTable = (day: string) => {
             const tableRows = wingClasses.map(cls => {
-                const slots = timetables[cls]?.[day] || [];
+                const tableKey = getTimetableKey(cls);
+                const slots = timetables[tableKey]?.[day] || [];
                 const cells = periods.map((p: any, i: number) => {
                     const slot = (slots[i] || { subject: 'FREE', teacherId: '' }) as any;
                     const isBreak = p.isBreak || slot.subject === 'BREAK';
@@ -819,7 +839,7 @@ export const TimetablePage = () => {
     };
 
     const WingSection = ({ group }: { group: 'primary' | 'boys' | 'girls' }) => {
-        const wingClasses = classes.filter(c => {
+        const wingClasses = campusClasses.filter(c => {
             if (group === 'primary') return !c.includes('(Boys)') && !c.includes('(Girls)') && !['9th', '10th', '1st Year', '2nd Year'].some(p => c.includes(p));
             if (group === 'boys') return c.includes('(Boys)');
             return c.includes('(Girls)');
@@ -869,7 +889,7 @@ export const TimetablePage = () => {
                                         confirmButtonText: 'Yes, Purge All'
                                     }).then((result) => {
                                         if (result.isConfirmed) {
-                                            wingClasses.forEach(c => updateTimetable(c, {}));
+                                            wingClasses.forEach(c => updateTimetable(getTimetableKey(c), {}));
                                             Swal.fire('Purged!', 'Timetable has been cleared.', 'success');
                                         }
                                     });
@@ -909,7 +929,7 @@ export const TimetablePage = () => {
                             </thead>
                             <tbody>
                                 {wingClasses.map(cls => {
-                                    const slots = timetables[cls]?.[selectedDay] || [];
+                                    const slots = timetables[getTimetableKey(cls)]?.[selectedDay] || [];
                                     return (
                                         <tr key={cls} className="hover:bg-slate-50/50 dark:hover:bg-brand-accent/5 transition-colors">
                                             <td className="p-5 font-black text-brand-primary dark:text-brand-accent text-xs border-r-2 border-slate-200 dark:border-brand-accent/20 bg-slate-50 dark:bg-brand-primary-dark sticky left-0 z-10 shadow-[5px_0_15px_rgba(0,0,0,0.05)] class-name">
@@ -942,7 +962,7 @@ export const TimetablePage = () => {
                                                     daySlots[draggedSlot.pIdx] = temp;
 
                                                     newTable[selectedDay] = daySlots;
-                                                    updateTimetable(cls, newTable);
+                                                    updateTimetable(getTimetableKey(cls), newTable);
                                                     setDraggedSlot(null);
 
                                                     Swal.fire({
@@ -1048,6 +1068,14 @@ export const TimetablePage = () => {
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
+                    <select
+                        value={selectedCampus}
+                        onChange={(e) => setSelectedCampus(e.target.value)}
+                        className="h-9 px-4 bg-white dark:bg-brand-primary-dark/80 border border-slate-200 dark:border-brand-accent/20 rounded-[var(--brand-radius,0.75rem)] text-[10px] font-black uppercase tracking-widest text-brand-primary dark:text-brand-accent outline-none shadow-sm focus:ring-2 focus:ring-brand-primary/20"
+                    >
+                        {campuses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                    </select>
+
                     <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark/50 rounded-[var(--brand-radius,0.75rem)] border border-slate-200 dark:border-brand-accent/10">
                         <button
                             onClick={() => setViewMode('daily')}
@@ -1179,7 +1207,7 @@ export const TimetablePage = () => {
                                 className="w-full h-10 bg-white dark:bg-brand-primary-dark/50 border border-slate-200 dark:border-brand-accent/10 rounded-[var(--brand-radius,0.75rem)] px-4 text-[10px] font-black uppercase tracking-widest text-brand-primary dark:text-brand-accent outline-none"
                             >
                                 <option value="">Select Class for Full Week Analysis...</option>
-                                {classes.filter(c => {
+                                {campusClasses.filter(c => {
                                     if (activeWing === 'primary') return !c.includes('(Boys)') && !c.includes('(Girls)') && !['9th', '10th', '1st Year', '2nd Year'].some(p => c.includes(p));
                                     if (activeWing === 'boys') return c.includes('(Boys)');
                                     return c.includes('(Girls)');
@@ -1194,7 +1222,7 @@ export const TimetablePage = () => {
                                 className="w-full h-10 bg-white dark:bg-brand-primary-dark/50 border border-slate-200 dark:border-brand-accent/10 rounded-[var(--brand-radius,0.75rem)] px-4 text-[10px] font-black uppercase tracking-widest text-brand-primary dark:text-brand-accent outline-none"
                             >
                                 <option value="">Select Faculty Member to Analyze Load...</option>
-                                {teachers.map(t => <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>)}
+                                {teachers.filter(t => t.status === 'Active' && (t.campus || campuses[0]?.name || 'Dr Manzoor Campus') === selectedCampus).map(t => <option key={t.id} value={t.id}>{t.name} ({t.subject})</option>)}
                             </select>
                         </div>
                     )}
@@ -1210,7 +1238,7 @@ export const TimetablePage = () => {
                             <div className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {DAYS.map(day => {
-                                        const slots = timetables[targetClass]?.[day] || [];
+                                        const slots = timetables[getTimetableKey(targetClass)]?.[day] || [];
                                         const periods = periodSettings[activeWing] || [];
                                         const activePeriods = periods.filter(p => !p.isBreak);
                                         const loadPercentage = Math.round((slots.filter(s => s?.subject && s.subject !== 'FREE').length / activePeriods.length) * 100);
@@ -1298,7 +1326,9 @@ export const TimetablePage = () => {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {DAYS.map(day => {
                                         const teacherLessons: any[] = [];
-                                        Object.entries(timetables).forEach(([clsName, weekTable]) => {
+                                        Object.entries(timetables).forEach(([tableKey, weekTable]) => {
+                                            if (!tableKey.startsWith(`${selectedCampus}_`)) return;
+                                            const clsName = tableKey.replace(`${selectedCampus}_`, '');
                                             const daySlots = weekTable[day] || [];
                                             // Determine which wing settings to use based on class name or active wing
                                             // For simplicity, we'll try to match the class wing

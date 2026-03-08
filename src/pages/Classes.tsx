@@ -1,4 +1,5 @@
-import { Plus, Edit2, Trash2, GraduationCap, Users, RotateCcw, BookOpen, UserPlus, UploadCloud, DownloadCloud } from 'lucide-react';
+import { useState } from 'react';
+import { Plus, Edit2, Trash2, GraduationCap, Users, RotateCcw, BookOpen, UserPlus, UploadCloud, DownloadCloud, Search } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Swal from 'sweetalert2';
 import { cn } from '../utils/cn';
@@ -6,9 +7,13 @@ import { cn } from '../utils/cn';
 export const ClassesPage = () => {
     const {
         classes, feeStructure, addClass, updateClass, deleteClass, students, teachers,
-        classSubjects, classInCharge, updateClassSubjects, updateClassInCharge,
-        assignSubjectTeacher, campuses, addStudent, subjectTotalMarks, updateClassSubjectMarks
+        classSubjects, classInCharge, subjectTeachers, updateClassSubjects, updateClassInCharge,
+        updateClassSubjectTeachers, campuses, addStudent, subjectTotalMarks, updateClassSubjectMarks,
+        migrateClass
     } = useStore();
+
+    const [campusFilter, setCampusFilter] = useState('All');
+    const [search, setSearch] = useState('');
 
     const handleRestoreDefaults = () => {
         Swal.fire({
@@ -37,7 +42,7 @@ export const ClassesPage = () => {
     };
 
     const handleAddClass = async () => {
-        const campusOptions = campuses.reduce((acc, c) => ({ ...acc, [c.id]: c.name }), {});
+        const campusOptions = campuses.reduce((acc, c) => ({ ...acc, [c.name]: c.name.toUpperCase() }), {} as Record<string, string>);
 
         const { value: formValues } = await Swal.fire({
             title: '',
@@ -86,8 +91,8 @@ export const ClassesPage = () => {
                             <div>
                                 <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Campus</label>
                                 <select id="swal-campus" class="swal2-input !mt-0 !w-full !rounded-2xl !text-[10px] !border-slate-100 !h-9 !px-3 !m-0 !bg-white">
-                                    <option value="" disabled selected>Select...</option>
-                                    ${Object.entries(campusOptions).map(([id, name]) => `<option value="${id}">${name}</option>`).join('')}
+                                    <option value="" disabled ${campusFilter === 'All' ? 'selected' : ''}>Select...</option>
+                                    ${Object.entries(campusOptions).map(([name, upperName]) => `<option value="${name}" ${campusFilter.toLowerCase() === name.toLowerCase() ? 'selected' : ''}>${upperName}</option>`).join('')}
                                 </select>
                             </div>
                             <div>
@@ -323,34 +328,63 @@ export const ClassesPage = () => {
             return;
         }
 
-        const { value: subject } = await Swal.fire({
-            title: 'Select Subject',
-            input: 'select',
-            inputOptions: subjects.reduce((acc, s) => ({ ...acc, [s]: s }), {}),
-            inputPlaceholder: 'Choose subject...',
+        const currentAssignments = subjectTeachers[className] || {};
+        const h = document.documentElement.classList.contains('dark');
+
+        const { value: newAssignments } = await Swal.fire({
+            title: '',
+            html: `
+                <div class="text-left font-outfit -mt-4">
+                    <div class="flex items-center gap-2 mb-4 border-b border-slate-100 pb-3">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-500 flex items-center justify-center text-white shadow-sm shrink-0">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        </div>
+                        <div>
+                            <h3 class="text-sm font-black text-indigo-600 uppercase tracking-tight leading-none">Faculty Allocation</h3>
+                            <p class="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Assign Teachers to ${className}</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+                        ${subjects.map(s => `
+                            <div class="p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/10">
+                                <label class="text-[8px] font-black uppercase text-indigo-600 mb-1.5 block tracking-widest">${s}</label>
+                                <select id="teacher-select-${s.replace(/\s+/g, '-')}" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/20 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 ring-indigo-500/20">
+                                    <option value="">Select Teacher...</option>
+                                    ${teachers.map(t => `<option value="${t.id}" ${currentAssignments[s] === t.id ? 'selected' : ''}>${t.name} (${t.subject})</option>`).join('')}
+                                </select>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `,
+            width: '400px',
+            background: h ? 'var(--glass-bg)' : '#ffffff',
+            color: h ? 'var(--brand-accent)' : '#0f172a',
             showCancelButton: true,
-            confirmButtonColor: 'var(--brand-primary)'
+            confirmButtonText: 'Save All Changes',
+            confirmButtonColor: '#6366f1',
+            preConfirm: () => {
+                const assignments: Record<string, string> = {};
+                subjects.forEach(s => {
+                    const select = document.getElementById(`teacher-select-${s.replace(/\s+/g, '-')}`) as HTMLSelectElement;
+                    if (select.value) assignments[s] = select.value;
+                });
+                return assignments;
+            }
         });
 
-        if (subject) {
-            const teacherOptions = teachers.reduce((acc, t) => {
-                acc[t.id] = `${t.name} (${t.subject})`;
-                return acc;
-            }, {} as Record<string, string>);
-
-            const { value: teacherId } = await Swal.fire({
-                title: `Teacher for ${subject}`,
-                input: 'select',
-                inputOptions: teacherOptions,
-                inputPlaceholder: 'Select subject teacher...',
-                showCancelButton: true,
-                confirmButtonColor: 'var(--brand-primary)'
+        if (newAssignments) {
+            updateClassSubjectTeachers(className, newAssignments);
+            Swal.fire({
+                title: 'Allocation Matrix Saved',
+                text: 'Faculty assignments for the entire unit have been synchronized.',
+                icon: 'success',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000
             });
-
-            if (teacherId) {
-                assignSubjectTeacher(className, subject, teacherId);
-                Swal.fire({ title: 'Allocation Saved', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
-            }
         }
     };
 
@@ -485,11 +519,92 @@ export const ClassesPage = () => {
         });
     };
 
-    const schoolClasses = classes.filter(c => !c.toLowerCase().includes('year'));
-    const collegeClasses = classes.filter(c => c.toLowerCase().includes('year'));
+    const handleMigrateClass = async (className: string) => {
+        const { value: migrationData } = await Swal.fire({
+            title: 'Migrate Class Students',
+            html: `
+                <div class="text-left font-outfit p-4 bg-slate-50 rounded-3xl border border-slate-100 mb-4 items-center">
+                    <p class="text-[9px] font-bold text-slate-500 mb-4">Move all students of <span class="text-brand-primary font-black">${className}</span> from one campus to another.</p>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Source Campus (From)</label>
+                            <select id="swal-from-campus" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-widest focus:ring-2 ring-brand-primary">
+                                ${campuses.map(c => `<option value="${c.name}">${c.name.toUpperCase()}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="flex justify-center -my-2 relative z-10">
+                            <div class="bg-brand-primary text-white p-1 rounded-full shadow-lg">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Destination Campus (To)</label>
+                            <select id="swal-to-campus" class="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-widest focus:ring-2 ring-brand-primary">
+                                ${campuses.map(c => `<option value="${c.name}">${c.name.toUpperCase()}</option>`).join('')}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Execute Transfer',
+            confirmButtonColor: 'var(--brand-primary)',
+            customClass: {
+                popup: 'rounded-[2.5rem] border-0 shadow-2xl',
+                confirmButton: 'rounded-full px-8 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider',
+                cancelButton: 'rounded-full px-8 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider'
+            },
+            preConfirm: () => {
+                const f = (document.getElementById('swal-from-campus') as HTMLSelectElement).value;
+                const t = (document.getElementById('swal-to-campus') as HTMLSelectElement).value;
+                if (f === t) {
+                    Swal.showValidationMessage('Source and target must be distinct');
+                    return false;
+                }
+                return { from: f, to: t };
+            }
+        });
+
+        if (migrationData) {
+            migrateClass(className, migrationData.from, migrationData.to);
+            Swal.fire({
+                title: 'Migration Initiated',
+                text: `${className} students are being transferred to ${migrationData.to}.`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    };
+
+    const displayClasses = classes.filter(c => {
+        const matchesSearch = c.toLowerCase().includes(search.toLowerCase());
+        if (!matchesSearch) return false;
+        if (campusFilter === 'All') return true;
+        // Show class if it has students or teachers in this campus
+        const hasStudents = students.some(s =>
+            s.class?.trim().toLowerCase() === c.trim().toLowerCase() && s.campus?.toLowerCase() === campusFilter.toLowerCase()
+        );
+        const hasTeachers = teachers.some(t =>
+            t.classes.some(tc => tc.trim().toLowerCase() === c.trim().toLowerCase()) && t.campus?.toLowerCase() === campusFilter.toLowerCase()
+        );
+
+        // CRITICAL FIX: To allow users to see and interactive with newly created (empty) classes
+        // we show classes that have NO students or teachers anywhere yet.
+        const isGloballyEmpty = !students.some(s => s.class?.trim().toLowerCase() === c.trim().toLowerCase()) &&
+            !teachers.some(t => t.classes.some(tc => tc.trim().toLowerCase() === c.trim().toLowerCase()));
+
+        return hasStudents || hasTeachers || isGloballyEmpty;
+    });
+
+    const schoolClasses = displayClasses.filter(c => !c.toLowerCase().includes('year'));
+    const collegeClasses = displayClasses.filter(c => c.toLowerCase().includes('year'));
 
     const ClassCard = ({ className }: { className: string }) => {
-        const studentCount = students.filter(s => s.class === className).length;
+        const studentCount = students.filter(s =>
+            s.class?.trim().toLowerCase() === className.trim().toLowerCase() &&
+            (campusFilter === 'All' || s.campus?.toLowerCase() === campusFilter.toLowerCase())
+        ).length;
         const fee = feeStructure[className] || 0;
         const isCollege = className.toLowerCase().includes('year');
         const subjects = classSubjects[className] || [];
@@ -647,7 +762,7 @@ export const ClassesPage = () => {
                     </div>
 
                     {/* Action Footer (Always Visible, neatly spaced) */}
-                    <div className="grid grid-cols-5 border-t border-slate-100 dark:border-white/10 divide-x divide-slate-100 dark:divide-white/10">
+                    <div className="grid grid-cols-6 border-t border-slate-100 dark:border-white/10 divide-x divide-slate-100 dark:divide-white/10">
                         <button
                             onClick={() => handleEditClass(className)}
                             className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-brand-primary transition-colors"
@@ -683,6 +798,13 @@ export const ClassesPage = () => {
                         >
                             <Trash2 size={16} />
                         </button>
+                        <button
+                            onClick={() => handleMigrateClass(className)}
+                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-500 transition-colors"
+                            title="Migrate Class Students"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5" /><path d="M8 3H3v5" /><path d="M12 22V12" /><path d="M3 21l9-9 9 9" /></svg>
+                        </button>
                     </div>
 
                     <input
@@ -712,6 +834,28 @@ export const ClassesPage = () => {
                         <p className="text-[11px] md:text-sm text-slate-500 dark:text-slate-400 font-bold max-w-lg leading-relaxed">
                             Configure institutional categories, define revenue tiers, and optimize enrollment density across departments.
                         </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-white/5 p-1 rounded-2xl border border-slate-100 dark:border-white/5">
+                        <div className="relative flex items-center">
+                            <Search className="absolute left-3 w-3 h-3 text-slate-400" />
+                            <input
+                                type="text"
+                                placeholder="Search classes..."
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                className="bg-transparent text-[10px] font-bold pl-8 pr-4 py-2 outline-none w-[150px] text-slate-700 dark:text-white"
+                            />
+                        </div>
+                        <div className="w-[1px] h-4 bg-slate-200 dark:bg-white/10"></div>
+                        <select
+                            value={campusFilter}
+                            onChange={(e) => setCampusFilter(e.target.value)}
+                            className="bg-transparent text-[10px] font-black px-4 py-2 outline-none cursor-pointer uppercase tracking-widest text-brand-primary dark:text-brand-accent min-w-[150px]"
+                        >
+                            <option value="All">All Campuses</option>
+                            {campuses.map(c => <option key={c.id} value={c.name}>{c.name.toUpperCase()}</option>)}
+                        </select>
                     </div>
 
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">

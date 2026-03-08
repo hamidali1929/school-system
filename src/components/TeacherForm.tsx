@@ -263,7 +263,7 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
                                 }}
                                 className={cn("flex items-center justify-between p-4 rounded-2xl border-2 transition-all text-left", formData.campus === c.name ? "border-brand-primary bg-brand-primary/5" : "border-slate-100 hover:border-slate-200")}
                             >
-                                <span className="font-black text-xs uppercase text-brand-primary">{c.name}</span>
+                                <span className="font-black text-xs uppercase text-brand-primary">{c.name.toUpperCase()}</span>
                                 {formData.campus === c.name && <Check className="text-brand-primary" size={16} />}
                             </button>
                         ))}
@@ -284,7 +284,7 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
                         </div>
                         <div>
                             <h2 className="font-black text-sm uppercase tracking-tight text-brand-accent">Faculty Profile</h2>
-                            <p className="text-[8px] font-bold opacity-60 uppercase">{formData.campus}</p>
+                            <p className="text-[8px] font-bold opacity-60 uppercase">{formData.campus.toUpperCase()}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-1.5 hover:bg-brand-accent hover:text-brand-primary rounded-lg transition-all"><X className="w-4 h-4" /></button>

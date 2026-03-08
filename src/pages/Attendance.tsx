@@ -47,7 +47,11 @@ export const Attendance = () => {
 
     // Current attendance records for the selected date, class, and campus
     const currentAttendance = useMemo(() => {
-        return attendance.find(a => a.date === selectedDate && a.class === selectedClass && a.campus === selectedCampus);
+        return attendance.find(a =>
+            a.date === selectedDate &&
+            a.class === selectedClass &&
+            a.campus?.toLowerCase() === selectedCampus.toLowerCase()
+        );
     }, [attendance, selectedDate, selectedClass, selectedCampus]);
 
     // Local state for pending attendance changes before saving
@@ -57,7 +61,8 @@ export const Attendance = () => {
     const filteredStudents = useMemo(() => {
         return students.filter(s => {
             const matchesClass = selectedClass === 'All' || s.class === selectedClass;
-            const matchesCampus = selectedCampus === 'All' || (s.campus || (campuses[0]?.name || 'Dr Manzoor Campus')) === selectedCampus;
+            const matchesCampus = selectedCampus === 'All' ||
+                (s.campus?.toLowerCase() || (campuses[0]?.name?.toLowerCase() || 'dr manzoor campus')) === selectedCampus.toLowerCase();
             const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 s.id.toLowerCase().includes(searchQuery.toLowerCase());
             return matchesClass && matchesCampus && matchesSearch;
@@ -317,7 +322,7 @@ export const Attendance = () => {
                         onChange={(e) => setSelectedCampus(e.target.value)}
                         className="flex-1 px-3 py-2 bg-slate-50 dark:bg-[#000816] border border-slate-100 dark:border-yellow-400/10 rounded-lg text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 ring-blue-500/10"
                     >
-                        {campusOptions.map(c => <option key={c} value={c} className="text-brand-primary">{c === 'All' ? 'All Campuses' : c}</option>)}
+                        {campusOptions.map(c => <option key={c} value={c} className="text-brand-primary uppercase">{c === 'All' ? 'ALL CAMPUSES' : c.toUpperCase()}</option>)}
                     </select>
                 </div>
 

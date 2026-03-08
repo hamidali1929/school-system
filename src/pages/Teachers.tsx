@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { UserPlus, GraduationCap, Mail, Search, Edit, Trash2, Download, Plus, X, CheckCircle2 } from 'lucide-react';
+import { UserPlus, GraduationCap, Mail, Search, Edit, Trash2, Download, Plus, X, CheckCircle2, RotateCcw } from 'lucide-react';
 import { useStore, type Teacher } from '../context/StoreContext';
 import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
@@ -9,7 +9,13 @@ import { FacultyProfileModal } from '../components/FacultyProfileModal';
 import { Contact, FileText } from 'lucide-react';
 
 export const Teachers = () => {
-    const { teachers, deleteTeacher, addTeacher, campuses } = useStore();
+    const {
+        teachers,
+        deleteTeacher,
+        campuses,
+        bulkAddTeachers,
+        migrateTeacher
+    } = useStore();
     const [search, setSearch] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
@@ -21,7 +27,8 @@ export const Teachers = () => {
     const filteredTeachers = teachers.filter(t => {
         const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase()) ||
             t.subject.toLowerCase().includes(search.toLowerCase());
-        const matchesCampus = campusFilter === 'All' || t.campus === campusFilter;
+        const matchesCampus = campusFilter === 'All' ||
+            t.campus?.toLowerCase() === campusFilter.toLowerCase();
         return matchesSearch && matchesCampus;
     });
 
@@ -111,6 +118,7 @@ export const Teachers = () => {
             if (rows.length < 2) return;
             const headers = rows[0].split(',').map(h => h.trim().toLowerCase().replace(/ /g, ''));
             let count = 0;
+            const importedTeachers: Partial<Teacher>[] = [];
             rows.slice(1).forEach(row => {
                 const values = [];
                 let insideQuote = false;
@@ -142,10 +150,13 @@ export const Teachers = () => {
                     else if (h === 'address') data.address = v;
                 });
                 if (data.name && data.subject) {
-                    addTeacher(data);
+                    importedTeachers.push(data);
                     count++;
                 }
             });
+            if (importedTeachers.length > 0) {
+                bulkAddTeachers(importedTeachers);
+            }
             Swal.fire({ title: 'Import Complete', text: `${count} teachers added.`, icon: 'success' });
             e.target.value = '';
         };
@@ -166,6 +177,39 @@ export const Teachers = () => {
                 Swal.fire({ title: 'Deleted', icon: 'success', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
             }
         });
+    };
+
+    const handleMigrateTeacher = async (teacher: Teacher) => {
+        const { value: toCampus } = await Swal.fire({
+            title: 'Migrate Faculty',
+            text: `Transfer ${teacher.name} to another branch/campus.`,
+            input: 'select',
+            inputOptions: campuses.reduce((acc, c) => ({ ...acc, [c.name]: c.name.toUpperCase() }), {} as Record<string, string>),
+            inputValue: teacher.campus,
+            showCancelButton: true,
+            confirmButtonText: 'Transfer Now',
+            confirmButtonColor: 'var(--brand-primary)',
+            customClass: {
+                popup: 'rounded-[2.5rem] border-0 shadow-2xl overflow-hidden',
+                confirmButton: 'rounded-full px-8 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider flex items-center gap-2 m-0',
+                cancelButton: 'rounded-full px-8 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider !bg-slate-50 !text-slate-400 hover:!bg-slate-100 transition-all !m-0 mr-2'
+            },
+            inputValidator: (value) => {
+                if (value === teacher.campus) return 'Current campus selected';
+                return null;
+            }
+        });
+
+        if (toCampus) {
+            migrateTeacher(teacher.id, toCampus);
+            Swal.fire({
+                title: 'Transfer Successful',
+                text: `${teacher.name} has been reassigned to ${toCampus}.`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
     };
 
     return (
@@ -262,7 +306,7 @@ export const Teachers = () => {
                         className="bg-slate-50 dark:bg-[#000d1a] border border-slate-100 dark:border-white/5 rounded-xl md:rounded-2xl px-4 py-2.5 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 ring-blue-500 w-full md:min-w-[180px] cursor-pointer appearance-none hover:bg-white transition-colors h-10 flex items-center"
                     >
                         <option value="All">All Campuses</option>
-                        {campuses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        {campuses.map(c => <option key={c.id} value={c.name}>{c.name.toUpperCase()}</option>)}
                     </select>
                 </div>
             </div>
@@ -368,6 +412,7 @@ export const Teachers = () => {
                                 {/* Action Menu */}
                                 <div className="absolute top-6 right-6 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
                                     <button onClick={() => setSelectedTeacherForId(teacher)} className="p-3 bg-white dark:bg-[#001529] border border-slate-100 dark:border-white/10 text-[#003366] dark:text-brand-accent hover:bg-[#003366] hover:text-white rounded-2xl shadow-xl transition-all active:scale-95"><Contact className="w-5 h-5" /></button>
+                                    <button onClick={() => handleMigrateTeacher(teacher)} className="p-3 bg-white dark:bg-[#001529] border border-slate-100 dark:border-white/10 text-brand-primary dark:text-brand-accent hover:bg-brand-primary hover:text-white rounded-2xl shadow-xl transition-all active:scale-95" title="Transfer Campus"><RotateCcw className="w-5 h-5" /></button>
                                     <button onClick={() => handleEditTeacher(teacher)} className="p-3 bg-white dark:bg-[#001529] border border-slate-100 dark:border-white/10 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white rounded-2xl shadow-xl transition-all active:scale-95"><Edit className="w-5 h-5" /></button>
                                     <button onClick={() => handleDeleteTeacher(teacher.id, teacher.name)} className="p-3 bg-white dark:bg-[#001529] border border-slate-100 dark:border-white/10 text-rose-600 dark:text-rose-400 hover:bg-rose-600 hover:text-white rounded-2xl shadow-xl transition-all active:scale-95"><Trash2 className="w-5 h-5" /></button>
                                 </div>

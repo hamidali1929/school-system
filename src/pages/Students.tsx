@@ -45,7 +45,8 @@ export const Students = () => {
             s.id.toLowerCase().includes(search.toLowerCase());
         const matchesClass = filterClass === 'All' || s.class === filterClass;
         const matchesStatus = statusFilter === 'All' || s.status === statusFilter;
-        const matchesCampus = campusFilter === 'All' || s.campus === campusFilter;
+        const matchesCampus = campusFilter === 'All' ||
+            s.campus?.toLowerCase() === campusFilter.toLowerCase();
         return matchesSearch && matchesClass && matchesStatus && matchesCampus;
     });
 
@@ -726,7 +727,7 @@ export const Students = () => {
                         className="bg-slate-50 dark:bg-[#000d1a] border border-slate-100 dark:border-white/5 rounded-xl md:rounded-2xl px-4 py-3 text-[10px] font-black uppercase tracking-widest outline-none focus:ring-2 ring-blue-500 w-full md:min-w-[150px] cursor-pointer appearance-none hover:bg-white dark:hover:bg-white/5 transition-colors"
                     >
                         <option value="All">All Campuses</option>
-                        {campuses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                        {campuses.map(c => <option key={c.id} value={c.name}>{c.name.toUpperCase()}</option>)}
                     </select>
                     <select
                         value={filterClass}
@@ -897,7 +898,7 @@ export const Students = () => {
                                             <div className="w-10 h-10 bg-brand-primary/5 group-hover:bg-white/10 rounded-full flex items-center justify-center">
                                                 <Building2 className="w-5 h-5" />
                                             </div>
-                                            <span className="font-outfit font-black uppercase tracking-widest text-xs md:text-sm text-left">{c.name}</span>
+                                            <span className="font-outfit font-black uppercase tracking-widest text-xs md:text-sm text-left">{c.name.toUpperCase()}</span>
                                             <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
                                         </button>
                                     ))}

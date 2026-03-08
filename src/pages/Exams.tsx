@@ -655,7 +655,7 @@ export const Exams = () => {
 
         const exam = exams.find(e => e.id === selectedExamId);
         const subjects = classSubjects[selectedClass] || [];
-        const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus));
+        const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus?.toLowerCase() === selectedCampus.toLowerCase()));
 
         const data = relevantStudents.map(student => {
             const result = examResults.find(r => r.studentId === student.id && r.examId === selectedExamId);
@@ -696,7 +696,7 @@ export const Exams = () => {
         const rangeData = examResults.filter(r =>
             r.examId === selectedExamId &&
             selectedRange.includes(r.className) &&
-            students.find(s => s.id === r.studentId)?.campus === selectedCampus
+            students.find(s => s.id === r.studentId)?.campus?.toLowerCase() === selectedCampus.toLowerCase()
         ).sort((a, b) => b.percentage - a.percentage);
 
         // Overall Top 3 in this range
@@ -887,7 +887,10 @@ export const Exams = () => {
         }
 
         const exam = exams.find(e => e.id === selectedExamId);
-        const campusData = examResults.filter(r => r.examId === selectedExamId && students.find(s => s.id === r.studentId)?.campus === selectedCampus);
+        const campusData = examResults.filter(r =>
+            r.examId === selectedExamId &&
+            students.find(s => s.id === r.studentId)?.campus?.toLowerCase() === selectedCampus.toLowerCase()
+        );
 
         const classToppers: Record<string, any[]> = {};
         const activeClasses = exam?.classes || [];
@@ -1881,7 +1884,7 @@ export const Exams = () => {
                                     className="w-full bg-transparent border-none p-0 text-[12px] font-[1000] uppercase text-slate-800 dark:text-white outline-none appearance-none truncate cursor-pointer"
                                 >
                                     <option value="">All Campuses...</option>
-                                    {(useStore() as any).campuses?.map((c: any) => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    {(useStore() as any).campuses?.map((c: any) => <option key={c.id} value={c.name}>{c.name.toUpperCase()}</option>)}
                                 </select>
                             </div>
                         )}
@@ -2127,7 +2130,7 @@ export const Exams = () => {
                                                                         const classSubjCount = subjectsList.length;
 
                                                                         // All students in this class/campus
-                                                                        const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus));
+                                                                        const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus?.toLowerCase() === selectedCampus.toLowerCase()));
                                                                         const currentIndexInAll = relevantStudents.findIndex(s => s.id === selectedStudentId);
 
                                                                         // Find the NEXT student who is incomplete
@@ -2247,7 +2250,10 @@ export const Exams = () => {
                                                                             const classSubjCount = subjectsList.length;
 
                                                                             // All students in this class/campus
-                                                                            const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus === selectedCampus));
+                                                                            const relevantStudents = students.filter(s =>
+                                                                                s.class === selectedClass &&
+                                                                                (!selectedCampus || s.campus?.toLowerCase() === selectedCampus.toLowerCase())
+                                                                            );
                                                                             const currentIndexInAll = relevantStudents.findIndex(s => s.id === selectedStudentId);
 
                                                                             // Find the NEXT student who is incomplete
@@ -2967,7 +2973,11 @@ export const Exams = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {(exams.find(e => e.id === selectedExamId)?.classes || []).map(cls => {
                                 const classToppers = examResults
-                                    .filter(r => r.examId === selectedExamId && r.className === cls && students.find(s => s.id === r.studentId)?.campus === selectedCampus)
+                                    .filter(r =>
+                                        r.examId === selectedExamId &&
+                                        r.className === cls &&
+                                        students.find(s => s.id === r.studentId)?.campus?.toLowerCase() === selectedCampus.toLowerCase()
+                                    )
                                     .sort((a, b) => b.percentage - a.percentage)
                                     .slice(0, 3);
 

@@ -223,7 +223,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
 
         // Generate Campus Specific ID using Manual ID
         const campusId = formData.campus || '';
-        const campus = campuses.find(c => c.id === campusId || c.name === campusId);
+        const campus = campuses.find(c => c.id === campusId || c.name.toLowerCase() === campusId.toLowerCase());
         const finalCampusName = campus?.name || campusId;
 
         // Robust ID cleaning: Ensure PS-[PREFIX]-[NUMBER]
@@ -466,7 +466,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <FormField label="Full Name" icon={User} name="name" value={formData.name} onChange={handleInputChange} placeholder="Enter full name" type="text" required />
-                                            <FormField label="Select Campus" icon={MapPin} name="campus" value={formData.campus} onChange={handleInputChange} type="select" options={[...campuses.map(c => c.name)]} disabled={!!initialCampus} />
+                                            <FormField label="Select Campus" icon={MapPin} name="campus" value={formData.campus} onChange={handleInputChange} type="select" options={[...campuses.map(c => c.name.toUpperCase())]} disabled={!!initialCampus} />
                                             <FormField
                                                 label="Permanent Student ID"
                                                 icon={Hash}

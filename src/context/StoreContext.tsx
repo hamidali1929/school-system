@@ -260,11 +260,14 @@ interface AppState {
     updateClass: (oldName: string, newName: string, fee: number) => void;
     deleteClass: (name: string) => void;
     addStudent: (s: Partial<Student>) => Promise<void>;
-    updateStudent: (id: string, updates: Partial<Student>) => void;
-    deleteStudent: (id: string) => void;
-    addTeacher: (t: Partial<Teacher>) => void;
-    updateTeacher: (id: string, updates: Partial<Teacher>) => void;
-    deleteTeacher: (id: string) => void;
+    updateStudent: (id: string, updates: Partial<Student>) => Promise<void>;
+    deleteStudent: (id: string) => Promise<void>;
+    addTeacher: (t: Partial<Teacher>) => Promise<void>;
+    bulkAddTeachers: (teachers: Partial<Teacher>[]) => Promise<void>;
+    updateTeacher: (id: string, updates: Partial<Teacher>) => Promise<void>;
+    deleteTeacher: (id: string) => Promise<void>;
+    migrateTeacher: (id: string, toCampus: string) => Promise<void>;
+    migrateClass: (className: string, fromCampus: string, toCampus: string) => Promise<void>;
     updateSettings: (s: Partial<SchoolSettings>) => void;
     markAttendance: (a: Attendance) => void;
     updateFeeStructure: (updates: Record<string, number>) => void;
@@ -277,6 +280,7 @@ interface AppState {
     updateClassSubjectMarks: (className: string, marks: Record<string, number>) => void;
     updateClassInCharge: (className: string, teacherId: string) => void;
     assignSubjectTeacher: (className: string, subject: string, teacherId: string) => void;
+    updateClassSubjectTeachers: (className: string, assignments: Record<string, string>) => void;
     updateTimetable: (className: string, timetable: WeeklyTimetable) => void;
     updateAllTimetables: (newTimetables: Record<string, WeeklyTimetable>) => void;
     promoteStudents: (fromClass: string, toClass: string) => void;
@@ -466,6 +470,28 @@ export const DEFAULT_PERIODS: PeriodTime[] = [
 
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
     const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const teacherToCloud = (t: Partial<Teacher>) => {
+        const cloud: any = { ...t };
+        if (t.whatsappNumber !== undefined) { cloud.whatsappnumber = t.whatsappNumber; delete cloud.whatsappNumber; }
+        if (t.employmentType !== undefined) { cloud.employmenttype = t.employmentType; delete cloud.employmentType; }
+        if (t.fatherName !== undefined) { cloud.fathername = t.fatherName; delete cloud.fatherName; }
+        if (t.husbandName !== undefined) { cloud.husbandname = t.husbandName; delete cloud.husbandName; }
+        if (t.maritalStatus !== undefined) { cloud.maritalstatus = t.maritalStatus; delete cloud.maritalStatus; }
+        if (t.joiningDate !== undefined) { cloud.joiningdate = t.joiningDate; delete cloud.joiningDate; }
+        return cloud;
+    };
+
+    const cloudToTeacher = (c: any): Teacher => {
+        const t: any = { ...c };
+        if (c.whatsappnumber !== undefined) { t.whatsappNumber = c.whatsappnumber; delete t.whatsappnumber; }
+        if (c.employmenttype !== undefined) { t.employmentType = c.employmenttype; delete t.employmenttype; }
+        if (c.fathername !== undefined) { t.fatherName = c.fathername; delete c.fathername; }
+        if (c.husbandname !== undefined) { t.husbandName = c.husbandname; delete c.husbandname; }
+        if (c.maritalstatus !== undefined) { t.maritalStatus = c.maritalstatus; delete c.maritalstatus; }
+        if (c.joiningdate !== undefined) { t.joiningDate = c.joiningdate; delete c.joiningdate; }
+        return t as Teacher;
+    };
+
 
     const [students, setStudents] = useState<Student[]>(() => {
         const saved = localStorage.getItem('edunova_students');
@@ -508,7 +534,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                     setStudents(cloudStudents);
                 }
                 if (tchRes.data && !tchRes.error) {
-                    const cloudTeachers = cleanLegacy(tchRes.data as Teacher[]);
+                    const cloudTeachers = (tchRes.data || []).map(t => cloudToTeacher(cleanLegacy(t)));
                     setTeachers(cloudTeachers);
                 }
 
@@ -760,10 +786,12 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 try {
                     // Bulk Sync Students and Teachers (ensure they exist in their own tables)
                     if (students.length > 0) {
-                        await supabase.from('students').upsert(students, { onConflict: 'id' });
+                        const { error } = await supabase.from('students').upsert(students, { onConflict: 'id' });
+                        if (error) console.error('Periodic Student Sync Error:', error);
                     }
                     if (teachers.length > 0) {
-                        await supabase.from('teachers').upsert(teachers, { onConflict: 'id' });
+                        const { error } = await supabase.from('teachers').upsert(teachers.map(t => teacherToCloud(t)), { onConflict: 'id' });
+                        if (error) console.error('Periodic Teacher Sync Error:', error);
                     }
 
                     // Bulk Sync App Data
@@ -786,7 +814,8 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                         { id: 'salarySlips', data: salarySlips },
                         { id: 'campuses', data: campuses }
                     ];
-                    await supabase.from('app_data').upsert(appDataPayload, { onConflict: 'id' });
+                    const { error } = await supabase.from('app_data').upsert(appDataPayload, { onConflict: 'id' });
+                    if (error) console.error('Periodic AppData Sync Error:', error);
                 } catch (e) {
                     console.error('AppData Cloud Sync Error:', e);
                 }
@@ -947,16 +976,53 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         });
 
         try {
-            await supabase.from('teachers').upsert(newTeacher, { onConflict: 'id' });
+            await supabase.from('teachers').upsert(teacherToCloud(newTeacher), { onConflict: 'id' });
         } catch (err) {
             console.error('Failed to sync teacher to Supabase:', err);
+        }
+    };
+
+    const bulkAddTeachers = async (teachersArray: Partial<Teacher>[]) => {
+        const newTeachers = teachersArray.map((t, idx) => ({
+            id: t.id || `PST-${Date.now()}-${Math.floor(Math.random() * 100000) + idx}`,
+            name: t.name || '',
+            subject: t.subject || '',
+            phone: t.phone || '',
+            avatar: t.avatar || (t.name || 'P').charAt(0),
+            status: t.status || 'Active',
+            classes: t.classes || [],
+            whatsappNumber: t.whatsappNumber || '',
+            email: t.email || '',
+            fatherName: t.fatherName || '',
+            password: t.password || '',
+            username: t.username || '',
+            permissions: t.permissions || [],
+            baseSalary: sanitizeNumber(t.baseSalary),
+            campus: t.campus || campuses[0]?.name || 'Dr Manzoor Campus',
+            ...t
+        } as Teacher));
+
+        setTeachers(prev => {
+            const updated = [...prev];
+            newTeachers.forEach(nt => {
+                const index = updated.findIndex(item => item.id === nt.id);
+                if (index >= 0) updated[index] = nt;
+                else updated.push(nt);
+            });
+            return updated;
+        });
+
+        try {
+            await supabase.from('teachers').upsert(newTeachers.map(t => teacherToCloud(t)), { onConflict: 'id' });
+        } catch (err) {
+            console.error('Failed to sync batch teachers to Supabase:', err);
         }
     };
 
     const updateTeacher = async (id: string, updates: Partial<Teacher>) => {
         setTeachers(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
         try {
-            await supabase.from('teachers').update(updates).eq('id', id);
+            await supabase.from('teachers').update(teacherToCloud(updates)).eq('id', id);
         } catch (err) {
             console.error('Failed to update teacher in Supabase:', err);
         }
@@ -968,6 +1034,58 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             await supabase.from('teachers').delete().eq('id', id);
         } catch (err) {
             console.error('Failed to delete teacher from Supabase:', err);
+        }
+    };
+
+    const migrateTeacher = async (id: string, toCampus: string) => {
+        const actualTo = campuses.find(c => c.name.toLowerCase() === toCampus.toLowerCase())?.name || toCampus;
+        setTeachers(prev => prev.map(t => t.id === id ? { ...t, campus: actualTo } : t));
+        try {
+            await supabase.from('teachers').update({ campus: actualTo }).eq('id', id);
+        } catch (err) {
+            console.error('Teacher migration failed in Supabase:', err);
+        }
+    };
+
+    const migrateClass = async (className: string, fromCampus: string, toCampus: string) => {
+        const actualTo = campuses.find(c => c.name.toLowerCase() === toCampus.toLowerCase())?.name || toCampus;
+
+        // Bulk update students in this class/campus combo (Local State)
+        setStudents(prev => prev.map(s =>
+            (s.class?.trim().toLowerCase() === className.trim().toLowerCase() && s.campus?.trim().toLowerCase() === fromCampus.trim().toLowerCase())
+                ? { ...s, campus: actualTo }
+                : s
+        ));
+
+        // Bulk update teachers in this class/campus combo (Local State)
+        setTeachers(prev => prev.map(t =>
+            (t.classes.some(tc => tc.trim().toLowerCase() === className.trim().toLowerCase()) && t.campus?.trim().toLowerCase() === fromCampus.trim().toLowerCase())
+                ? { ...t, campus: actualTo }
+                : t
+        ));
+
+        try {
+            // Update Students in Supabase (Case-Insensitive Match)
+            const { error: studentError } = await supabase.from('students')
+                .update({ campus: actualTo })
+                .ilike('class', className.trim())
+                .ilike('campus', fromCampus.trim());
+
+            if (studentError) throw studentError;
+
+            // Update Teachers in Supabase (Case-Insensitive Match)
+            const { error: teacherError } = await supabase.from('teachers')
+                .update({ campus: actualTo })
+                .contains('classes', [className])
+                .ilike('campus', fromCampus);
+
+            if (teacherError) {
+                // Handle case where 'classes' might be stored as string or array depending on PG setup
+                // If contains fails, we skip teacher move for now but students are moved.
+                console.warn('Teacher update during class migration had minor issue:', teacherError);
+            }
+        } catch (err) {
+            console.error('Class migration failed in Supabase:', err);
         }
     };
 
@@ -1207,6 +1325,13 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 ...(prev[className] || {}),
                 [subject]: teacherId
             }
+        }));
+    };
+
+    const updateClassSubjectTeachers = (className: string, assignments: Record<string, string>) => {
+        setSubjectTeachers(prev => ({
+            ...prev,
+            [className]: assignments
         }));
     };
 
@@ -1720,8 +1845,11 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             updateStudent,
             deleteStudent,
             addTeacher,
+            bulkAddTeachers,
             updateTeacher,
             deleteTeacher,
+            migrateTeacher,
+            migrateClass,
             updateSettings,
             markAttendance,
             updateFeeStructure,
@@ -1734,6 +1862,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             updateClassSubjectMarks,
             updateClassInCharge,
             assignSubjectTeacher,
+            updateClassSubjectTeachers,
             updateTimetable,
             updateAllTimetables,
             promoteStudents,
