@@ -9,15 +9,14 @@ import { FacultyProfileModal } from '../components/FacultyProfileModal';
 import { Contact, FileText } from 'lucide-react';
 
 export const Teachers = () => {
-    const { teachers, deleteTeacher, addTeacher } = useStore();
+    const { teachers, deleteTeacher, addTeacher, campuses } = useStore();
     const [search, setSearch] = useState('');
     const [isFormOpen, setIsFormOpen] = useState(false);
     const [editingTeacher, setEditingTeacher] = useState<Teacher | undefined>();
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    const [campusFilter, setCampusFilter] = useState('All');
+    const [campusFilter, setCampusFilter] = useState(campuses[0]?.name || 'All');
     const [selectedTeacherForId, setSelectedTeacherForId] = useState<Teacher | null>(null);
     const [selectedTeacherForProfile, setSelectedTeacherForProfile] = useState<Teacher | null>(null);
-    const { campuses } = useStore();
 
     const filteredTeachers = teachers.filter(t => {
         const matchesSearch = t.name.toLowerCase().includes(search.toLowerCase()) ||
