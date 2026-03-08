@@ -9,7 +9,12 @@ import Swal from 'sweetalert2';
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 export const TimetablePage = () => {
-    const { timetables, updateTimetable, updateAllTimetables, teachers, classes, periodSettings, updatePeriodSettings, currentUser, settings, classSubjects, subjectTeachers, campuses, students } = useStore();
+    const {
+        timetables, updateTimetable, updateAllTimetables, teachers, classes,
+        periodSettings, updatePeriodSettings, currentUser, settings,
+        classSubjects, subjectTeachers, campuses, students,
+        wingAssignments, updateWingAssignments
+    } = useStore();
     const [selectedDay, setSelectedDay] = useState(DAYS[new Date().getDay() === 0 ? 0 : new Date().getDay() - 1]);
     const [activeWing, setActiveWing] = useState<'primary' | 'boys' | 'girls'>('primary');
     const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
@@ -890,8 +895,86 @@ export const TimetablePage = () => {
         setTimeout(() => win.print(), 500);
     };
 
+    const handleManageWings = async () => {
+        const h = document.documentElement.classList.contains('dark');
+
+        const { value: newAssignments } = await Swal.fire({
+            title: '<span class="font-outfit uppercase font-black text-lg">Categorize Classes into Wings</span>',
+            background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
+            color: h ? 'var(--brand-accent, #fbbf24)' : '#0f172a',
+            width: '900px',
+            customClass: {
+                popup: 'rounded-[1.5rem] border-2 border-slate-100 dark:border-white/5 shadow-2xl',
+                confirmButton: 'rounded-lg font-black uppercase tracking-widest px-6 py-2 text-[9px] bg-brand-primary h-auto',
+                cancelButton: 'rounded-lg font-black uppercase tracking-widest px-6 py-2 text-[9px] bg-slate-100 dark:bg-white/5 text-slate-500 h-auto'
+            },
+            html: `
+                <div class="p-4 font-outfit">
+                    <p class="text-[9px] font-bold text-slate-400 uppercase mb-6 tracking-widest leading-relaxed">
+                        Manually assign classes to their respective wings. This overrides automatic placement.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto px-2 custom-scrollbar">
+                        ${classes.map((cls, idx) => `
+                            <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/10">
+                                <span class="text-[10px] font-black uppercase text-brand-primary dark:text-white truncate pr-2">${cls}</span>
+                                <div class="flex gap-1">
+                                    ${['primary', 'boys', 'girls'].map(wing => `
+                                        <button 
+                                            onclick="window.setLocalWingAssignment('${cls}', '${wing}')"
+                                            id="btn-${cls}-${wing}"
+                                            class="px-2 py-1 rounded-md text-[7px] font-black uppercase tracking-tighter transition-all ${wingAssignments[cls] === wing ?
+                    'bg-brand-primary text-white scale-105 shadow-md' :
+                    'bg-white dark:bg-white/5 text-slate-400 hover:text-brand-primary'}"
+                                        >
+                                            ${wing}
+                                        </button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save Configuration',
+            preConfirm: () => {
+                return (window as any).localWingAssignments;
+            }
+        });
+
+        if (newAssignments) {
+            updateWingAssignments(newAssignments);
+            Swal.fire({
+                title: 'Wings Updated',
+                icon: 'success',
+                timer: 1500,
+                showConfirmButton: false,
+                background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
+                color: h ? 'var(--brand-accent, #fbbf24)' : '#0f172a'
+            });
+        }
+    };
+
+    (window as any).localWingAssignments = { ...wingAssignments };
+    (window as any).setLocalWingAssignment = (cls: string, wing: string) => {
+        (window as any).localWingAssignments[cls] = wing;
+        ['primary', 'boys', 'girls'].forEach(w => {
+            const btn = document.getElementById(`btn-${cls}-${w}`);
+            if (btn) {
+                if (w === wing) {
+                    btn.className = 'px-2 py-1 rounded-md text-[7px] font-black uppercase tracking-tighter transition-all bg-brand-primary text-white scale-105 shadow-md';
+                } else {
+                    btn.className = 'px-2 py-1 rounded-md text-[7px] font-black uppercase tracking-tighter transition-all bg-white dark:bg-white/5 text-slate-400 hover:text-brand-primary';
+                }
+            }
+        });
+    };
+
     const WingSection = ({ group }: { group: 'primary' | 'boys' | 'girls' }) => {
         const wingClasses = campusClasses.filter(c => {
+            // Priority 1: Manual Assignment
+            if (wingAssignments[c]) return wingAssignments[c] === group;
+
             const isBoys = c.includes('(Boys)') || c.includes('9th') || c.includes('10th') || c.includes('1st Year') || c.includes('2nd Year');
             const isGirls = c.includes('(Girls)');
 
@@ -1132,6 +1215,14 @@ export const TimetablePage = () => {
                     >
                         {campuses.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
                     </select>
+
+                    <button
+                        onClick={handleManageWings}
+                        className="h-9 px-4 bg-white dark:bg-brand-primary-dark border border-slate-200 dark:border-brand-accent/20 rounded-[var(--brand-radius,0.75rem)] text-[9px] font-black uppercase tracking-widest text-brand-primary dark:text-brand-accent flex items-center gap-2 hover:bg-slate-50 transition-all shadow-sm"
+                    >
+                        <Layers size={14} />
+                        Categorize Classes
+                    </button>
 
                     <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark/50 rounded-[var(--brand-radius,0.75rem)] border border-slate-200 dark:border-brand-accent/10">
                         <button

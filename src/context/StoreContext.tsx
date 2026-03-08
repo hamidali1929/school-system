@@ -254,8 +254,10 @@ interface AppState {
     attendance: Attendance[];
     feeStructure: Record<string, number>;
     classes: string[];
+    wingAssignments: Record<string, 'primary' | 'boys' | 'girls'>;
     periodSettings: Record<string, PeriodTime[]>;
     updatePeriodSettings: (settings: Record<string, PeriodTime[]>) => void;
+    updateWingAssignments: (assignments: Record<string, 'primary' | 'boys' | 'girls'>) => void;
     addClass: (name: string, fee: number) => void;
     updateClass: (oldName: string, newName: string, fee: number) => void;
     deleteClass: (name: string) => void;
@@ -695,6 +697,10 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         return [...DEFAULT_SCHOOL_CLASSES, ...DEFAULT_COLLEGE_CLASSES];
     });
 
+    const [wingAssignments, setWingAssignments] = useState<Record<string, 'primary' | 'boys' | 'girls'>>(() => {
+        const saved = localStorage.getItem('wingAssignments');
+        return saved ? JSON.parse(saved) : {};
+    });
     const [periodSettings, setPeriodSettings] = useState<Record<string, PeriodTime[]>>(() => {
         const saved = localStorage.getItem('edunova_period_settings_v2');
         if (saved) return JSON.parse(saved);
@@ -1669,6 +1675,17 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setSalarySlips(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     };
 
+    const updateWingAssignments = (assignments: Record<string, 'primary' | 'boys' | 'girls'>) => {
+        setWingAssignments(assignments);
+        localStorage.setItem('wingAssignments', JSON.stringify(assignments));
+        addAuditLog({
+            action: 'Updated class wing assignments',
+            type: 'System',
+            details: 'Modified manual categorization of classes into wings',
+            user: currentUser?.name || 'Academic Head'
+        });
+    };
+
     const importBackup = async (data: any) => {
         try {
             if (!data || typeof data !== 'object') throw new Error('Invalid backup format');
@@ -1836,8 +1853,10 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             attendance,
             feeStructure,
             classes,
+            wingAssignments,
             periodSettings,
             updatePeriodSettings,
+            updateWingAssignments,
             addClass,
             updateClass,
             deleteClass,
