@@ -2,7 +2,7 @@ import { useState, useRef } from 'react';
 import {
     Calendar, Download, Settings, Maximize2, Minimize2, Zap, Layout, Layers, Trash2, GraduationCap
 } from 'lucide-react';
-import { useStore } from '../context/StoreContext';
+import { useStore, DEFAULT_PERIODS } from '../context/StoreContext';
 import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
 
@@ -145,18 +145,22 @@ export const TimetablePage = () => {
 
         const newTimetables = { ...timetables };
 
-        // Process each day
+        // Advanced Intelligence Engine: Heuristic Constraint Solver
         DAYS.forEach(day => {
             const subjectsUsedToday: Record<string, Set<string>> = {};
+            const teacherDailyLoad: Record<string, number> = {};
+            const campusLower = selectedCampus.trim().toLowerCase();
 
-            // Sort classes to process those with more subjects first
-            const sortedWingClasses = [...wingClasses].sort((a, b) =>
-                (classSubjects[b]?.length || 0) - (classSubjects[a]?.length || 0)
-            );
+            // 1. Most Constrained Class First (Classes with fewer teachers for their subjects)
+            const sortedWingClasses = [...wingClasses].sort((a, b) => {
+                const scarcityA = (classSubjects[a] || []).reduce((acc, s) => acc + teachers.filter(t => t.subject?.includes(s)).length, 0);
+                const scarcityB = (classSubjects[b] || []).reduce((acc, s) => acc + teachers.filter(t => t.subject?.includes(s)).length, 0);
+                return scarcityA - scarcityB;
+            });
 
             periods.forEach((p, pIdx) => {
-                // FORCE ASSEMBLY as the FIRST SLOT (pIdx 0)
-                if (pIdx === 0) {
+                // FORCE ASSEMBLY as the FIRST SLOT (Based on user request)
+                if (pIdx === 0 || p.label.toUpperCase().includes('ASSEMBLY')) {
                     sortedWingClasses.forEach(cls => {
                         const tableKey = getTimetableKey(cls);
                         if (!newTimetables[tableKey]) newTimetables[tableKey] = {};
@@ -169,22 +173,20 @@ export const TimetablePage = () => {
                     return;
                 }
 
-                if (p.isBreak || p.label.toUpperCase().includes('ASSEMBLY')) {
+                if (p.isBreak || p.label.toUpperCase().includes('BREAK')) {
                     sortedWingClasses.forEach(cls => {
                         const tableKey = getTimetableKey(cls);
                         if (!newTimetables[tableKey]) newTimetables[tableKey] = {};
                         if (!newTimetables[tableKey][day]) newTimetables[tableKey][day] = [];
-
-                        const label = p.isBreak ? 'BREAK' : 'ASSEMBLY';
                         newTimetables[tableKey][day][pIdx] = {
-                            subject: label, teacherId: '', startTime: p.start, endTime: p.end
+                            subject: 'BREAK', teacherId: '', startTime: p.start, endTime: p.end
                         };
                     });
                     resetFatigue(day);
                     return;
                 }
 
-                // For this specific period across all wing classes
+                // AI ALLOCATION FOR EACH CLASS
                 sortedWingClasses.forEach(cls => {
                     const tableKey = getTimetableKey(cls);
                     if (!newTimetables[tableKey]) newTimetables[tableKey] = {};
@@ -195,57 +197,60 @@ export const TimetablePage = () => {
                     const clsSubjects = classSubjects[cls] || [];
                     const clsAssignedTeachers = subjectTeachers[cls] || {};
 
+                    // Subject Pool with 'One Subject Per Day' logic
                     let availableSubjects = clsSubjects.filter(s => !subjectsUsedToday[cls].has(s));
                     if (availableSubjects.length === 0 && clsSubjects.length > 0) {
                         subjectsUsedToday[cls].clear();
                         availableSubjects = [...clsSubjects];
                     }
 
-                    // Strict designated teacher check: Prioritize subjects where assigned teacher is FREE
+                    // Scarcity Priority: Schedule subjects with fewer total teachers first
                     availableSubjects.sort((a, b) => {
-                        const tIdA = clsAssignedTeachers[a];
-                        const tIdB = clsAssignedTeachers[b];
-                        const freeA = tIdA ? (isTeacherFree(tIdA, day, pIdx) ? 0 : 1) : 2;
-                        const freeB = tIdB ? (isTeacherFree(tIdB, day, pIdx) ? 0 : 1) : 2;
-                        return freeA - freeB;
+                        const countA = teachers.filter(t => t.subject?.toLowerCase().includes(a.toLowerCase())).length;
+                        const countB = teachers.filter(t => t.subject?.toLowerCase().includes(b.toLowerCase())).length;
+                        return countA - countB;
                     });
 
                     let assigned = false;
 
-                    const findBestTeacher = (subj: string) => {
-                        const campusLower = selectedCampus.trim().toLowerCase();
-
-                        // 1. Strict Designated teacher preference
+                    const getBestAITeacher = (subj: string) => {
+                        // 1. Strict designated teacher check (User Manual Overrides)
                         const prefId = clsAssignedTeachers[subj];
                         if (prefId) {
                             const prefT = teachers.find(t => t.id === prefId);
-                            // If user has set a teacher, we ONLY use that teacher for this subject
                             if (prefT && prefT.status === 'Active' &&
                                 prefT.campus?.trim().toLowerCase() === campusLower &&
                                 isTeacherFree(prefId, day, pIdx)) {
                                 return prefT;
                             }
-                            // If the preferred teacher is BUSY, we cannot assign this subject in this slot 
-                            // because user said "teacher change na kro us class mein"
-                            return null;
+                            return null; // Don't swap designated teachers with random ones
                         }
 
-                        // 2. Fallback Specialists (Only for subjects WITHOUT a designated teacher)
+                        // 2. Intelligence Scoring for Fallbacks
                         const specialists = teachers.filter(t =>
                             t.status === 'Active' &&
                             t.campus?.trim().toLowerCase() === campusLower &&
                             t.subject?.toLowerCase().includes(subj.toLowerCase()) &&
                             isTeacherFree(t.id, day, pIdx)
-                        ).sort((a, b) => getConsecutive(day, a.id) - getConsecutive(day, b.id));
+                        ).sort((a, b) => {
+                            // Score based on Fatigue + Daily Load
+                            const scoreA = getConsecutive(day, a.id) + (teacherDailyLoad[a.id] || 0);
+                            const scoreB = getConsecutive(day, b.id) + (teacherDailyLoad[b.id] || 0);
+                            return scoreA - scoreB;
+                        });
 
                         if (specialists.length > 0) return specialists[0];
 
-                        // 3. Last Resort: Any Free (Emergency Fill)
+                        // 3. Emergency Fill with 'Free' Teachers
                         const freeTeachers = teachers.filter(t =>
                             t.status === 'Active' &&
                             t.campus?.trim().toLowerCase() === campusLower &&
                             isTeacherFree(t.id, day, pIdx)
-                        ).sort((a, b) => getConsecutive(day, a.id) - getConsecutive(day, b.id));
+                        ).sort((a, b) => {
+                            const scoreA = getConsecutive(day, a.id) + (teacherDailyLoad[a.id] || 0);
+                            const scoreB = getConsecutive(day, b.id) + (teacherDailyLoad[b.id] || 0);
+                            return scoreA - scoreB;
+                        });
 
                         if (freeTeachers.length > 0) return freeTeachers[0];
 
@@ -253,13 +258,14 @@ export const TimetablePage = () => {
                     };
 
                     for (const subj of availableSubjects) {
-                        const teacher = findBestTeacher(subj);
+                        const teacher = getBestAITeacher(subj);
                         if (teacher) {
                             newTimetables[tableKey][day][pIdx] = {
                                 subject: subj, teacherId: teacher.id, startTime: p.start, endTime: p.end
                             };
                             markTeacherBusy(teacher.id, day, pIdx);
                             subjectsUsedToday[cls].add(subj);
+                            teacherDailyLoad[teacher.id] = (teacherDailyLoad[teacher.id] || 0) + 1;
                             assigned = true;
                             break;
                         }
@@ -1084,27 +1090,49 @@ export const TimetablePage = () => {
                             {isExamMode ? 'Exam On' : 'Set Exam Mode'}
                         </button>
                         {canEditTimetable && (
-                            <button
-                                onClick={() => {
-                                    Swal.fire({
-                                        title: 'Purge Timetable?',
-                                        text: `This will permanently delete all entries for the ${group} section.`,
-                                        icon: 'warning',
-                                        showCancelButton: true,
-                                        confirmButtonColor: '#f43f5e',
-                                        cancelButtonColor: '#64748b',
-                                        confirmButtonText: 'Yes, Purge All'
-                                    }).then((result) => {
-                                        if (result.isConfirmed) {
-                                            wingClasses.forEach(c => updateTimetable(getTimetableKey(c), {}));
-                                            Swal.fire('Purged!', 'Timetable has been cleared.', 'success');
-                                        }
-                                    });
-                                }}
-                                className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-[var(--brand-radius,0.75rem)] transition-all border border-white/20 group/purge no-print"
-                            >
-                                <Trash2 size={16} className="group-hover/purge:animate-pulse" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        Swal.fire({
+                                            title: 'Standardize Slots (9)?',
+                                            text: `Adjust to 9 slots: Assembly, 1-4, Break, 5-7 for ${group} section?`,
+                                            icon: 'info',
+                                            showCancelButton: true,
+                                            confirmButtonText: 'Yes, Apply'
+                                        }).then((result) => {
+                                            if (result.isConfirmed) {
+                                                updatePeriodSettings({ ...periodSettings, [group]: DEFAULT_PERIODS });
+                                                Swal.fire('Applied!', '9-period structure set.', 'success');
+                                            }
+                                        });
+                                    }}
+                                    className="bg-brand-accent/20 hover:bg-brand-accent text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase flex items-center gap-2 border border-brand-accent/30 no-print"
+                                >
+                                    <Layers size={12} />
+                                    Standardize (9)
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        Swal.fire({
+                                            title: 'Purge Timetable?',
+                                            text: `This will permanently delete all entries for the ${group} section.`,
+                                            icon: 'warning',
+                                            showCancelButton: true,
+                                            confirmButtonColor: '#f43f5e',
+                                            cancelButtonColor: '#64748b',
+                                            confirmButtonText: 'Yes, Purge All'
+                                        }).then((result) => {
+                                            if (result.isConfirmed) {
+                                                wingClasses.forEach(c => updateTimetable(getTimetableKey(c), {}));
+                                                Swal.fire('Purged!', 'Timetable has been cleared.', 'success');
+                                            }
+                                        });
+                                    }}
+                                    className="bg-white/10 hover:bg-rose-500 text-white p-2.5 rounded-[var(--brand-radius,0.75rem)] transition-all border border-white/20 group/purge no-print"
+                                >
+                                    <Trash2 size={16} className="group-hover/purge:animate-pulse" />
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>

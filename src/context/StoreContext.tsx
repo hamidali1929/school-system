@@ -460,14 +460,15 @@ const DEFAULT_SCHOOL_CLASSES = [
 const DEFAULT_COLLEGE_CLASSES = ['1st Year (Boys)', '1st Year (Girls)', '2nd Year (Boys)', '2nd Year (Girls)'];
 
 export const DEFAULT_PERIODS: PeriodTime[] = [
-    { label: 'ASSM', start: '08:00', end: '08:15', duration: '15 Min', friStart: '07:20', friEnd: '07:35' },
+    { label: 'ASSEMBLY', start: '08:00', end: '08:15', duration: '15 Min', friStart: '07:20', friEnd: '07:35' },
     { label: '1', start: '08:15', end: '09:00', duration: '45 Min', friStart: '07:35', friEnd: '08:10' },
     { label: '2', start: '09:00', end: '09:45', duration: '45 Min', friStart: '08:10', friEnd: '08:45' },
     { label: '3', start: '09:45', end: '10:30', duration: '45 Min', friStart: '08:45', friEnd: '09:20' },
     { label: '4', start: '10:30', end: '11:15', duration: '45 Min', friStart: '09:20', friEnd: '09:55' },
-    { label: 'BRK', start: '11:15', end: '11:35', duration: '20 Min', friStart: '09:55', friEnd: '10:10', isBreak: true },
-    { label: '6', start: '11:35', end: '12:20', duration: '45 Min', friStart: '10:10', friEnd: '10:45' },
-    { label: '7', start: '12:20', end: '01:05', duration: '45 Min', friStart: '10:45', friEnd: '11:20' }
+    { label: 'BREAK', start: '11:15', end: '11:35', duration: '20 Min', friStart: '09:55', friEnd: '10:10', isBreak: true },
+    { label: '5', start: '11:35', end: '12:20', duration: '45 Min', friStart: '10:10', friEnd: '10:45' },
+    { label: '6', start: '12:20', end: '01:05', duration: '45 Min', friStart: '10:45', friEnd: '11:20' },
+    { label: '7', start: '01:05', end: '01:50', duration: '45 Min', friStart: '11:20', friEnd: '11:55' }
 ];
 
 export const StoreProvider = ({ children }: { children: ReactNode }) => {
