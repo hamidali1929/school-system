@@ -15,44 +15,56 @@ export async function saveAndSharePDF(pdf: jsPDF, fileName: string, title: strin
             const dataUri = pdf.output('datauristring');
             const base64Data = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
 
-            // Attempt saving to Android Documents directory
-            const savedFile = await Filesystem.writeFile({
+            // 1. Save to Cache directory first (always accessible and FileProvider mapped)
+            const cacheFile = await Filesystem.writeFile({
                 path: fileName,
                 data: base64Data,
-                directory: Directory.Documents,
+                directory: Directory.Cache,
                 recursive: true
             });
 
-            // Open native Android save / share sheet
+            // 2. Also attempt saving to Documents if possible
+            try {
+                await Filesystem.writeFile({
+                    path: fileName,
+                    data: base64Data,
+                    directory: Directory.Documents,
+                    recursive: true
+                });
+            } catch (docErr) {
+                console.warn('Documents save skipped or restricted:', docErr);
+            }
+
+            // 3. Open Native Android Share/Save sheet with files array
             await Share.share({
                 title: title,
                 text: `${title} (${fileName})`,
-                url: savedFile.uri,
+                files: [cacheFile.uri],
                 dialogTitle: `Save / Open ${fileName}`
             });
 
-            return { success: true, uri: savedFile.uri };
+            return { success: true, uri: cacheFile.uri };
         } catch (nativeErr) {
-            console.warn('Native Documents save error, trying Cache directory fallback:', nativeErr);
+            console.warn('Native Cache save/share error, trying fallback:', nativeErr);
             try {
                 const dataUri = pdf.output('datauristring');
                 const base64Data = dataUri.includes(',') ? dataUri.split(',')[1] : dataUri;
 
-                const cacheFile = await Filesystem.writeFile({
+                const docFile = await Filesystem.writeFile({
                     path: fileName,
                     data: base64Data,
-                    directory: Directory.Cache,
+                    directory: Directory.Documents,
                     recursive: true
                 });
 
                 await Share.share({
                     title: title,
                     text: `${title} (${fileName})`,
-                    url: cacheFile.uri,
+                    files: [docFile.uri],
                     dialogTitle: `Save / Open ${fileName}`
                 });
 
-                return { success: true, uri: cacheFile.uri };
+                return { success: true, uri: docFile.uri };
             } catch (err) {
                 console.error('Mobile PDF save error in both Documents and Cache:', err);
             }
@@ -74,43 +86,34 @@ export async function saveAndShareBase64(base64DataUrl: string, fileName: string
         try {
             const base64Data = base64DataUrl.includes(',') ? base64DataUrl.split(',')[1] : base64DataUrl;
 
-            const savedFile = await Filesystem.writeFile({
+            const cacheFile = await Filesystem.writeFile({
                 path: fileName,
                 data: base64Data,
-                directory: Directory.Documents,
+                directory: Directory.Cache,
                 recursive: true
             });
+
+            try {
+                await Filesystem.writeFile({
+                    path: fileName,
+                    data: base64Data,
+                    directory: Directory.Documents,
+                    recursive: true
+                });
+            } catch (docErr) {
+                console.warn('Documents save skipped:', docErr);
+            }
 
             await Share.share({
                 title: title,
                 text: `${title} (${fileName})`,
-                url: savedFile.uri,
+                files: [cacheFile.uri],
                 dialogTitle: `Save / Open ${fileName}`
             });
 
-            return { success: true, uri: savedFile.uri };
+            return { success: true, uri: cacheFile.uri };
         } catch (err) {
-            console.warn('Native Base64 save error, trying Cache:', err);
-            try {
-                const base64Data = base64DataUrl.includes(',') ? base64DataUrl.split(',')[1] : base64DataUrl;
-
-                const cacheFile = await Filesystem.writeFile({
-                    path: fileName,
-                    data: base64Data,
-                    directory: Directory.Cache,
-                    recursive: true
-                });
-
-                await Share.share({
-                    title: title,
-                    url: cacheFile.uri,
-                    dialogTitle: `Save / Open ${fileName}`
-                });
-
-                return { success: true, uri: cacheFile.uri };
-            } catch (e) {
-                console.error('Failed to save base64 file on mobile:', e);
-            }
+            console.warn('Native Base64 save error:', err);
         }
     }
 

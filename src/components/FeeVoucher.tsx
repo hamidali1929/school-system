@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, type Student } from '../context/StoreContext';
 import { Phone, Edit2, RefreshCw, Download, Printer, Loader2 } from 'lucide-react';
+import * as htmlToImage from 'html-to-image';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
@@ -219,6 +220,19 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
 
     const [isExporting, setIsExporting] = useState(false);
 
+    const preloadImages = async () => {
+        const images = document.querySelectorAll('#voucher-to-print img');
+        const promises = Array.from(images).map(img => {
+            const image = img as HTMLImageElement;
+            if (image.complete) return Promise.resolve();
+            return new Promise(resolve => {
+                image.onload = resolve;
+                image.onerror = resolve;
+            });
+        });
+        await Promise.all(promises);
+    };
+
     const handleDownloadPDF = async () => {
         const element = document.getElementById('voucher-to-print');
         if (!element || isExporting) return;
@@ -232,15 +246,27 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
         });
 
         try {
-            const canvas = await html2canvas(element, {
-                scale: 2.5,
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#ffffff',
-                logging: false
-            });
+            await preloadImages();
 
-            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            let imgData = '';
+            try {
+                imgData = await htmlToImage.toJpeg(element, {
+                    quality: 0.95,
+                    backgroundColor: '#ffffff',
+                    cacheBust: true,
+                    pixelRatio: 2
+                });
+            } catch {
+                const canvas = await html2canvas(element, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: true,
+                    backgroundColor: '#ffffff',
+                    logging: false
+                });
+                imgData = canvas.toDataURL('image/jpeg', 0.95);
+            }
+
             const pdf = new jsPDF({
                 orientation: 'landscape',
                 unit: 'mm',
@@ -253,15 +279,18 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
 
             Swal.fire({
                 title: 'PDF Exported!',
-                text: `${fileName} has been saved successfully.`,
+                text: `${fileName} ready to save / share.`,
                 icon: 'success',
                 timer: 2000,
                 showConfirmButton: false
             });
         } catch (error: any) {
             console.error('PDF Generation Error:', error);
-            window.print();
-            Swal.close();
+            Swal.fire({
+                title: 'Export Failed',
+                text: 'Could not generate PDF voucher. Please try again.',
+                icon: 'error'
+            });
         } finally {
             setIsExporting(false);
         }
