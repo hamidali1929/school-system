@@ -382,7 +382,7 @@ const INITIAL_TEACHERS: Teacher[] = [
 
 
 const INITIAL_SETTINGS: SchoolSettings = {
-    schoolName: "PIONEER'S SUPERIOR",
+    schoolName: "PIONEERS",
     subTitle: "Institute Of Higher Secondary Education, Attock",
     location: "Mirza Road, Attock City",
     logo1: "/logo1.png",
