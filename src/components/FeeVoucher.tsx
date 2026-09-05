@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, type Student } from '../context/StoreContext';
-import { Phone, Edit2, RefreshCw } from 'lucide-react';
+import { Phone, Edit2, RefreshCw, Download, Printer, Loader2 } from 'lucide-react';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
 
 interface FeeVoucherProps {
@@ -214,8 +216,63 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
         });
     };
 
+    const [isExporting, setIsExporting] = useState(false);
+
+    const handleDownloadPDF = async () => {
+        const element = document.getElementById('voucher-to-print');
+        if (!element || isExporting) return;
+
+        setIsExporting(true);
+        Swal.fire({
+            title: 'Generating PDF Voucher...',
+            text: 'Creating high-resolution fee voucher PDF...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 2.5,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                logging: false
+            });
+
+            const imgData = canvas.toDataURL('image/jpeg', 0.95);
+            const pdf = new jsPDF({
+                orientation: 'landscape',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
+            const fileName = `Fee_Voucher_${student.name.replace(/\s+/g, '_')}_${student.id}.pdf`;
+            pdf.save(fileName);
+
+            Swal.fire({
+                title: 'PDF Exported!',
+                text: `${fileName} has been saved successfully.`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } catch (error: any) {
+            console.error('PDF Generation Error:', error);
+            window.print();
+            Swal.close();
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     const handlePrint = () => {
-        window.print();
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768;
+        if (isMobile) {
+            handleDownloadPDF();
+        } else {
+            window.print();
+        }
     };
 
     const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
@@ -288,20 +345,35 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                 )}
 
                 <div className="flex-1 flex flex-col bg-slate-200/30 overflow-hidden relative">
-                    <div className="flex justify-between items-center p-6 bg-white border-b border-slate-100 print:hidden shrink-0">
+                    <div className="flex justify-between items-center p-4 md:p-6 bg-white border-b border-slate-100 print:hidden shrink-0 flex-wrap gap-2">
                         <div>
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{student.name} • {student.id}</p>
-                            <h3 className="text-xl font-black uppercase tracking-tight text-brand-primary">
+                            <h3 className="text-lg md:text-xl font-black uppercase tracking-tight text-brand-primary">
                                 {readOnly ? 'Institutional Fee Voucher' : 'Triple-Copy Preview'}
                             </h3>
                         </div>
-                        <div className="flex gap-3">
-                            <button onClick={onClose} className="px-6 py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
+                        <div className="flex items-center gap-2">
+                            <button onClick={onClose} className="px-4 md:px-6 py-2.5 md:py-3 bg-slate-100 text-slate-600 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 transition-all">
                                 {readOnly ? 'Back' : 'Cancel'}
                             </button>
-                            <button onClick={handlePrint} className="px-8 py-3 bg-brand-primary text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-primary/20">Print Voucher</button>
+                            <button
+                                onClick={handleDownloadPDF}
+                                disabled={isExporting}
+                                className="px-4 md:px-6 py-2.5 md:py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-1.5"
+                            >
+                                {isExporting ? <Loader2 size={14} className="animate-spin" /> : <Download size={14} />}
+                                <span>Export PDF</span>
+                            </button>
+                            <button
+                                onClick={handlePrint}
+                                className="px-4 md:px-6 py-2.5 md:py-3 bg-brand-primary text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-primary/20 flex items-center gap-1.5"
+                            >
+                                <Printer size={14} />
+                                <span>Print</span>
+                            </button>
                         </div>
                     </div>
+
 
                     <div className="flex-1 overflow-auto p-6 print:p-0 bg-slate-200/50 print:bg-white custom-scrollbar">
                         <div className={`flex h-full min-h-[580px] w-full ${readOnly ? 'max-w-[1000px]' : 'max-w-[1200px]'} bg-white print:h-[210mm] print:w-[297mm] shadow-2xl print:shadow-none mx-auto rounded-3xl print:rounded-none overflow-hidden origin-top scale-95 print:scale-100 transition-transform duration-500`} id="voucher-to-print">

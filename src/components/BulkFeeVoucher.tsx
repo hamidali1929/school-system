@@ -2,6 +2,7 @@ import React, { useMemo, useEffect, useState } from 'react';
 import { useStore, type Student } from '../context/StoreContext';
 import { X, Printer, Layers, Phone, Download, Loader2 } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
+import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
 
@@ -204,7 +205,12 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
     }, [attendance]);
 
     const handlePrint = () => {
-        window.print();
+        const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768;
+        if (isMobile) {
+            handleDownloadPDF();
+        } else {
+            window.print();
+        }
     };
 
     const preloadImages = async () => {
@@ -241,16 +247,6 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                 format: 'a4'
             });
 
-            const options = {
-                pixelRatio: 2,
-                backgroundColor: '#ffffff',
-                cacheBust: true,
-                style: {
-                    margin: '0',
-                    padding: '0'
-                }
-            };
-
             for (let i = 0; i < pages.length; i++) {
                 const page = pages[i] as HTMLElement;
                 const progress = Math.round((i / pages.length) * 100);
@@ -258,7 +254,13 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                 const progressEl = document.getElementById('progress-text');
                 if (progressEl) progressEl.innerText = `${progress}% Complete (${i + 1}/${pages.length})`;
 
-                const dataUrl = await htmlToImage.toJpeg(page, { ...options, quality: 0.95 });
+                let dataUrl = '';
+                try {
+                    dataUrl = await htmlToImage.toJpeg(page, { pixelRatio: 2, quality: 0.95, backgroundColor: '#ffffff', cacheBust: true });
+                } catch {
+                    const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+                    dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+                }
 
                 if (i > 0) pdf.addPage();
                 pdf.addImage(dataUrl, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
@@ -285,6 +287,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
             setIsExporting(false);
         }
     };
+
 
     const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
     const currentMonth = new Date().getMonth();
