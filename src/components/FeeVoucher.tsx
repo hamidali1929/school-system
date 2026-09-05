@@ -245,23 +245,54 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
             didOpen: () => Swal.showLoading()
         });
 
+        // Create an off-screen fixed-dimension wrapper to guarantee exact A4 landscape rendering on all mobile screens
+        const renderWrapper = document.createElement('div');
+        renderWrapper.style.position = 'fixed';
+        renderWrapper.style.left = '-9999px';
+        renderWrapper.style.top = '0';
+        renderWrapper.style.width = '1122px'; // Exact 297mm in pixels at 96 DPI
+        renderWrapper.style.height = '794px';  // Exact 210mm in pixels at 96 DPI
+        renderWrapper.style.background = '#ffffff';
+        renderWrapper.style.zIndex = '-9999';
+        renderWrapper.style.overflow = 'hidden';
+
+        const clone = element.cloneNode(true) as HTMLElement;
+        clone.style.width = '1122px';
+        clone.style.height = '794px';
+        clone.style.minHeight = '794px';
+        clone.style.maxHeight = '794px';
+        clone.style.transform = 'none';
+        clone.style.margin = '0';
+        clone.style.padding = '0';
+        clone.style.display = 'flex';
+        clone.style.flexDirection = 'row';
+        clone.style.boxSizing = 'border-box';
+
+        renderWrapper.appendChild(clone);
+        document.body.appendChild(renderWrapper);
+
         try {
             await preloadImages();
+            // Small pause for layout resolution
+            await new Promise(r => setTimeout(r, 150));
 
             let imgData = '';
             try {
-                imgData = await htmlToImage.toJpeg(element, {
-                    quality: 0.95,
+                imgData = await htmlToImage.toJpeg(clone, {
+                    quality: 0.98,
                     backgroundColor: '#ffffff',
-                    cacheBust: true,
-                    pixelRatio: 2
+                    pixelRatio: 2,
+                    width: 1122,
+                    height: 794
                 });
             } catch {
-                const canvas = await html2canvas(element, {
+                const canvas = await html2canvas(clone, {
                     scale: 2,
                     useCORS: true,
                     allowTaint: true,
                     backgroundColor: '#ffffff',
+                    width: 1122,
+                    height: 794,
                     logging: false
                 });
                 imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -292,6 +323,9 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                 icon: 'error'
             });
         } finally {
+            if (document.body.contains(renderWrapper)) {
+                document.body.removeChild(renderWrapper);
+            }
             setIsExporting(false);
         }
     };

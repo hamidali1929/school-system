@@ -239,6 +239,18 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
             didOpen: () => Swal.showLoading()
         });
 
+        // Create an off-screen fixed-dimension wrapper
+        const renderWrapper = document.createElement('div');
+        renderWrapper.style.position = 'fixed';
+        renderWrapper.style.left = '-9999px';
+        renderWrapper.style.top = '0';
+        renderWrapper.style.width = '1122px';
+        renderWrapper.style.height = '794px';
+        renderWrapper.style.background = '#ffffff';
+        renderWrapper.style.zIndex = '-9999';
+        renderWrapper.style.overflow = 'hidden';
+        document.body.appendChild(renderWrapper);
+
         try {
             await preloadImages();
 
@@ -255,11 +267,27 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                 const progressEl = document.getElementById('progress-text');
                 if (progressEl) progressEl.innerText = `${progress}% Complete (${i + 1}/${pages.length})`;
 
+                renderWrapper.innerHTML = '';
+                const clone = page.cloneNode(true) as HTMLElement;
+                clone.style.width = '1122px';
+                clone.style.height = '794px';
+                clone.style.minHeight = '794px';
+                clone.style.maxHeight = '794px';
+                clone.style.transform = 'none';
+                clone.style.margin = '0';
+                clone.style.padding = '0';
+                clone.style.display = 'flex';
+                clone.style.flexDirection = 'row';
+                clone.style.boxSizing = 'border-box';
+                renderWrapper.appendChild(clone);
+
+                await new Promise(r => setTimeout(r, 60));
+
                 let dataUrl = '';
                 try {
-                    dataUrl = await htmlToImage.toJpeg(page, { pixelRatio: 2, quality: 0.95, backgroundColor: '#ffffff', cacheBust: true });
+                    dataUrl = await htmlToImage.toJpeg(clone, { pixelRatio: 2, quality: 0.95, backgroundColor: '#ffffff', cacheBust: true, width: 1122, height: 794 });
                 } catch {
-                    const canvas = await html2canvas(page, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+                    const canvas = await html2canvas(clone, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false, width: 1122, height: 794 });
                     dataUrl = canvas.toDataURL('image/jpeg', 0.95);
                 }
 
@@ -285,6 +313,9 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                 icon: 'error'
             });
         } finally {
+            if (document.body.contains(renderWrapper)) {
+                document.body.removeChild(renderWrapper);
+            }
             setIsExporting(false);
         }
     };
