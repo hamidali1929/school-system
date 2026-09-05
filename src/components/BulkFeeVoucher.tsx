@@ -5,6 +5,7 @@ import * as htmlToImage from 'html-to-image';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
+import { saveAndSharePDF } from '../utils/fileDownloader';
 
 interface BulkFeeVoucherProps {
     students: Student[];
@@ -267,7 +268,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
             }
 
             const fileName = `Vouchers_${new Date().toISOString().split('T')[0]}.pdf`;
-            pdf.save(fileName);
+            await saveAndSharePDF(pdf, fileName, 'Bulk Fee Vouchers');
 
             Swal.fire({
                 title: 'Success!',

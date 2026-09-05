@@ -4,6 +4,7 @@ import { Phone, Edit2, RefreshCw, Download, Printer, Loader2 } from 'lucide-reac
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
+import { saveAndSharePDF } from '../utils/fileDownloader';
 
 interface FeeVoucherProps {
     student: Student;
@@ -248,7 +249,7 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
 
             pdf.addImage(imgData, 'JPEG', 0, 0, 297, 210, undefined, 'FAST');
             const fileName = `Fee_Voucher_${student.name.replace(/\s+/g, '_')}_${student.id}.pdf`;
-            pdf.save(fileName);
+            await saveAndSharePDF(pdf, fileName, `Fee Voucher - ${student.name}`);
 
             Swal.fire({
                 title: 'PDF Exported!',

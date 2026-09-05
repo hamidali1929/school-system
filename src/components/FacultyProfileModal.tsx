@@ -6,6 +6,7 @@ import { cn } from '../utils/cn';
 import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
+import { saveAndSharePDF } from '../utils/fileDownloader';
 
 interface FacultyProfileModalProps {
     teacher: Teacher;
@@ -37,7 +38,8 @@ export const FacultyProfileModal = ({ teacher, onClose }: FacultyProfileModalPro
             const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
 
             pdf.addImage(dataUrl, 'PNG', 0, 0, pdfWidth, pdfHeight);
-            pdf.save(`${teacher.name.replace(/\s+/g, '_')}_Official_Profile.pdf`);
+            const fileName = `${teacher.name.replace(/\s+/g, '_')}_Official_Profile.pdf`;
+            await saveAndSharePDF(pdf, fileName, `Teacher Profile - ${teacher.name}`);
 
             Swal.fire({ title: 'Success!', text: 'Profile exported successfully.', icon: 'success', timer: 1500, showConfirmButton: false });
         } catch (error) {

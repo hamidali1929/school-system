@@ -6,6 +6,7 @@ import { useStore } from '../context/StoreContext';
 import { X, Phone, Mail, MapPin, ImageIcon } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import Swal from 'sweetalert2';
+import { saveAndSharePDF, saveAndShareBase64 } from '../utils/fileDownloader';
 
 interface TeacherIDCardGeneratorProps {
     teacher: Teacher;
@@ -50,12 +51,8 @@ export const TeacherIDCardGenerator = ({ teacher, onClose }: TeacherIDCardGenera
             };
 
             const dataUrl = await htmlToImage.toPng(targetRef.current, options);
-            const link = document.createElement('a');
-            link.download = `${teacher.name.replace(/\s+/g, '_')}_ID_${side.toUpperCase()}.png`;
-            link.href = dataUrl;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const fileName = `${teacher.name.replace(/\s+/g, '_')}_ID_${side.toUpperCase()}.png`;
+            await saveAndShareBase64(dataUrl, fileName, `Teacher ID Card (${side.toUpperCase()})`);
         } catch (error) {
             Swal.fire({ title: 'Export Failed', icon: 'error' });
         } finally { setIsExporting(false); }
@@ -75,7 +72,8 @@ export const TeacherIDCardGenerator = ({ teacher, onClose }: TeacherIDCardGenera
             const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
             pdf.addImage(frontData, 'PNG', 45, 20, 54, 86);
             pdf.addImage(backData, 'PNG', 110, 20, 54, 86);
-            pdf.save(`${teacher.name.replace(/\s+/g, '_')}_ID_Card.pdf`);
+            const fileName = `${teacher.name.replace(/\s+/g, '_')}_ID_Card.pdf`;
+            await saveAndSharePDF(pdf, fileName, `Teacher ID Card - ${teacher.name}`);
             Swal.fire({ title: 'Success!', icon: 'success', timer: 1500, showConfirmButton: false });
         } catch (error) {
             Swal.fire({ title: 'PDF Error', icon: 'error' });
