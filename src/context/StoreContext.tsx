@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 import { sanitizeObject } from '../utils/security';
 import { normalizeWhatsAppNumber, MESSAGE_TEMPLATES } from '../utils/whatsapp';
 import { supabase } from '../lib/supabase';
+import { collection, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 
 export interface AcademicRecord {
     degree: string;
@@ -508,9 +510,22 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         let isMounted = true;
+
+        // Helper to fix legacy doubled quotes ('' -> ') and merge records
+        const cleanLegacy = (obj: any): any => {
+            if (typeof obj === 'string') return obj.replace(/''/g, "'");
+            if (Array.isArray(obj)) return obj.map(cleanLegacy);
+            if (obj !== null && typeof obj === 'object') {
+                const next: any = {};
+                for (const k in obj) next[k] = cleanLegacy(obj[k]);
+                return next;
+            }
+            return obj;
+        };
+
         const fetchInitialData = async () => {
             try {
-                // Fetch all data from Supabase
+                // Fetch all data from Firestore
                 const [stuRes, tchRes, appDataRes] = await Promise.all([
                     supabase.from('students').select('*'),
                     supabase.from('teachers').select('*'),
@@ -519,29 +534,16 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
                 if (!isMounted) return;
 
-                // Helper to fix legacy doubled quotes ('' -> ') and merge records
-                const cleanLegacy = (obj: any): any => {
-                    if (typeof obj === 'string') return obj.replace(/''/g, "'");
-                    if (Array.isArray(obj)) return obj.map(cleanLegacy);
-                    if (obj !== null && typeof obj === 'object') {
-                        const next: any = {};
-                        for (const k in obj) next[k] = cleanLegacy(obj[k]);
-                        return next;
-                    }
-                    return obj;
-                };
-
-                // Source of truth: Supabase. Overwrite local state to prevent old/deleted data from resurrecting.
-                if (stuRes.data && !stuRes.error) {
+                if (stuRes.data && stuRes.data.length > 0) {
                     const cloudStudents = cleanLegacy(stuRes.data as Student[]);
                     setStudents(cloudStudents);
                 }
-                if (tchRes.data && !tchRes.error) {
+                if (tchRes.data && tchRes.data.length > 0) {
                     const cloudTeachers = (tchRes.data || []).map(t => cloudToTeacher(cleanLegacy(t)));
                     setTeachers(cloudTeachers);
                 }
 
-                if (appDataRes.data && !appDataRes.error) {
+                if (appDataRes.data && appDataRes.data.length > 0) {
                     const appDataMap = new Map(appDataRes.data.map(item => [item.id, cleanLegacy(item.data)]));
 
                     if (appDataMap.has('settings')) setSettings(prev => ({ ...prev, ...(appDataMap.get('settings') || {}) }));
@@ -563,16 +565,59 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                     if (appDataMap.has('salarySlips')) setSalarySlips(appDataMap.get('salarySlips'));
                 }
 
-                // If we reach here without throwing, mark fetch as complete
                 setIsInitialLoading(false);
             } catch (err) {
-                console.error("CRITICAL: Supabase connection failed. App is in Local-Only mode.", err);
-                // Allow the app to proceed with local data if cloud fails
+                console.error("CRITICAL: Initial cloud fetch failed:", err);
                 setIsInitialLoading(false);
             }
         };
+
         fetchInitialData();
-        return () => { isMounted = false; };
+
+        // Attach Realtime Firestore Listeners
+        const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+            if (!snapshot.empty) {
+                const realtimeStudents = snapshot.docs.map(d => ({ id: d.id, ...cleanLegacy(d.data()) })) as Student[];
+                setStudents(realtimeStudents);
+            }
+        }, (err) => console.warn("Realtime students listener:", err.message));
+
+        const unsubTeachers = onSnapshot(collection(db, 'teachers'), (snapshot) => {
+            if (!snapshot.empty) {
+                const realtimeTeachers = snapshot.docs.map(d => cloudToTeacher({ id: d.id, ...cleanLegacy(d.data()) }));
+                setTeachers(realtimeTeachers);
+            }
+        }, (err) => console.warn("Realtime teachers listener:", err.message));
+
+        const unsubAppData = onSnapshot(collection(db, 'app_data'), (snapshot) => {
+            if (!snapshot.empty) {
+                const map = new Map(snapshot.docs.map(d => [d.id, cleanLegacy(d.data().data)]));
+                if (map.has('settings')) setSettings(prev => ({ ...prev, ...(map.get('settings') || {}) }));
+                if (map.has('attendance')) setAttendance(map.get('attendance'));
+                if (map.has('feeStructure')) setFeeStructure(map.get('feeStructure'));
+                if (map.has('classes')) setClasses(map.get('classes'));
+                if (map.has('periodSettings')) setPeriodSettings(map.get('periodSettings'));
+                if (map.has('classSubjects')) setClassSubjects(map.get('classSubjects'));
+                if (map.has('subjectTotalMarks')) setSubjectTotalMarks(map.get('subjectTotalMarks'));
+                if (map.has('classInCharge')) setClassInCharge(map.get('classInCharge'));
+                if (map.has('subjectTeachers')) setSubjectTeachers(map.get('subjectTeachers'));
+                if (map.has('timetables')) setTimetables(map.get('timetables'));
+                if (map.has('exams')) setExams(map.get('exams'));
+                if (map.has('examResults')) setExamResults(map.get('examResults'));
+                if (map.has('notifications')) setNotifications(map.get('notifications'));
+                if (map.has('auditLogs')) setAuditLogs(map.get('auditLogs'));
+                if (map.has('campuses')) setCampuses(map.get('campuses'));
+                if (map.has('expenses')) setExpenses(map.get('expenses'));
+                if (map.has('salarySlips')) setSalarySlips(map.get('salarySlips'));
+            }
+        }, (err) => console.warn("Realtime app_data listener:", err.message));
+
+        return () => {
+            isMounted = false;
+            unsubStudents();
+            unsubTeachers();
+            unsubAppData();
+        };
     }, []);
 
 

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Search, Download, Plus, X, FileText, Contact, Edit, Trash2, Camera, CheckCircle2, Users, DollarSign, Layers, ArrowRightLeft } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Download, Plus, X, FileText, Contact, Edit, Trash2, Camera, CheckCircle2, Users, DollarSign, Layers, ArrowRightLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
 import { useStore, type Student } from '../context/StoreContext';
 import { AdmissionForm } from '../components/AdmissionForm';
 import { BlankAdmissionForm } from '../components/BlankAdmissionForm';
@@ -35,6 +35,15 @@ export const Students = () => {
     const [submittedStudentForVoucher, setSubmittedStudentForVoucher] = useState<Student | null>(null);
     const [showBulkFeeVouchers, setShowBulkFeeVouchers] = useState(false);
 
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(25);
+
+    // Reset to page 1 on filter changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [search, filterClass, statusFilter, campusFilter, pageSize]);
+
     const filteredStudents = students.filter(s => {
         // Teacher restriction: Only show their incharge class
         if (currentUser?.role === 'teacher' && currentUser?.inchargeClass) {
@@ -49,6 +58,9 @@ export const Students = () => {
             s.campus?.toLowerCase() === campusFilter.toLowerCase();
         return matchesSearch && matchesClass && matchesStatus && matchesCampus;
     });
+
+    const totalPages = Math.ceil(filteredStudents.length / pageSize) || 1;
+    const paginatedStudents = filteredStudents.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
     const classes = (currentUser?.role === 'teacher' && currentUser?.inchargeClass)
         ? [currentUser.inchargeClass]
@@ -743,7 +755,7 @@ export const Students = () => {
             <div className="relative">
                 {/* Mobile & Tablet Card View */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:hidden gap-5 px-2">
-                    {filteredStudents.length > 0 ? filteredStudents.map((student) => {
+                    {paginatedStudents.length > 0 ? paginatedStudents.map((student) => {
                         const isSelected = selectedIds.includes(student.id);
                         return (
                             <div key={student.id} className={cn(
@@ -808,8 +820,8 @@ export const Students = () => {
                                 <th className="px-6 py-4 w-10 sticky left-0 bg-slate-50 dark:bg-[#001529] z-20">
                                     <input
                                         type="checkbox"
-                                        checked={selectedIds.length === filteredStudents.length && filteredStudents.length > 0}
-                                        onChange={(e) => e.target.checked ? setSelectedIds(filteredStudents.map(s => s.id)) : setSelectedIds([])}
+                                        checked={selectedIds.length === paginatedStudents.length && paginatedStudents.length > 0}
+                                        onChange={(e) => e.target.checked ? setSelectedIds(paginatedStudents.map(s => s.id)) : setSelectedIds([])}
                                     />
                                 </th>
                                 <th className="px-6 py-4 sticky left-[52px] bg-slate-50 dark:bg-[#001529] z-10">Student Name</th>
@@ -820,7 +832,7 @@ export const Students = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {filteredStudents.map((student) => {
+                            {paginatedStudents.map((student) => {
                                 const isSelected = selectedIds.includes(student.id);
                                 return (
                                     <tr key={student.id} className={cn("group transition-colors", isSelected ? "bg-primary-50/30 dark:bg-primary-900/10" : "hover:bg-slate-50/50 dark:hover:bg-slate-900/10")}>
@@ -866,6 +878,69 @@ export const Students = () => {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Pagination Controls */}
+                {filteredStudents.length > 0 && (
+                    <div className="mt-6 flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 bg-white dark:bg-[#001529] rounded-2xl border border-slate-100 dark:border-white/5 shadow-sm">
+                        <div className="flex items-center gap-3 text-xs font-bold text-slate-500 dark:text-slate-400">
+                            <span>Showing <span className="text-[#003366] dark:text-yellow-400 font-black">{Math.min((currentPage - 1) * pageSize + 1, filteredStudents.length)}</span> to <span className="text-[#003366] dark:text-yellow-400 font-black">{Math.min(currentPage * pageSize, filteredStudents.length)}</span> of <span className="text-[#003366] dark:text-yellow-400 font-black">{filteredStudents.length}</span> students</span>
+                            <span className="hidden sm:inline text-slate-300 dark:text-white/10">•</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase tracking-wider text-slate-400">Per page:</span>
+                                <select
+                                    value={pageSize}
+                                    onChange={(e) => setPageSize(Number(e.target.value))}
+                                    className="bg-slate-50 dark:bg-[#000d1a] border border-slate-200 dark:border-white/10 rounded-lg px-2 py-1 text-xs font-black outline-none cursor-pointer"
+                                >
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5">
+                            <button
+                                onClick={() => setCurrentPage(1)}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                title="First Page"
+                            >
+                                <ChevronsLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                                disabled={currentPage === 1}
+                                className="p-2 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                title="Previous Page"
+                            >
+                                <ChevronLeft className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                            </button>
+
+                            <div className="px-3 py-1.5 rounded-xl bg-brand-primary text-white text-xs font-black min-w-[70px] text-center shadow-md shadow-brand-primary/20">
+                                {currentPage} / {totalPages}
+                            </div>
+
+                            <button
+                                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                title="Next Page"
+                            >
+                                <ChevronRight className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                            </button>
+                            <button
+                                onClick={() => setCurrentPage(totalPages)}
+                                disabled={currentPage === totalPages}
+                                className="p-2 rounded-xl border border-slate-200 dark:border-white/10 hover:bg-slate-50 dark:hover:bg-white/5 disabled:opacity-30 disabled:pointer-events-none transition-all"
+                                title="Last Page"
+                            >
+                                <ChevronsRight className="w-4 h-4 text-slate-600 dark:text-slate-300" />
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <AnimatePresence>

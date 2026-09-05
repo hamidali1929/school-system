@@ -1,0 +1,9 @@
+{
+  "appId": "com.pioneerschool.system",
+  "appName": "School Management System",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  }
+}

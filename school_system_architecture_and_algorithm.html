@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>School Management System - Architecture, Algorithm & Flowchart</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&family=Cinzel:wght@700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: #f8fafc;
+            color: #0f172a;
+        }
+        .heading-font {
+            font-family: 'Cinzel', serif;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background-color: #ffffff;
+                color: #000000;
+            }
+            .page-break {
+                page-break-before: always;
+            }
+            .card {
+                box-shadow: none !important;
+                border: 1px solid #e2e8f0 !important;
+            }
+        }
+    </style>
+</head>
+<body class="p-6 md:p-12 max-w-5xl mx-auto">
+
+    <!-- Action Bar -->
+    <div class="no-print flex items-center justify-between bg-white p-6 rounded-3xl border border-slate-200 shadow-sm mb-8">
+        <div>
+            <h1 class="text-xl font-black text-[#003366] uppercase tracking-tight">System Specification Document</h1>
+            <p class="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">Multi-Tenant Dynamic Client Architecture</p>
+        </div>
+        <button onclick="window.print()" class="px-8 py-3.5 bg-[#003366] hover:bg-blue-800 text-white rounded-2xl text-xs font-black uppercase tracking-widest transition-all shadow-lg hover:scale-105 active:scale-95 flex items-center gap-2">
+            🖨️ Save as PDF / Print Document
+        </button>
+    </div>
+
+    <!-- Document Header -->
+    <div class="bg-gradient-to-br from-[#003366] via-blue-900 to-[#001f3f] text-white p-10 md:p-14 rounded-[3rem] shadow-xl mb-10 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+        <span class="px-4 py-1.5 bg-yellow-400 text-[#003366] rounded-full text-[10px] font-black uppercase tracking-widest shadow-md">Architecture Specification v2.0</span>
+        <h1 class="heading-font text-3xl md:text-5xl font-black tracking-tight uppercase mt-6 mb-3">School Management System</h1>
+        <p class="text-blue-200 text-sm md:text-base max-w-2xl font-medium leading-relaxed">Dynamic Multi-Client White-Label Architecture, Automated Regex Parser Algorithm, and Runtime Cloud Synchronization Flow.</p>
+        
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-8 border-t border-white/10 text-xs">
+            <div>
+                <p class="text-blue-300 font-bold uppercase tracking-wider text-[10px]">Architecture</p>
+                <p class="font-black text-white mt-1">Client-Isolated Cloud</p>
+            </div>
+            <div>
+                <p class="text-blue-300 font-bold uppercase tracking-wider text-[10px]">Database Engine</p>
+                <p class="font-black text-white mt-1">Google Cloud Firestore</p>
+            </div>
+            <div>
+                <p class="text-blue-300 font-bold uppercase tracking-wider text-[10px]">Storage Capacity</p>
+                <p class="font-black text-white mt-1">500,000+ Students</p>
+            </div>
+            <div>
+                <p class="text-blue-300 font-bold uppercase tracking-wider text-[10px]">Client Cost</p>
+                <p class="font-black text-emerald-400 mt-1">100% Lifetime Free</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 1: System Flowchart -->
+    <div class="bg-white p-8 md:p-10 rounded-[2.5rem] border border-slate-200 shadow-sm mb-10 card">
+        <div class="flex items-center gap-3 mb-6">
+            <span class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs">01</span>
+            <h2 class="text-xl font-black text-slate-800 uppercase tracking-tight">System Workflow & Architecture Diagram</h2>
+        </div>
+        <p class="text-xs text-slate-500 font-medium mb-6">Complete visual representation of the application lifecycle from cold boot and custom configuration parsing to runtime cloud database mutations.</p>
+        
+        <div class="mermaid text-center bg-slate-50/50 p-6 rounded-3xl border border-slate-100 overflow-x-auto">
+flowchart TD
+    Start([🚀 App Startup / Cold Boot]) --> CheckConfig{Custom Config in LocalStorage?}
+    
+    CheckConfig -- Yes --> LoadCustom[Load Client's Custom Firebase Config]
+    CheckConfig -- No --> LoadEnv[Load Default System .env Config]
+    
+    LoadCustom --> InitFirebase[Initialize Firebase & Firestore Instance]
+    LoadEnv --> InitFirebase
+    
+    InitFirebase --> FetchData[(Fetch Students, Teachers & Settings)]
+    FetchData --> Dashboard[📱 Render App Dashboard & UI]
+
+    Dashboard --> OpenSettings[Admin Clicks: Cloud Database Settings]
+    OpenSettings --> PasteSnippet[Paste Firebase Config Snippet in Quick Paste]
+    
+    PasteSnippet --> RegexParse[⚡ Auto-Regex Parser Extracts:<br/>API Key, Project ID, Bucket, App ID]
+    RegexParse --> AutoFillForm[Auto-Fill Configuration Form Fields]
+    
+    AutoFillForm --> Validate{Admin Clicks 'Save & Connect'<br/>Is Config Valid?}
+    
+    Validate -- No --> ShowErr[❌ Show Validation Error]
+    ShowErr --> AutoFillForm
+    
+    Validate -- Yes --> SaveStorage[💾 Save to LocalStorage 'CUSTOM_FIREBASE_CONFIG']
+    SaveStorage --> AddAudit[🛡️ Log Security Audit Entry]
+    AddAudit --> Reload[🔄 Reload App Window]
+    Reload --> Start
+
+    Dashboard --> Action[Teacher/Admin Adds Student / Fee / Attendance]
+    Action --> Adapter[⚡ Adapter: supabase.from Layer]
+    Adapter --> BatchWrite[📦 Convert to Firestore writeBatch]
+    BatchWrite --> ClientCloud[(☁️ School's Private Firebase Database)]
+    ClientCloud --> SyncSuccess[✅ Realtime Data Synced to Cloud]
+        </div>
+    </div>
+
+    <!-- Section 2: Technical Algorithm -->
+    <div class="bg-white p-8 md:p-10 rounded-[2.5rem] border border-slate-200 shadow-sm mb-10 card page-break">
+        <div class="flex items-center gap-3 mb-6">
+            <span class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs">02</span>
+            <h2 class="text-xl font-black text-slate-800 uppercase tracking-tight">Technical Algorithm & Logic</h2>
+        </div>
+
+        <div class="space-y-6 text-sm">
+            <!-- Phase A -->
+            <div class="p-6 bg-slate-50 rounded-2xl border border-slate-200/60">
+                <h3 class="font-black text-blue-900 uppercase tracking-wider text-xs mb-3 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-blue-600"></span> Phase A: Dynamic Config Resolution & App Boot
+                </h3>
+                <pre class="bg-slate-900 text-emerald-400 p-4 rounded-xl text-xs font-mono overflow-x-auto">
+1. START Application Initialization.
+2. Read LocalStorage key: 'CUSTOM_FIREBASE_CONFIG'.
+   IF (CUSTOM_FIREBASE_CONFIG != NULL AND isValid(CUSTOM_FIREBASE_CONFIG)):
+       activeConfig = JSON.parse(CUSTOM_FIREBASE_CONFIG)
+       connectionMode = 'CLIENT_CUSTOM_NODE'
+   ELSE:
+       activeConfig = DEFAULT_ENV_VARS
+       connectionMode = 'SYSTEM_DEFAULT'
+3. Execute initializeApp(activeConfig).
+4. Instantiate Firestore: db = getFirestore(app).
+5. Instantiate Cloud Storage: storage = getStorage(app).
+6. Asynchronously fetch initial collections (students, teachers, app_data).
+7. Mount React State and Render UI.</pre>
+            </div>
+
+            <!-- Phase B -->
+            <div class="p-6 bg-slate-50 rounded-2xl border border-slate-200/60">
+                <h3 class="font-black text-indigo-900 uppercase tracking-wider text-xs mb-3 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-indigo-600"></span> Phase B: Regex Auto-Parser & Dynamic Connection
+                </h3>
+                <pre class="bg-slate-900 text-cyan-300 p-4 rounded-xl text-xs font-mono overflow-x-auto">
+8. Admin opens Cloud Database Configuration Modal.
+9. On Textarea Input:
+   rawSnippet = getElementById('swal-db-paste').value
+   apiKey = regexExtract(rawSnippet, /apiKey\s*:\s*["']([^"']+)["']/)
+   projectId = regexExtract(rawSnippet, /projectId\s*:\s*["']([^"']+)["']/)
+   storageBucket = regexExtract(rawSnippet, /storageBucket\s*:\s*["']([^"']+)["']/)
+   appId = regexExtract(rawSnippet, /appId\s*:\s*["']([^"']+)["']/)
+   
+   Populate form fields with extracted tokens.
+10. On Click 'Save & Connect':
+    IF (apiKey.length > 0 AND projectId.length > 0):
+        LocalStorage.setItem('CUSTOM_FIREBASE_CONFIG', JSON.stringify(newConfig))
+        LogAudit('Security', 'Database Connected', projectId)
+        Trigger window.location.reload()
+    ELSE:
+        Display validation error.</pre>
+            </div>
+
+            <!-- Phase C -->
+            <div class="p-6 bg-slate-50 rounded-2xl border border-slate-200/60">
+                <h3 class="font-black text-emerald-900 uppercase tracking-wider text-xs mb-3 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-emerald-600"></span> Phase C: Runtime CRUD & Batch Operations
+                </h3>
+                <pre class="bg-slate-900 text-amber-300 p-4 rounded-xl text-xs font-mono overflow-x-auto">
+11. User triggers data write (e.g. Student Admission / Attendance Save).
+12. StoreContext dispatches call to Adapter (supabase.from(table)).
+13. Adapter slices dataset into chunks of 450 items (CHUNK_SIZE <= 500).
+14. For each chunk:
+        batch = writeBatch(db)
+        chunk.forEach(item => batch.set(doc(db, table, item.id), item, {merge: true}))
+        await batch.commit()
+15. If file/photo attached:
+        uploadFile(blob, 'student_photos') -> returns HTTPS Cloud URL
+        Update student avatar with URL.
+16. Return { error: null } to StoreContext.</pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- Section 3: Client Data Separation & Limits Matrix -->
+    <div class="bg-white p-8 md:p-10 rounded-[2.5rem] border border-slate-200 shadow-sm mb-10 card">
+        <div class="flex items-center gap-3 mb-6">
+            <span class="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-black text-xs">03</span>
+            <h2 class="text-xl font-black text-slate-800 uppercase tracking-tight">Free Tier Capacity & Scaling Limits</h2>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-400 font-bold uppercase tracking-widest border-b border-slate-200">
+                        <th class="p-4">Resource Component</th>
+                        <th class="p-4">Firebase Free Spark Limit</th>
+                        <th class="p-4">Average School Consumption</th>
+                        <th class="p-4 text-emerald-600">Max Capacity</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-medium text-slate-700">
+                    <tr>
+                        <td class="p-4 font-bold text-slate-900">Database Document Storage</td>
+                        <td class="p-4 font-mono">1.0 GB Free</td>
+                        <td class="p-4 font-mono">~2 KB per Student</td>
+                        <td class="p-4 font-black text-emerald-600 font-mono">500,000+ Students</td>
+                    </tr>
+                    <tr>
+                        <td class="p-4 font-bold text-slate-900">Cloud Media Storage (Photos/PDFs)</td>
+                        <td class="p-4 font-mono">5.0 GB Free</td>
+                        <td class="p-4 font-mono">~50 KB per Photo</td>
+                        <td class="p-4 font-black text-emerald-600 font-mono">100,000+ Photos</td>
+                    </tr>
+                    <tr>
+                        <td class="p-4 font-bold text-slate-900">Daily Read Quota</td>
+                        <td class="p-4 font-mono">50,000 Reads / Day</td>
+                        <td class="p-4 font-mono">~1,500 Reads / Day</td>
+                        <td class="p-4 font-black text-emerald-600 font-mono">33x Buffer Room</td>
+                    </tr>
+                    <tr>
+                        <td class="p-4 font-bold text-slate-900">Daily Write Quota</td>
+                        <td class="p-4 font-mono">20,000 Writes / Day</td>
+                        <td class="p-4 font-mono">~1,000 Writes / Day</td>
+                        <td class="p-4 font-black text-emerald-600 font-mono">20x Buffer Room</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="text-center text-xs font-bold text-slate-400 uppercase tracking-widest py-6 border-t border-slate-200">
+        School Management System • Technical White-Label Architecture Document • Generated Automatically
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default' });
+    </script>
+</body>
+</html>

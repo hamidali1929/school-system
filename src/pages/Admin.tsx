@@ -1,8 +1,9 @@
-﻿import {
+import {
     Globe, Bell, Lock, Server, Palette,
     Banknote as Bank, MessageSquare, Sparkles,
     Terminal, Activity, Download, Layout, Target,
-    Users, GraduationCap, MapPin, Trash2, Edit2, Plus, ArrowRight, Shield
+    Users, GraduationCap, MapPin, Trash2, Edit2, Plus, ArrowRight, Shield,
+    Database
 } from 'lucide-react';
 import { WhatsAppMatrix } from '../components/WhatsAppMatrix';
 import { cn } from '../utils/cn';
@@ -10,6 +11,7 @@ import Swal from 'sweetalert2';
 import { useState, useMemo } from 'react';
 import { useStore } from '../context/StoreContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getActiveFirebaseConfig, saveCustomFirebaseConfig, resetCustomFirebaseConfig } from '../lib/firebase';
 
 const DashboardCard = ({ title, value, subValue, icon: Icon, trend, color, delay = 0 }: any) => (
     <motion.div
@@ -539,6 +541,233 @@ export const AdminPanel = () => {
                     showConfirmButton: false,
                     background: '#003366',
                     color: '#fff'
+                });
+            }
+        });
+    };
+
+    const handleDatabaseConfig = async () => {
+        const { config: currentConfig, isCustom } = getActiveFirebaseConfig();
+
+        // Helper to parse pasted Firebase snippet
+        (window as any).parseFirebaseSnippet = () => {
+            const raw = (document.getElementById('swal-db-paste') as HTMLTextAreaElement)?.value;
+            if (!raw) return;
+            try {
+                const getVal = (key: string) => {
+                    const match = raw.match(new RegExp(`${key}\\s*:\\s*["']([^"']+)["']`));
+                    return match ? match[1] : '';
+                };
+                const apiKey = getVal('apiKey');
+                const projectId = getVal('projectId');
+                const authDomain = getVal('authDomain') || (projectId ? `${projectId}.firebaseapp.com` : '');
+                const storageBucket = getVal('storageBucket') || (projectId ? `${projectId}.firebasestorage.app` : '');
+                const messagingSenderId = getVal('messagingSenderId');
+                const appId = getVal('appId');
+
+                if (apiKey) (document.getElementById('swal-db-key') as HTMLInputElement).value = apiKey;
+                if (projectId) (document.getElementById('swal-db-project') as HTMLInputElement).value = projectId;
+                if (authDomain) (document.getElementById('swal-db-domain') as HTMLInputElement).value = authDomain;
+                if (storageBucket) (document.getElementById('swal-db-bucket') as HTMLInputElement).value = storageBucket;
+                if (messagingSenderId) (document.getElementById('swal-db-sender') as HTMLInputElement).value = messagingSenderId;
+                if (appId) (document.getElementById('swal-db-app') as HTMLInputElement).value = appId;
+
+                Swal.showValidationMessage('');
+            } catch (err) {
+                console.error('Failed to parse snippet:', err);
+            }
+        };
+
+        Swal.fire({
+            title: '<span class="font-cinzel text-2xl font-black text-slate-800">Cloud Database Configuration</span>',
+            width: '700px',
+            html: `
+                <div class="text-left space-y-5 font-outfit px-1">
+                    <!-- Status Banner -->
+                    <div class="p-4 rounded-2xl flex items-center justify-between border ${
+                        isCustom 
+                            ? 'bg-emerald-50/80 border-emerald-200 text-emerald-800' 
+                            : 'bg-blue-50/80 border-blue-200 text-blue-800'
+                    }">
+                        <div class="flex items-center gap-3">
+                            <div class="w-3 h-3 rounded-full ${isCustom ? 'bg-emerald-500' : 'bg-blue-500'} animate-pulse"></div>
+                            <div>
+                                <p class="text-xs font-black uppercase tracking-wider">
+                                    ${isCustom ? 'Custom School Database Active' : 'Default Cloud Server Active'}
+                                </p>
+                                <p class="text-[11px] opacity-75 font-mono">
+                                    Project ID: ${currentConfig.projectId || 'None'}
+                                </p>
+                            </div>
+                        </div>
+                        <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                            isCustom ? 'bg-emerald-200 text-emerald-900' : 'bg-blue-200 text-blue-900'
+                        }">
+                            ${isCustom ? 'CLIENT NODE' : 'SYSTEM ENV'}
+                        </span>
+                    </div>
+
+                    <!-- Quick Snippet Auto-Parser -->
+                    <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200/60">
+                        <label class="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-1">
+                            📋 Quick Paste (Firebase Console Code Snippet)
+                        </label>
+                        <textarea
+                            id="swal-db-paste"
+                            rows="2"
+                            oninput="window.parseFirebaseSnippet()"
+                            class="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-mono text-slate-700 outline-none focus:border-blue-500 transition-all placeholder:text-slate-300"
+                            placeholder="Paste your 'const firebaseConfig = { ... }' snippet here to auto-fill..."
+                        ></textarea>
+                    </div>
+
+                    <!-- Individual Credentials -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-1">
+                                Firebase API Key *
+                            </label>
+                            <input
+                                id="swal-db-key"
+                                type="text"
+                                class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none focus:border-blue-500 transition-all"
+                                value="${currentConfig.apiKey || ''}"
+                                placeholder="AIzaSy..."
+                            />
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-1">
+                                Project ID *
+                            </label>
+                            <input
+                                id="swal-db-project"
+                                type="text"
+                                class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none focus:border-blue-500 transition-all"
+                                value="${currentConfig.projectId || ''}"
+                                placeholder="my-school-123"
+                            />
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-1">
+                                Storage Bucket
+                            </label>
+                            <input
+                                id="swal-db-bucket"
+                                type="text"
+                                class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none focus:border-blue-500 transition-all"
+                                value="${currentConfig.storageBucket || ''}"
+                                placeholder="my-school.firebasestorage.app"
+                            />
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-1">
+                                App ID
+                            </label>
+                            <input
+                                id="swal-db-app"
+                                type="text"
+                                class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none focus:border-blue-500 transition-all"
+                                value="${currentConfig.appId || ''}"
+                                placeholder="1:824...:web:..."
+                            />
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-1">
+                                Auth Domain
+                            </label>
+                            <input
+                                id="swal-db-domain"
+                                type="text"
+                                class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none focus:border-blue-500 transition-all"
+                                value="${currentConfig.authDomain || ''}"
+                                placeholder="my-school.firebaseapp.com"
+                            />
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-500 tracking-wider block mb-1">
+                                Messaging Sender ID
+                            </label>
+                            <input
+                                id="swal-db-sender"
+                                type="text"
+                                class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none focus:border-blue-500 transition-all"
+                                value="${currentConfig.messagingSenderId || ''}"
+                                placeholder="824716640665"
+                            />
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'SAVE & CONNECT DATABASE',
+            confirmButtonColor: '#003366',
+            showDenyButton: isCustom,
+            denyButtonText: 'RESET TO DEFAULT',
+            denyButtonColor: '#f43f5e',
+            customClass: {
+                popup: 'rounded-[2.5rem] p-8',
+                confirmButton: 'px-8 py-3.5 bg-brand-primary text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all shadow-lg',
+                cancelButton: 'px-8 py-3.5 bg-slate-100 text-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all',
+                denyButton: 'px-8 py-3.5 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all'
+            },
+            preConfirm: () => {
+                const apiKey = (document.getElementById('swal-db-key') as HTMLInputElement).value.trim();
+                const projectId = (document.getElementById('swal-db-project') as HTMLInputElement).value.trim();
+                const storageBucket = (document.getElementById('swal-db-bucket') as HTMLInputElement).value.trim();
+                const appId = (document.getElementById('swal-db-app') as HTMLInputElement).value.trim();
+                const authDomain = (document.getElementById('swal-db-domain') as HTMLInputElement).value.trim() || `${projectId}.firebaseapp.com`;
+                const messagingSenderId = (document.getElementById('swal-db-sender') as HTMLInputElement).value.trim();
+
+                if (!apiKey || !projectId) {
+                    Swal.showValidationMessage('API Key and Project ID are required.');
+                    return false;
+                }
+
+                return {
+                    apiKey,
+                    projectId,
+                    storageBucket,
+                    appId,
+                    authDomain,
+                    messagingSenderId
+                };
+            }
+        }).then((result) => {
+            if (result.isConfirmed && result.value) {
+                saveCustomFirebaseConfig(result.value);
+                addAuditLog({
+                    user: 'Super Admin',
+                    action: 'Database Connected',
+                    type: 'Security',
+                    details: `Linked custom Firebase project: ${result.value.projectId}`
+                });
+
+                Swal.fire({
+                    title: 'Database Connected!',
+                    text: 'Software is reloading with the new database connection.',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.reload();
+                });
+            } else if (result.isDenied) {
+                resetCustomFirebaseConfig();
+                addAuditLog({
+                    user: 'Super Admin',
+                    action: 'Database Reset',
+                    type: 'Security',
+                    details: 'Reverted back to default environment database.'
+                });
+
+                Swal.fire({
+                    title: 'Database Reverted',
+                    text: 'Reset to default database. Reloading page...',
+                    icon: 'info',
+                    timer: 2000,
+                    showConfirmButton: false
+                }).then(() => {
+                    window.location.reload();
                 });
             }
         });
@@ -1118,6 +1347,13 @@ export const AdminPanel = () => {
                                         desc="Keep your school data safe and secure."
                                         actionLabel="Security"
                                         onClick={handleAdminCredentials}
+                                    />
+                                    <AdminSettingItem
+                                        icon={Database}
+                                        title="Cloud Database"
+                                        desc="Connect or switch your school's private Firebase database."
+                                        actionLabel="Configure"
+                                        onClick={handleDatabaseConfig}
                                     />
                                     <AdminSettingItem
                                         icon={Globe}

@@ -984,7 +984,7 @@ export const TimetablePage = () => {
                         Manually assign classes to their respective wings. This overrides automatic placement.
                     </p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto px-2 custom-scrollbar">
-                        ${classes.map((cls, idx) => `
+                        ${classes.map((cls) => `
                             <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/10">
                                 <span class="text-[10px] font-black uppercase text-brand-primary dark:text-white truncate pr-2">${cls}</span>
                                 <div class="flex gap-1">
