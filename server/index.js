@@ -110,6 +110,7 @@ async function startWhatsAppSession(id = 'admin') {
         auth: state,
         printQRInTerminal: false,
         logger: pino({ level: 'silent' }),
+        browser: ['School Management System', 'Chrome', '1.0.0'],
         defaultQueryTimeoutMs: 60000, // Increase timeout to 60 seconds
     });
 
