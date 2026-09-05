@@ -9,7 +9,7 @@ interface TopbarProps {
 }
 
 export const Topbar = ({ onOpenSidebar }: TopbarProps) => {
-    const { currentUser, settings } = useStore();
+    const { currentUser } = useStore();
     const [showNotifications, setShowNotifications] = useState(false);
     const notificationRef = useRef<HTMLDivElement>(null);
 
@@ -28,30 +28,18 @@ export const Topbar = ({ onOpenSidebar }: TopbarProps) => {
     }, []);
 
     return (
-        <div className="h-16 md:h-20 glass-nav px-3 sm:px-4 md:px-8 flex items-center justify-between sticky top-0 z-[100] transition-all duration-300">
-            <div className="flex items-center gap-2.5 sm:gap-4">
+        <div className="h-20 glass-nav px-4 md:px-8 flex items-center justify-between sticky top-0 z-[100] transition-all duration-300">
+            <div className="flex items-center gap-4">
                 <button
                     onClick={onOpenSidebar}
-                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl lg:hidden transition-colors active:scale-95"
-                    aria-label="Open Navigation Menu"
+                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl lg:hidden transition-colors"
                 >
-                    <Menu className="w-6 h-6 text-brand-primary dark:text-yellow-400" />
+                    <Menu className="w-6 h-6 text-slate-600 dark:text-slate-300" />
                 </button>
-
-                <div className="flex items-center gap-2 lg:hidden">
-                    {settings.logo1 ? (
-                        <img src={settings.logo1} alt="Logo" className="w-7 h-7 rounded-lg object-contain" />
-                    ) : (
-                        <div className="w-7 h-7 rounded-lg bg-yellow-400 flex items-center justify-center font-black text-brand-primary text-xs">P</div>
-                    )}
-                    <span className="font-black text-xs sm:text-sm uppercase tracking-tight text-brand-primary dark:text-yellow-400 truncate max-w-[140px] sm:max-w-[200px]">
-                        {settings.schoolName || 'PIONEERS'}
-                    </span>
-                </div>
 
                 <div className="hidden lg:flex flex-col">
                     <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none">
-                        {settings.schoolName || 'Institutional Portal'}
+                        Institutional Portal
                     </h2>
                     <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-1">
                         Cleared for Alpha-4 Access

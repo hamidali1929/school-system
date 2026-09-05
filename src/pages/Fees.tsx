@@ -375,10 +375,10 @@ export const Fees = () => {
                 />
             )}
 
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-3">
-                        <h2 className="text-3xl font-black uppercase tracking-tighter text-brand-primary dark:text-brand-accent leading-none">Finance Hub</h2>
+                        <h2 className="text-2xl md:text-3xl font-black uppercase tracking-tighter text-brand-primary dark:text-brand-accent leading-none">Finance Hub</h2>
                         <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[8px] font-black uppercase tracking-widest rounded-full">Active</span>
                     </div>
                     <p className="text-[9px] font-black text-slate-400 dark:text-brand-accent/40 uppercase tracking-widest mt-1">Institutional Revenue Tracking</p>
@@ -395,28 +395,28 @@ export const Fees = () => {
                             timer: 3000,
                             showConfirmButton: false
                         });
-                    }} className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-indigo-500/10">
+                    }} className="px-3.5 py-2 bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-indigo-500/10">
                         <MessageSquare className="w-3.5 h-3.5" /> Reminders
                     </button>
                     <button
                         onClick={() => setShowBulkModal(true)}
-                        className="px-4 py-2 bg-emerald-600 text-white rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-emerald-500/10"
+                        className="px-3.5 py-2 bg-emerald-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-emerald-500/10"
                     >
                         <FileText className="w-3.5 h-3.5" /> Bulk Slips
                     </button>
-                    <button onClick={() => handleGenerateAllMonthlyFees()} className="px-4 py-2 bg-brand-primary text-white rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/10">
+                    <button onClick={() => handleGenerateAllMonthlyFees()} className="px-3.5 py-2 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/10">
                         <Calendar className="w-3.5 h-3.5" /> Bulk Billing
                     </button>
-                    <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark rounded-[var(--brand-radius,1rem)] border border-slate-200 dark:border-brand-accent/10">
+                    <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark rounded-xl border border-slate-200 dark:border-brand-accent/10">
                         <button
                             onClick={() => setActiveTab('billing')}
-                            className={cn("px-4 py-1.5 rounded-[var(--brand-radius,0.75rem)] text-[9px] font-black uppercase tracking-widest transition-all", activeTab === 'billing' ? "bg-white dark:bg-brand-accent text-brand-primary shadow-sm" : "text-slate-400")}
+                            className={cn("px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all", activeTab === 'billing' ? "bg-white dark:bg-brand-accent text-brand-primary shadow-sm" : "text-slate-400")}
                         >
                             Billing
                         </button>
                         <button
                             onClick={() => setActiveTab('ledger')}
-                            className={cn("px-4 py-1.5 rounded-[var(--brand-radius,0.75rem)] text-[9px] font-black uppercase tracking-widest transition-all", activeTab === 'ledger' ? "bg-white dark:bg-brand-accent text-brand-primary shadow-sm" : "text-slate-400")}
+                            className={cn("px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all", activeTab === 'ledger' ? "bg-white dark:bg-brand-accent text-brand-primary shadow-sm" : "text-slate-400")}
                         >
                             History
                         </button>
@@ -424,67 +424,184 @@ export const Fees = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="glass-card p-4 border-none bg-gradient-to-br from-brand-primary to-brand-secondary text-white shadow-xl shadow-brand-primary/10 rounded-[var(--brand-radius,1.5rem)]">
-                    <div className="flex justify-between items-center mb-2">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-4">
+                <div className="glass-card p-3.5 md:p-4 border-none bg-gradient-to-br from-brand-primary to-brand-secondary text-white shadow-xl shadow-brand-primary/10 rounded-2xl md:rounded-[var(--brand-radius,1.5rem)]">
+                    <div className="flex justify-between items-center mb-1 md:mb-2">
                         <p className="text-[8px] font-black uppercase tracking-[0.2em] opacity-80">Collection</p>
-                        <ArrowUpRight className="w-4 h-4 opacity-40 shrink-0" />
+                        <ArrowUpRight className="w-3.5 h-3.5 opacity-40 shrink-0" />
                     </div>
-                    <h3 className="text-xl font-black tracking-tighter">RS {totalCollected.toLocaleString()}</h3>
-                    <div className="mt-4 flex items-center gap-2">
+                    <h3 className="text-lg md:text-xl font-black tracking-tighter">RS {totalCollected.toLocaleString()}</h3>
+                    <div className="mt-2 md:mt-4 flex items-center gap-2">
                         <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
                             <div className="h-full bg-white rounded-full" style={{ width: `${recoveryRate}%` }}></div>
                         </div>
-                        <span className="text-[8px] font-black uppercase tracking-widest whitespace-nowrap">{recoveryRate}% Recovery</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest whitespace-nowrap">{recoveryRate}%</span>
                     </div>
                 </div>
-                <div className="glass-card p-4 border-none bg-white dark:bg-brand-primary-dark rounded-[var(--brand-radius,1.5rem)]">
+                <div className="glass-card p-3.5 md:p-4 border-none bg-white dark:bg-brand-primary-dark rounded-2xl md:rounded-[var(--brand-radius,1.5rem)] shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Target Recovery</p>
                         <Clock className="w-3.5 h-3.5 text-slate-200 dark:text-brand-accent/20" />
                     </div>
-                    <h3 className="text-xl font-black tracking-tighter text-slate-800 dark:text-brand-accent">RS {totalTarget.toLocaleString()}</h3>
+                    <h3 className="text-lg md:text-xl font-black tracking-tighter text-slate-800 dark:text-brand-accent">RS {totalTarget.toLocaleString()}</h3>
                 </div>
-                <div className="glass-card p-4 border-none bg-white dark:bg-brand-primary-dark rounded-[var(--brand-radius,1.5rem)]">
+                <div className="glass-card p-3.5 md:p-4 border-none bg-white dark:bg-brand-primary-dark rounded-2xl md:rounded-[var(--brand-radius,1.5rem)] shadow-sm">
                     <div className="flex justify-between items-center mb-1">
                         <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest">Pending</p>
                         <AlertTriangle className="w-3.5 h-3.5 text-rose-200" />
                     </div>
-                    <h3 className="text-xl font-black tracking-tighter text-rose-600">RS {totalPending.toLocaleString()}</h3>
+                    <h3 className="text-lg md:text-xl font-black tracking-tighter text-rose-600">RS {totalPending.toLocaleString()}</h3>
                 </div>
-                <div className="glass-card p-4 border-none bg-slate-900 text-white rounded-[var(--brand-radius,1.5rem)]">
+                <div className="glass-card p-3.5 md:p-4 border-none bg-slate-900 text-white rounded-2xl md:rounded-[var(--brand-radius,1.5rem)] shadow-sm">
                     <p className="text-[8px] font-black uppercase tracking-widest opacity-60 mb-1">Deficit Risk</p>
-                    <h3 className="text-xl font-black tracking-tighter">{(100 - Number(recoveryRate)).toFixed(1)}%</h3>
+                    <h3 className="text-lg md:text-xl font-black tracking-tighter">{(100 - Number(recoveryRate)).toFixed(1)}%</h3>
                 </div>
             </div>
 
             <div className="glass-card overflow-hidden border-none shadow-xl shadow-slate-200/50 min-h-[500px] rounded-[var(--brand-radius,1.5rem)]">
-                <div className="p-4 md:p-6 border-b border-slate-50 dark:border-brand-accent/10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="p-4 md:p-6 border-b border-slate-50 dark:border-brand-accent/10 flex flex-col md:flex-row md:items-center justify-between gap-3">
                     <div>
                         <h3 className="font-black text-lg uppercase tracking-tight text-brand-primary dark:text-brand-accent leading-none">
                             {activeTab === 'billing' ? 'Ledger Registry' : 'Archive'}
                         </h3>
+                        <p className="text-[10px] font-bold text-slate-400 mt-1">{filteredStudents.length} Students Record</p>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                         {activeTab === 'ledger' && (
-                            <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg border border-emerald-100 dark:border-emerald-500/20 flex items-center gap-2">
+                            <div className="px-3 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 rounded-lg border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center gap-2">
                                 <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-tight">Total RS {ledgerSum.toLocaleString()}</span>
                             </div>
                         )}
-                        <div className="relative group">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-300" />
+                        <div className="relative w-full sm:w-auto">
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder="Search by name, ID or class..."
-                                className="pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#000816] rounded-[var(--brand-radius,1rem)] text-xs font-semibold outline-none focus:ring-4 ring-brand-primary/5 w-48 md:w-80 transition-all border border-slate-100 dark:border-brand-accent/10"
+                                className="pl-10 pr-4 py-2.5 bg-slate-50 dark:bg-[#000816] rounded-[var(--brand-radius,1rem)] text-xs font-semibold outline-none focus:ring-4 ring-brand-primary/5 w-full sm:w-72 transition-all border border-slate-200 dark:border-brand-accent/10"
                             />
                         </div>
                     </div>
                 </div>
 
-                <div className="overflow-x-auto custom-scrollbar">
+                {/* MOBILE VIEW (Cards) */}
+                <div className="block md:hidden p-3 space-y-3 bg-slate-50/50 dark:bg-slate-900/40">
+                    {activeTab === 'billing' ? (
+                        filteredStudents.length > 0 ? (
+                            filteredStudents.map((s) => {
+                                const arrears = Math.max(0, (s.feesTotal || 0) - (s.feesPaid || 0));
+                                const isCleared = (s.feesPaid || 0) >= (s.feesTotal || 0);
+
+                                return (
+                                    <div key={s.id} className="p-4 bg-white dark:bg-brand-primary-dark rounded-2xl border border-slate-100 dark:border-brand-accent/10 shadow-sm space-y-3">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <div className="flex items-center gap-3 min-w-0">
+                                                <div className="w-10 h-10 rounded-xl bg-brand-primary text-white flex items-center justify-center font-black text-sm shadow-md shadow-brand-primary/20 shrink-0">
+                                                    {(s.name || 'S').charAt(0)}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <h4 className="font-black text-slate-800 dark:text-white uppercase text-sm leading-snug truncate">{s.name}</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 dark:text-brand-accent/60 uppercase tracking-wider">{s.id} • Class {s.class}</p>
+                                                </div>
+                                            </div>
+                                            <span className={cn(
+                                                "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0",
+                                                isCleared ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                                            )}>
+                                                {isCleared ? 'Cleared' : 'Pending'}
+                                            </span>
+                                        </div>
+
+                                        <div className="grid grid-cols-3 gap-2 p-2.5 bg-slate-50 dark:bg-slate-900/80 rounded-xl text-center border border-slate-100 dark:border-white/5">
+                                            <div>
+                                                <p className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Fee</p>
+                                                <p className="text-xs font-black text-slate-700 dark:text-slate-200">RS {Number(s.feesTotal || 0).toLocaleString()}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[8px] font-black uppercase text-emerald-600 tracking-wider">Paid</p>
+                                                <p className="text-xs font-black text-emerald-600">RS {Number(s.feesPaid || 0).toLocaleString()}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-[8px] font-black uppercase text-rose-500 tracking-wider">Arrears</p>
+                                                <p className="text-xs font-black text-rose-600">RS {arrears.toLocaleString()}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between gap-1.5 pt-2 border-t border-slate-100 dark:border-white/5">
+                                            <div className="flex items-center gap-1">
+                                                <button onClick={() => handleEditFees(s.id)} className="p-2 bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-white rounded-lg hover:bg-brand-primary hover:text-white transition-all" title="Edit">
+                                                    <Edit3 className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button onClick={() => handleApplyDiscount(s.id)} className="p-2 bg-rose-50 dark:bg-rose-500/10 text-rose-600 rounded-lg" title="Discount">
+                                                    <Percent className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button onClick={() => handleShowHistory(s)} className="p-2 bg-slate-100 dark:bg-white/10 text-slate-600 dark:text-white rounded-lg" title="History">
+                                                    <History className="w-3.5 h-3.5" />
+                                                </button>
+                                                <button onClick={() => {
+                                                    triggerFeeReminders(undefined, s.id);
+                                                    Swal.fire({
+                                                        title: 'WhatsApp Reminder',
+                                                        text: `Preparing reminder for ${s.name}.`,
+                                                        icon: 'info',
+                                                        toast: true,
+                                                        position: 'top-end',
+                                                        timer: 2000,
+                                                        showConfirmButton: false
+                                                    });
+                                                }} className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 rounded-lg" title="Reminder">
+                                                    <Bell className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <button onClick={() => setSelectedStudentForVoucher(s)} className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
+                                                    <FileText className="w-3 h-3" /> Slip
+                                                </button>
+                                                {!isCleared && (
+                                                    <button onClick={() => handlePayFee(s.id)} className="px-3 py-1.5 bg-brand-primary text-white rounded-lg font-black text-[9px] uppercase tracking-wider shadow-md shadow-brand-primary/20">
+                                                        Pay
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="py-12 text-center">
+                                <Search className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                                <p className="text-slate-400 font-bold text-xs uppercase">No student accounts found</p>
+                            </div>
+                        )
+                    ) : (
+                        masterLedger.length > 0 ? (
+                            masterLedger.map((entry: any, idx: number) => (
+                                <div key={idx} className="p-3.5 bg-white dark:bg-brand-primary-dark rounded-2xl border border-slate-100 dark:border-brand-accent/10 shadow-sm space-y-2">
+                                    <div className="flex justify-between items-start gap-2">
+                                        <div>
+                                            <p className="font-black text-xs uppercase text-slate-900 dark:text-brand-accent">{entry.studentName}</p>
+                                            <p className="text-[9px] font-bold text-slate-400">{entry.studentId} • Class {entry.class}</p>
+                                        </div>
+                                        <span className="text-xs font-black text-emerald-600 shrink-0">RS {entry.payment.amount}</span>
+                                    </div>
+                                    <div className="flex items-center justify-between text-[8px] font-bold text-slate-400 pt-1.5 border-t border-slate-100 dark:border-white/5">
+                                        <span>{new Date(entry.payment.date).toLocaleString()}</span>
+                                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-white/5 rounded text-slate-600 dark:text-white uppercase font-black">{entry.payment.method}</span>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="py-12 text-center">
+                                <History className="w-12 h-12 text-slate-200 mx-auto mb-3" />
+                                <p className="text-slate-400 font-bold text-xs uppercase">Ledger is currently empty</p>
+                            </div>
+                        )
+                    )}
+                </div>
+
+                {/* DESKTOP TABLE VIEW */}
+                <div className="hidden md:block overflow-x-auto custom-scrollbar">
                     {activeTab === 'billing' ? (
                         <table className="w-full text-left min-w-[1000px]">
                             <thead>
