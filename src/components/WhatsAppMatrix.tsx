@@ -15,6 +15,16 @@ import { normalizeWhatsAppNumber, MESSAGE_TEMPLATES } from '../utils/whatsapp';
 
 export const WhatsAppMatrix = () => {
     const { students, teachers, settings } = useStore();
+    const DEFAULT_CLOUD_SERVER = 'https://school-system-tzkq.onrender.com';
+    const [serverUrl, setServerUrl] = useState<string>(() => {
+        return localStorage.getItem('wa_server_url') || (window.location.hostname === 'localhost' ? '' : DEFAULT_CLOUD_SERVER);
+    });
+
+    const getEffectiveServerUrl = () => {
+        if (serverUrl && serverUrl.trim()) return serverUrl.trim().replace(/\/+$/, '');
+        return window.location.origin;
+    };
+
     const [status, setStatus] = useState<'IDLE' | 'QR' | 'CONNECTED' | 'DISCONNECTED'>('IDLE');
     const [qrCode, setQrCode] = useState<string | null>(null);
     const [, setSocket] = useState<Socket | null>(null);
@@ -30,12 +40,14 @@ export const WhatsAppMatrix = () => {
     const [contactSearch, setContactSearch] = useState('');
 
     useEffect(() => {
-        const newSocket = io(window.location.origin, {
-            path: '/socket.io'
+        const targetUrl = getEffectiveServerUrl();
+        const newSocket = io(targetUrl, {
+            path: '/socket.io',
+            transports: ['websocket', 'polling']
         });
 
         newSocket.on('connect', () => {
-            addLog('System connected to WhatsApp server', 'info');
+            addLog(`Connected to WhatsApp server (${targetUrl})`, 'info');
         });
 
         newSocket.on('qr', (qr: string) => {
@@ -61,7 +73,7 @@ export const WhatsAppMatrix = () => {
         return () => {
             newSocket.close();
         };
-    }, []);
+    }, [serverUrl]);
 
     const addLog = (msg: string, type: 'info' | 'success' | 'warning' = 'info') => {
         setLogs(prev => [{
@@ -75,7 +87,8 @@ export const WhatsAppMatrix = () => {
         if (status !== 'CONNECTED') return;
         setIsLoadingGroups(true);
         try {
-            const response = await fetch('/api/wa/groups');
+            const baseUrl = getEffectiveServerUrl();
+            const response = await fetch(`${baseUrl}/groups`);
             const data = await response.json();
             if (data.success) {
                 setGroups(data.groups);
@@ -146,7 +159,8 @@ export const WhatsAppMatrix = () => {
 
         if (formValues) {
             try {
-                const response = await fetch('/api/wa/send-message', {
+                const baseUrl = getEffectiveServerUrl();
+                const response = await fetch(`${baseUrl}/send-message`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formValues)
@@ -169,6 +183,7 @@ export const WhatsAppMatrix = () => {
             }
         }
     };
+
 
     const applyTemplate = (templateName: keyof typeof MESSAGE_TEMPLATES) => {
         let msg = '';
@@ -259,7 +274,8 @@ export const WhatsAppMatrix = () => {
 
                 if (!targetNumber) continue;
 
-                const response = await fetch('/api/wa/send-message', {
+                const baseUrl = getEffectiveServerUrl();
+                const response = await fetch(`${baseUrl}/send-message`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -311,6 +327,38 @@ export const WhatsAppMatrix = () => {
         setSelectedTargets(targets);
     };
 
+    const handleChangeServer = async () => {
+        const result = await Swal.fire({
+            title: 'WhatsApp Server Configuration',
+            html: `
+                <div class="text-left space-y-3 font-outfit p-1">
+                    <p class="text-xs text-slate-500 font-medium">Enter your 24/7 Cloud Server URL (Render / VPS) or leave empty for localhost:</p>
+                    <input id="swal-server-url" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm border-slate-200" value="${serverUrl}" placeholder="https://school-system-tzkq.onrender.com">
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save & Connect',
+            confirmButtonColor: '#003366',
+            showDenyButton: true,
+            denyButtonText: 'Use 24/7 Cloud',
+            denyButtonColor: '#10b981',
+            preConfirm: () => {
+                return (document.getElementById('swal-server-url') as HTMLInputElement).value.trim();
+            }
+        });
+
+        if (result.isConfirmed) {
+            const newUrl = result.value || '';
+            setServerUrl(newUrl);
+            localStorage.setItem('wa_server_url', newUrl);
+            addLog(`Server URL set to: ${newUrl || 'Local Origin'}`, 'info');
+        } else if (result.isDenied) {
+            setServerUrl(DEFAULT_CLOUD_SERVER);
+            localStorage.setItem('wa_server_url', DEFAULT_CLOUD_SERVER);
+            addLog(`Switched to default 24/7 Cloud Server`, 'success');
+        }
+    };
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -333,12 +381,21 @@ export const WhatsAppMatrix = () => {
                         <h3 className="text-2xl font-black text-[#003366] uppercase tracking-tighter">WhatsApp Center</h3>
                         <div className="flex items-center gap-2 mt-1">
                             <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Live Messaging Gateway</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">24/7 Cloud Gateway</p>
                         </div>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleChangeServer}
+                        className="px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-all flex items-center gap-1.5 shadow-sm"
+                        title="Click to edit Cloud WhatsApp Server URL"
+                    >
+                        <Settings size={12} />
+                        <span>{serverUrl ? '☁️ Cloud Server' : '💻 Local Server'}</span>
+                    </button>
+
                     <motion.div
                         layout
                         className={cn(
@@ -355,6 +412,7 @@ export const WhatsAppMatrix = () => {
                     </motion.div>
                 </div>
             </div>
+
 
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                 {/* Main Content Area */}
@@ -459,7 +517,8 @@ export const WhatsAppMatrix = () => {
                                                             if (isConfirmed) {
                                                                 setQrCode(null);
                                                                 setStatus('IDLE');
-                                                                fetch('/api/wa/logout', { method: 'POST' });
+                                                                const baseUrl = getEffectiveServerUrl();
+                                                                fetch(`${baseUrl}/logout`, { method: 'POST' });
                                                                 addLog('WhatsApp logged out', 'warning');
                                                             }
                                                         }}

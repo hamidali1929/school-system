@@ -168,7 +168,15 @@ async function startWhatsAppSession(id = 'admin') {
     return sock;
 }
 
-app.post('/logout', async (req, res) => {
+app.get('/', (req, res) => {
+    res.json({ status: 'ONLINE', message: 'School WhatsApp Cloud Server is running 24/7' });
+});
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+app.post(['/logout', '/api/wa/logout'], async (req, res) => {
     try {
         const id = 'admin';
         const sock = sessions.get(id);
@@ -188,12 +196,12 @@ app.post('/logout', async (req, res) => {
     }
 });
 
-app.get('/status', (req, res) => {
+app.get(['/status', '/api/wa/status'], (req, res) => {
     const sock = sessions.get('admin');
-    res.json({ status: sock ? 'ACTIVE' : 'INACTIVE' });
+    res.json({ status: sock && sock.user ? 'ACTIVE' : sock ? 'INITIALIZING' : 'INACTIVE' });
 });
 
-app.get('/groups', async (req, res) => {
+app.get(['/groups', '/api/wa/groups'], async (req, res) => {
     try {
         const sock = sessions.get('admin');
         if (!sock || !sock.user) {
@@ -217,7 +225,7 @@ app.get('/groups', async (req, res) => {
     }
 });
 
-app.post('/send-message', async (req, res) => {
+app.post(['/send-message', '/api/wa/send-message'], async (req, res) => {
     const { to, message, media, filename } = req.body;
     const sock = sessions.get('admin');
 
@@ -246,3 +254,4 @@ const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
     console.log(`WhatsApp Backend running on port ${PORT}`);
 });
+
