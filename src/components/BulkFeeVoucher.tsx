@@ -329,49 +329,49 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
     return (
         <div className="bulk-voucher-studio fixed inset-0 z-[1000] bg-[#020617] flex flex-col font-serif print:relative print:z-0 print:bg-white print:block print:inset-auto">
             {/* TOOLBAR */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-slate-900/50 backdrop-blur-md print:hidden shrink-0">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-brand-primary rounded-[var(--brand-radius,1rem)] flex items-center justify-center text-brand-accent shadow-2xl border border-white/10">
-                        <Layers className="w-7 h-7" />
+            <div className="p-3 sm:p-4 border-b border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-slate-900/50 backdrop-blur-md print:hidden shrink-0">
+                <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 sm:w-12 sm:h-12 bg-brand-primary rounded-[var(--brand-radius,1rem)] flex items-center justify-center text-brand-accent shadow-2xl border border-white/10 shrink-0">
+                        <Layers className="w-5 h-5 sm:w-7 sm:h-7" />
                     </div>
                     <div>
-                        <h2 className="text-2xl font-black text-white uppercase tracking-tighter leading-none">Bulk Voucher Studio</h2>
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1.5 flex items-center gap-2">
+                        <h2 className="text-lg sm:text-2xl font-black text-white uppercase tracking-tighter leading-none">Bulk Voucher Studio</h2>
+                        <p className="text-[10px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1.5">
                             <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                            Found {students.length} Accounts • Ready to Print
+                            {students.length} Accounts Ready
                         </p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
                     <button
                         onClick={handleDownloadPDF}
                         disabled={isExporting}
-                        className={`px-8 py-4 bg-brand-primary text-white rounded-[var(--brand-radius,1rem)] font-black text-[12px] uppercase tracking-widest flex items-center gap-3 transform transition-all active:scale-95 shadow-2xl shadow-brand-primary/20 group ${isExporting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
+                        className={`flex-1 sm:flex-none px-4 sm:px-8 py-2.5 sm:py-4 bg-brand-primary text-white rounded-[var(--brand-radius,1rem)] font-black text-[10px] sm:text-[12px] uppercase tracking-widest flex items-center justify-center gap-2 transform transition-all active:scale-95 shadow-2xl shadow-brand-primary/20 group ${isExporting ? 'opacity-50 cursor-not-allowed' : 'hover:opacity-90'}`}
                     >
-                        {isExporting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5 group-hover:translate-y-1 transition-transform" />}
-                        {isExporting ? 'Generating PDF...' : 'Final Print All (PDF)'}
+                        {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />}
+                        {isExporting ? 'Generating...' : 'Export All (PDF)'}
                     </button>
                     <button
                         onClick={handlePrint}
-                        className="px-8 py-4 bg-white text-brand-primary border-2 border-brand-primary rounded-[var(--brand-radius,1rem)] font-black text-[12px] uppercase tracking-widest flex items-center gap-3 hover:bg-slate-50 transform transition-all active:scale-95 group"
+                        className="flex-1 sm:flex-none px-4 sm:px-8 py-2.5 sm:py-4 bg-white text-brand-primary border-2 border-brand-primary rounded-[var(--brand-radius,1rem)] font-black text-[10px] sm:text-[12px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-50 transform transition-all active:scale-95 group"
                     >
-                        <Printer className="w-5 h-5 group-hover:scale-110 transition-transform" /> Browser Print
+                        <Printer className="w-4 h-4 group-hover:scale-110 transition-transform" /> Print
                     </button>
-                    <button onClick={onClose} className="p-4 bg-white/5 text-white hover:bg-rose-500/20 hover:text-rose-500 rounded-[var(--brand-radius,1rem)] transition-all border border-white/10">
-                        <X className="w-7 h-7" />
+                    <button onClick={onClose} className="p-2.5 sm:p-4 bg-white/5 text-white hover:bg-rose-500/20 hover:text-rose-500 rounded-[var(--brand-radius,1rem)] transition-all border border-white/10 shrink-0">
+                        <X className="w-5 h-5 sm:w-7 sm:h-7" />
                     </button>
                 </div>
             </div>
 
             {/* PREVIEW CONTAINER */}
-            <div className="flex-1 overflow-y-auto p-16 bg-slate-950/50 print:bg-white print:p-0 print:overflow-visible print:block custom-scrollbar">
-                <div className="flex flex-col gap-16 items-center print:gap-0 print:block">
+            <div className="flex-1 overflow-x-auto overflow-y-auto p-3 sm:p-8 md:p-16 bg-slate-950/50 print:bg-white print:p-0 print:overflow-visible print:block custom-scrollbar">
+                <div className="flex flex-col gap-6 sm:gap-16 items-start md:items-center print:gap-0 print:block">
                     {students.map((student) => {
                         const tuition = Number(student.monthlyFees) || Number(student.monthlyTuition) || Number(feeStructure[student.class]) || Number(feeStructure['General']) || 4000;
                         const studentAbsents = absentMap[student.id] || 0;
 
                         return (
-                            <div key={student.id} className="bulk-voucher-page bg-white w-full max-w-[297mm] h-[210mm] shadow-[0_40px_100px_rgba(0,0,0,0.5)] print:shadow-none print:m-0 flex flex-row overflow-hidden rounded-[var(--brand-radius,1.5rem)] print:rounded-none transition-transform hover:scale-[1.01] print:hover:scale-100">
+                            <div key={student.id} className="bulk-voucher-page bg-white min-w-[860px] md:min-w-0 w-full max-w-[297mm] h-[210mm] shadow-[0_40px_100px_rgba(0,0,0,0.5)] print:shadow-none print:m-0 flex flex-row overflow-hidden rounded-[var(--brand-radius,1.5rem)] print:rounded-none transition-transform hover:scale-[1.01] print:hover:scale-100">
                                 <VoucherCopy copyType="STUDENT COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
                                 <VoucherCopy copyType="SCHOOL COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
                                 <VoucherCopy copyType="BANK COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
