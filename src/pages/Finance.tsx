@@ -477,21 +477,21 @@ export const FinancePage = () => {
     return (
         <div className="space-y-8 animate-fade-in pb-32 max-w-[1600px] mx-auto px-4 md:px-6 font-outfit">
             {/* Header Section */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 bg-brand-primary dark:bg-brand-accent rounded-[var(--brand-radius,1.25rem)] flex items-center justify-center shadow-xl transform hover:rotate-6 transition-transform">
-                        <DollarSign className="text-white dark:text-brand-primary-dark" size={32} />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
+                <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 bg-brand-primary dark:bg-brand-accent rounded-[var(--brand-radius,1.25rem)] flex items-center justify-center shadow-xl shrink-0">
+                        <DollarSign className="text-white dark:text-brand-primary-dark" size={26} />
                     </div>
-                    <div>
-                        <h2 className="text-3xl font-black tracking-tighter uppercase text-brand-primary dark:text-brand-accent">Accounts & Finance</h2>
-                        <p className="text-slate-500 dark:text-brand-accent/60 font-medium text-sm">Money Management & Reports</p>
+                    <div className="min-w-0">
+                        <h2 className="text-xl sm:text-2xl md:text-3xl font-black tracking-tight uppercase text-brand-primary dark:text-brand-accent truncate">Accounts & Finance</h2>
+                        <p className="text-slate-500 dark:text-brand-accent/60 font-medium text-xs sm:text-sm truncate">Money Management & Reports</p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 p-1 bg-slate-100 dark:bg-brand-primary-dark/30 rounded-[var(--brand-radius,1.25rem)] border border-slate-200 dark:border-brand-accent/10 shadow-sm backdrop-blur-md">
-                    <button onClick={() => setActiveTab('overview')} className={cn("px-6 py-2.5 rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'overview' ? "bg-white dark:bg-brand-accent text-brand-primary dark:text-brand-primary-dark shadow-lg" : "text-slate-400")}>Overview</button>
-                    <button onClick={() => setActiveTab('payroll')} className={cn("px-6 py-2.5 rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'payroll' ? "bg-white dark:bg-brand-accent text-brand-primary dark:text-brand-primary-dark shadow-lg" : "text-slate-400")}>Payroll</button>
-                    <button onClick={() => setActiveTab('expenses')} className={cn("px-6 py-2.5 rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'expenses' ? "bg-white dark:bg-brand-accent text-brand-primary dark:text-brand-primary-dark shadow-lg" : "text-slate-400")}>Expenses</button>
+                <div className="w-full sm:w-auto grid grid-cols-3 sm:flex items-center gap-1 p-1 bg-slate-100 dark:bg-brand-primary-dark/30 rounded-[var(--brand-radius,1.25rem)] border border-slate-200 dark:border-brand-accent/10 shadow-sm backdrop-blur-md shrink-0">
+                    <button onClick={() => setActiveTab('overview')} className={cn("px-3 sm:px-6 py-2 sm:py-2.5 rounded-[var(--brand-radius,1rem)] text-[10px] sm:text-xs font-black uppercase tracking-wider text-center transition-all", activeTab === 'overview' ? "bg-white dark:bg-brand-accent text-brand-primary dark:text-brand-primary-dark shadow-md" : "text-slate-500 hover:text-slate-700")}>Overview</button>
+                    <button onClick={() => setActiveTab('payroll')} className={cn("px-3 sm:px-6 py-2 sm:py-2.5 rounded-[var(--brand-radius,1rem)] text-[10px] sm:text-xs font-black uppercase tracking-wider text-center transition-all", activeTab === 'payroll' ? "bg-white dark:bg-brand-accent text-brand-primary dark:text-brand-primary-dark shadow-md" : "text-slate-500 hover:text-slate-700")}>Payroll</button>
+                    <button onClick={() => setActiveTab('expenses')} className={cn("px-3 sm:px-6 py-2 sm:py-2.5 rounded-[var(--brand-radius,1rem)] text-[10px] sm:text-xs font-black uppercase tracking-wider text-center transition-all", activeTab === 'expenses' ? "bg-white dark:bg-brand-accent text-brand-primary dark:text-brand-primary-dark shadow-md" : "text-slate-500 hover:text-slate-700")}>Expenses</button>
                 </div>
             </div>
 
@@ -604,44 +604,108 @@ export const FinancePage = () => {
 
             {activeTab === 'payroll' && (
                 <div className="space-y-6">
-                    <div className="glass-card p-4 flex flex-wrap items-center justify-between gap-4 rounded-[var(--brand-radius,1.5rem)]">
-                        <div className="flex items-center gap-4">
+                    <div className="glass-card p-3 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-[var(--brand-radius,1.5rem)]">
+                        <div className="flex flex-wrap items-center gap-2 sm:gap-4">
                             <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark/40 rounded-[var(--brand-radius,1rem)] border border-slate-200 dark:border-brand-accent/10">
                                 <select
                                     value={selectedMonth}
                                     onChange={(e) => setSelectedMonth(e.target.value)}
-                                    className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest px-4 py-1 cursor-pointer focus:ring-0 text-brand-primary dark:text-brand-accent"
+                                    className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest px-3 sm:px-4 py-1 cursor-pointer focus:ring-0 text-brand-primary dark:text-brand-accent"
                                 >
                                     {MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
                                 </select>
                                 <select
                                     value={selectedYear}
                                     onChange={(e) => setSelectedYear(Number(e.target.value))}
-                                    className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest px-4 py-1 cursor-pointer focus:ring-0 text-brand-primary dark:text-brand-accent"
+                                    className="bg-transparent border-none text-[10px] font-black uppercase tracking-widest px-3 sm:px-4 py-1 cursor-pointer focus:ring-0 text-brand-primary dark:text-brand-accent"
                                 >
                                     {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
                                 </select>
                             </div>
                             <button
                                 onClick={handleGeneratePayroll}
-                                className="px-6 py-2.5 bg-brand-primary dark:bg-brand-accent text-white dark:text-brand-primary-dark rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 hover:scale-105 transition-all shadow-lg active:scale-95"
+                                className="flex-1 sm:flex-none px-4 sm:px-6 py-2 sm:py-2.5 bg-brand-primary dark:bg-brand-accent text-white dark:text-brand-primary-dark rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-lg active:scale-95"
                             >
                                 <Zap size={14} /> Generate Payroll
                             </button>
                         </div>
 
-                        <div className="relative">
+                        <div className="relative w-full sm:w-auto">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                             <input
                                 placeholder="Search Teachers..."
-                                className="pl-12 pr-6 py-2.5 bg-slate-100 dark:bg-brand-primary-dark/40 border border-slate-200 dark:border-brand-accent/10 rounded-[var(--brand-radius,1rem)] text-xs font-bold w-[300px] focus:ring-4 focus:ring-brand-primary/10 transition-all outline-none"
+                                className="pl-12 pr-4 py-2 sm:py-2.5 bg-slate-100 dark:bg-brand-primary-dark/40 border border-slate-200 dark:border-brand-accent/10 rounded-[var(--brand-radius,1rem)] text-xs font-bold w-full sm:w-[260px] focus:ring-4 focus:ring-brand-primary/10 transition-all outline-none"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
                     </div>
 
-                    <div className="glass-card overflow-hidden border-2 border-slate-100 dark:border-brand-accent/10 shadow-xl rounded-[var(--brand-radius,1.5rem)]">
+                    {/* Mobile Payroll Cards */}
+                    <div className="md:hidden space-y-3">
+                        {payrollRegistry.map(({ teacher, slip, status }) => (
+                            <div key={teacher.id} className="glass-card p-4 rounded-2xl border border-slate-200 dark:border-white/10 space-y-3 shadow-md">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-10 h-10 rounded-xl bg-brand-primary text-white flex items-center justify-center font-black shrink-0 shadow-sm">
+                                            {teacher?.name.charAt(0)}
+                                        </div>
+                                        <div className="min-w-0">
+                                            <p className="text-sm font-black text-brand-primary dark:text-white uppercase truncate">{teacher?.name}</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">ID: {teacher?.id}</p>
+                                        </div>
+                                    </div>
+                                    <span className={cn(
+                                        "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0",
+                                        status === 'Paid' ? "bg-emerald-100 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400" :
+                                            status === 'Pending' ? "bg-amber-100 text-amber-600 dark:bg-amber-400/10 dark:text-amber-400" :
+                                                "bg-slate-100 text-slate-400 dark:bg-white/5 dark:text-white/20"
+                                    )}>
+                                        {status === 'Not Generated' ? 'Missing' : status}
+                                    </span>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-white/5 p-2.5 rounded-xl text-center">
+                                    <div>
+                                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Base Salary</p>
+                                        <p className="text-xs font-black text-brand-primary dark:text-brand-accent">Rs. {(slip?.baseSalary || teacher.baseSalary || 0).toLocaleString()}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] font-black uppercase tracking-widest text-slate-400">Net Payable</p>
+                                        <p className="text-xs font-black text-emerald-600">Rs. {(slip?.netSalary || teacher.baseSalary || 0).toLocaleString()}</p>
+                                    </div>
+                                </div>
+
+                                <div className="pt-1">
+                                    {status === 'Not Generated' ? (
+                                        <button
+                                            onClick={handleGeneratePayroll}
+                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-md"
+                                        >
+                                            <Zap size={12} /> Sync / Generate Slip
+                                        </button>
+                                    ) : status === 'Pending' ? (
+                                        <button
+                                            onClick={() => handlePaySalary(slip!)}
+                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-emerald-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 shadow-md"
+                                        >
+                                            <CreditCard size={12} /> Pay Now (Rs. {(slip?.netSalary || 0).toLocaleString()})
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={() => handlePrintSalarySlip(slip!)}
+                                            className="w-full flex items-center justify-center gap-2 py-2.5 bg-slate-100 dark:bg-white/10 text-brand-primary dark:text-brand-accent rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 border border-slate-200 dark:border-white/10"
+                                        >
+                                            <Printer size={14} /> Print Salary Slip
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Desktop Payroll Table */}
+                    <div className="hidden md:block glass-card overflow-hidden border-2 border-slate-100 dark:border-brand-accent/10 shadow-xl rounded-[var(--brand-radius,1.5rem)]">
                         <table className="w-full border-collapse">
                             <thead>
                                 <tr className="bg-slate-50 dark:bg-brand-primary-dark/60">
@@ -719,46 +783,48 @@ export const FinancePage = () => {
 
             {activeTab === 'expenses' && (
                 <div className="space-y-6">
-                    <div className="glass-card p-4 flex items-center justify-between rounded-[var(--brand-radius,1.5rem)]">
-                        <div className="flex items-center gap-4">
-                            <h4 className="text-lg font-black uppercase tracking-tight text-brand-primary dark:text-white">Expenses List</h4>
-                            <div className="h-4 w-px bg-slate-200 dark:bg-white/10 mx-2" />
+                    <div className="glass-card p-3 sm:p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-[var(--brand-radius,1.5rem)]">
+                        <div className="flex items-center gap-3">
+                            <h4 className="text-base sm:text-lg font-black uppercase tracking-tight text-brand-primary dark:text-white">Expenses List</h4>
+                            <div className="h-4 w-px bg-slate-200 dark:bg-white/10 mx-1" />
+                            <span className="text-xs text-slate-400 font-bold">{expenses.length} Records</span>
                         </div>
                         <button
                             onClick={handleAddExpense}
-                            className="px-6 py-2.5 bg-brand-primary dark:bg-brand-accent text-white dark:text-brand-primary-dark rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-[0.2em] flex items-center gap-2 hover:scale-105 transition-all shadow-lg active:scale-95"
+                            className="w-full sm:w-auto px-4 sm:px-6 py-2.5 bg-brand-primary dark:bg-brand-accent text-white dark:text-brand-primary-dark rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:scale-105 transition-all shadow-lg active:scale-95 shrink-0"
                         >
                             <PlusCircle size={16} /> Record Expense
                         </button>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                         {expenses.length === 0 ? (
-                            <div className="col-span-full py-20 text-center glass-card border-dashed">
-                                <TrendingDown size={48} className="text-slate-200 mx-auto mb-4" />
-                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.4em]">Zero Expenditures Found</p>
+                            <div className="col-span-full py-16 sm:py-20 text-center glass-card border-dashed">
+                                <TrendingDown size={44} className="text-slate-300 dark:text-white/20 mx-auto mb-3" />
+                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-[0.3em]">Zero Expenditures Found</p>
                             </div>
                         ) : (
                             expenses.map(exp => (
-                                <div key={exp.id} className="glass-card p-6 group hover:translate-y-[-4px] transition-all relative overflow-hidden flex flex-col justify-between shadow-lg rounded-[var(--brand-radius,1.25rem)]">
-                                    <div className="absolute top-0 left-0 w-2 h-full bg-brand-primary dark:bg-brand-accent opacity-20 group-hover:opacity-100 transition-opacity" />
+                                <div key={exp.id} className="glass-card p-5 sm:p-6 group hover:translate-y-[-4px] transition-all relative overflow-hidden flex flex-col justify-between shadow-md sm:shadow-lg rounded-[var(--brand-radius,1.25rem)] border border-slate-200 dark:border-white/10">
+                                    <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-primary dark:bg-brand-accent opacity-30 group-hover:opacity-100 transition-opacity" />
                                     <div>
-                                        <div className="flex justify-between items-start mb-4">
-                                            <span className="px-3 py-1 bg-slate-100 dark:bg-white/5 text-slate-500 dark:text-white/60 text-[8px] font-black uppercase tracking-widest rounded-full">{exp.category}</span>
+                                        <div className="flex justify-between items-start mb-3">
+                                            <span className="px-2.5 py-0.5 bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-white/70 text-[8px] font-black uppercase tracking-wider rounded-full">{exp.category}</span>
                                             <button
                                                 onClick={() => deleteExpense(exp.id)}
-                                                className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all"
+                                                className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-lg transition-all"
+                                                title="Delete Expense"
                                             >
                                                 <Trash2 size={14} />
                                             </button>
                                         </div>
-                                        <h5 className="text-sm font-black text-brand-primary dark:text-white uppercase mt-2 tracking-tight line-clamp-2">{exp.title}</h5>
+                                        <h5 className="text-sm font-black text-brand-primary dark:text-white uppercase mt-1 tracking-tight line-clamp-2">{exp.title}</h5>
                                     </div>
-                                    <div className="flex items-end justify-between mt-8">
-                                        <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-widest">
+                                    <div className="flex items-end justify-between mt-6 pt-3 border-t border-slate-100 dark:border-white/5">
+                                        <p className="text-[9px] font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider">
                                             <Calendar size={12} className="shrink-0" /> {exp.date}
                                         </p>
-                                        <p className="text-lg font-black text-rose-500 uppercase tracking-tighter">Rs. {exp.amount.toLocaleString()}</p>
+                                        <p className="text-base sm:text-lg font-black text-rose-500 uppercase tracking-tighter">Rs. {exp.amount.toLocaleString()}</p>
                                     </div>
                                 </div>
                             ))

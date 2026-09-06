@@ -243,30 +243,39 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
         onClose();
     };
 
+    const [mobileTab, setMobileTab] = useState<'personal' | 'academic' | 'access'>('personal');
+
     if (!formData.campus && !editTeacher) {
         return (
             <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
-                <div className="relative w-full max-w-2xl bg-white dark:bg-slate-950 rounded-3xl shadow-2xl p-8 border border-slate-200 dark:border-slate-800">
-                    <div className="text-center mb-8">
-                        <h2 className="text-2xl font-black uppercase text-brand-primary tracking-tighter">Campus Registry</h2>
-                        <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-2">Select Faculty Campus Location</p>
+                <div className="relative w-full max-w-lg bg-white dark:bg-slate-950 rounded-3xl shadow-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+                    <div className="text-center mb-6">
+                        <div className="w-12 h-12 bg-brand-primary/10 dark:bg-brand-accent/10 rounded-2xl flex items-center justify-center mx-auto mb-3 text-brand-primary dark:text-brand-accent">
+                            <GraduationCap className="w-6 h-6" />
+                        </div>
+                        <h2 className="text-xl md:text-2xl font-black uppercase text-brand-primary dark:text-brand-accent tracking-tighter">Campus Registry</h2>
+                        <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest mt-1">Select Faculty Campus Location</p>
                     </div>
-                    <div className="grid grid-cols-1 gap-3">
+                    <div className="grid grid-cols-1 gap-2.5 max-h-[50vh] overflow-y-auto custom-scrollbar pr-1">
                         {(campuses && campuses.length > 0 ? campuses : [{ name: 'MAIN CAMPUS', id: 'DEFAULT', idPrefix: 'MAIN' }]).map((c) => (
                             <button
                                 key={c.id}
+                                type="button"
                                 onClick={() => {
                                     const prefix = c.idPrefix || c.id.split('-').pop();
                                     const randomId = Math.floor(1000 + Math.random() * 9000);
                                     setFormData(prev => ({ ...prev, campus: c.name, id: `PST-${prefix}-${randomId}` }));
                                 }}
-                                className={cn("flex items-center justify-between p-4 rounded-2xl border-2 transition-all text-left", formData.campus === c.name ? "border-brand-primary bg-brand-primary/5" : "border-slate-100 hover:border-slate-200")}
+                                className={cn("flex items-center justify-between p-4 rounded-2xl border-2 transition-all text-left", formData.campus === c.name ? "border-brand-primary bg-brand-primary/5 dark:border-brand-accent dark:bg-brand-accent/10" : "border-slate-100 dark:border-slate-800 hover:border-slate-200 dark:hover:border-slate-700")}
                             >
-                                <span className="font-black text-xs uppercase text-brand-primary">{c.name.toUpperCase()}</span>
-                                {formData.campus === c.name && <Check className="text-brand-primary" size={16} />}
+                                <span className="font-black text-xs uppercase text-brand-primary dark:text-white">{c.name.toUpperCase()}</span>
+                                {formData.campus === c.name && <Check className="text-brand-primary dark:text-brand-accent" size={16} />}
                             </button>
                         ))}
+                    </div>
+                    <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                        <button type="button" onClick={onClose} className="px-5 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -274,188 +283,491 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
     }
 
     return (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative w-full max-w-6xl h-[85vh] bg-white dark:bg-slate-950 rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col animate-in zoom-in-95 duration-200">
-                <div className="bg-brand-primary px-5 py-3 text-white flex items-center justify-between shrink-0 border-b-2 border-brand-accent">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center p-1 shadow-sm">
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+            <div className="absolute inset-0" onClick={onClose} />
+            <div className="relative w-full max-w-6xl h-[94vh] sm:h-[88vh] max-h-[900px] bg-white dark:bg-slate-950 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col animate-in zoom-in-95 duration-200 z-10">
+                
+                {/* Header */}
+                <div className="bg-brand-primary px-4 sm:px-6 py-3 text-white flex items-center justify-between shrink-0 border-b-2 border-brand-accent">
+                    <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 sm:w-9 sm:h-9 bg-white rounded-xl flex items-center justify-center p-1 shadow-sm shrink-0">
                             {settings.logo1 ? <img src={settings.logo1} className="w-full h-full object-contain" /> : <GraduationCap className="text-brand-primary w-5 h-5" />}
                         </div>
-                        <div>
-                            <h2 className="font-black text-sm uppercase tracking-tight text-brand-accent">Faculty Profile</h2>
-                            <p className="text-[8px] font-bold opacity-60 uppercase">{formData.campus.toUpperCase()}</p>
+                        <div className="min-w-0">
+                            <h2 className="font-black text-xs sm:text-sm uppercase tracking-tight text-brand-accent truncate">
+                                {editTeacher ? 'Edit Faculty Record' : 'Institutional Faculty Profile'}
+                            </h2>
+                            <p className="text-[7px] sm:text-[8px] font-bold opacity-70 uppercase tracking-widest truncate">{formData.campus.toUpperCase()} • {formData.id || 'NEW'}</p>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-1.5 hover:bg-brand-accent hover:text-brand-primary rounded-lg transition-all"><X className="w-4 h-4" /></button>
+                    <div className="flex items-center gap-2">
+                        <button onClick={onClose} className="p-1.5 sm:p-2 hover:bg-white/10 text-white hover:text-brand-accent rounded-xl transition-all"><X className="w-4 h-4 sm:w-5 sm:h-5" /></button>
+                    </div>
                 </div>
+
+                {/* Mobile Tab Switcher (Visible on < lg) */}
+                <div className="lg:hidden flex items-center bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-1 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setMobileTab('personal')}
+                        className={cn(
+                            "flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5",
+                            mobileTab === 'personal'
+                                ? "bg-white dark:bg-slate-800 text-brand-primary dark:text-brand-accent shadow-sm"
+                                : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                        )}
+                    >
+                        <User className="w-3.5 h-3.5" />
+                        <span>Personnel</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setMobileTab('academic')}
+                        className={cn(
+                            "flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5",
+                            mobileTab === 'academic'
+                                ? "bg-white dark:bg-slate-800 text-brand-primary dark:text-brand-accent shadow-sm"
+                                : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                        )}
+                    >
+                        <GraduationCap className="w-3.5 h-3.5" />
+                        <span>Academic</span>
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setMobileTab('access')}
+                        className={cn(
+                            "flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all flex items-center justify-center gap-1.5",
+                            mobileTab === 'access'
+                                ? "bg-white dark:bg-slate-800 text-brand-primary dark:text-brand-accent shadow-sm"
+                                : "text-slate-500 hover:text-slate-800 dark:text-slate-400"
+                        )}
+                    >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Access & Docs</span>
+                    </button>
+                </div>
+
+                {/* Form Body Container */}
                 <div className="flex-1 flex overflow-hidden lg:flex-row flex-col">
-                    <aside className="lg:w-72 w-full bg-slate-50 dark:bg-slate-900/40 border-r border-slate-200 dark:border-slate-800 flex flex-col p-4 space-y-4 overflow-y-auto">
-                        <div className="bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative group">
-                            <div className="aspect-square rounded-xl relative overflow-hidden bg-slate-100 flex items-center justify-center border-2 border-slate-50">
-                                {isCameraOpen ? <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" /> : teacherPhoto ? <img src={teacherPhoto} className="w-full h-full object-cover" /> : <User className="w-10 h-10 text-slate-300" />}
+                    
+                    {/* Desktop Sidebar (lg:flex) / Mobile Sidebar Elements (controlled by mobileTab) */}
+                    <aside className="hidden lg:flex lg:w-80 bg-slate-50 dark:bg-slate-900/40 border-r border-slate-200 dark:border-slate-800 flex-col p-5 space-y-4 overflow-y-auto custom-scrollbar shrink-0">
+                        
+                        {/* Photo Card */}
+                        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm relative group">
+                            <p className="text-[8px] font-black uppercase text-slate-400 tracking-widest mb-2">Faculty Photo</p>
+                            <div className="w-full aspect-square max-w-[220px] mx-auto rounded-2xl relative overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-700">
+                                {isCameraOpen ? (
+                                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                                ) : teacherPhoto ? (
+                                    <img src={teacherPhoto} className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="flex flex-col items-center gap-2 text-slate-400">
+                                        <User className="w-12 h-12 text-slate-300 dark:text-slate-600" />
+                                        <span className="text-[8px] font-bold uppercase tracking-wider">No Photo</span>
+                                    </div>
+                                )}
                                 {!isCameraOpen && (
-                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2">
-                                        <button type="button" onClick={() => (document.getElementById('teacher-pt-input') as HTMLInputElement).click()} className="p-2 bg-white rounded-lg text-brand-primary"><Upload size={14} /></button>
-                                        <button type="button" onClick={startCamera} className="p-2 bg-brand-accent rounded-lg text-brand-primary"><Camera size={14} /></button>
+                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2 backdrop-blur-[2px]">
+                                        <button type="button" onClick={() => (document.getElementById('teacher-pt-input') as HTMLInputElement)?.click()} className="px-3 py-2 bg-white text-brand-primary rounded-xl text-[9px] font-black uppercase shadow-lg flex items-center gap-1.5 hover:bg-brand-accent transition-colors">
+                                            <Upload size={12} /> Upload
+                                        </button>
+                                        <button type="button" onClick={startCamera} className="p-2 bg-brand-accent text-brand-primary rounded-xl shadow-lg hover:bg-yellow-300 transition-colors">
+                                            <Camera size={14} />
+                                        </button>
                                     </div>
                                 )}
                             </div>
                             <input type="file" id="teacher-pt-input" className="hidden" accept="image/*" onChange={handlePhotoChange} />
-                            {isCameraOpen && (
-                                <div className="mt-2 flex gap-1 h-8">
-                                    <button type="button" onClick={capturePhoto} className="flex-1 bg-emerald-500 text-white rounded-lg text-[8px] font-black uppercase">Capture</button>
-                                    <button type="button" onClick={stopCamera} className="w-8 bg-rose-500 text-white rounded-lg flex items-center justify-center"><X size={12} /></button>
+                            
+                            {isCameraOpen ? (
+                                <div className="mt-3 flex gap-2">
+                                    <button type="button" onClick={capturePhoto} className="flex-1 py-2 bg-emerald-500 text-white rounded-xl text-[9px] font-black uppercase tracking-wider hover:bg-emerald-600 transition-colors">Capture</button>
+                                    <button type="button" onClick={stopCamera} className="px-3 py-2 bg-rose-500 text-white rounded-xl flex items-center justify-center hover:bg-rose-600 transition-colors"><X size={14} /></button>
+                                </div>
+                            ) : (
+                                <div className="mt-3 flex gap-2 lg:hidden">
+                                    <button type="button" onClick={() => (document.getElementById('teacher-pt-input') as HTMLInputElement)?.click()} className="flex-1 py-2 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[8px] font-black uppercase flex items-center justify-center gap-1">
+                                        <Upload size={12} /> Upload
+                                    </button>
+                                    <button type="button" onClick={startCamera} className="flex-1 py-2 bg-brand-primary text-brand-accent rounded-xl text-[8px] font-black uppercase flex items-center justify-center gap-1">
+                                        <Camera size={12} /> Camera
+                                    </button>
                                 </div>
                             )}
                         </div>
-                        <div className="p-3 bg-slate-900 rounded-2xl text-white shadow-lg border-t-4 border-brand-accent space-y-3">
-                            <div className="text-center">
-                                <h5 className="font-black text-[10px] uppercase tracking-tighter text-brand-accent truncate">{formData.name || 'FACULTY NAME'}</h5>
-                                <p className="text-[7px] font-bold text-slate-500 uppercase">{formData.role}</p>
+
+                        {/* Portal Credentials Live Card */}
+                        <div className="p-4 bg-slate-900 rounded-2xl text-white shadow-xl border-t-4 border-brand-accent space-y-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[7px] font-black text-brand-accent uppercase tracking-widest">PORTAL BADGE</span>
+                                <span className="text-[7px] font-bold text-slate-400 uppercase">{formData.role}</span>
                             </div>
-                            <div className="space-y-1.5 bg-white/5 p-2.5 rounded-xl border border-white/5">
-                                <div className="flex justify-between text-[7px] font-black font-mono">
-                                    <span className="text-slate-500 uppercase">PORTAL ID</span>
-                                    <span className="text-brand-accent truncate ml-2">{formData.username || '...'}</span>
+                            <h5 className="font-black text-xs uppercase tracking-tight text-white truncate">{formData.name || 'FACULTY NAME'}</h5>
+                            <div className="space-y-2 bg-white/5 p-3 rounded-xl border border-white/5">
+                                <div className="flex justify-between items-center text-[8px] font-mono">
+                                    <span className="text-slate-400 uppercase">PORTAL ID</span>
+                                    <span className="text-brand-accent font-bold truncate ml-2">{formData.username || '...'}</span>
                                 </div>
-                                <div className="flex justify-between text-[7px] font-black font-mono">
-                                    <span className="text-slate-500 uppercase">KEY</span>
-                                    <span className="text-brand-accent">{formData.password || '••••'}</span>
+                                <div className="flex justify-between items-center text-[8px] font-mono">
+                                    <span className="text-slate-400 uppercase">KEY</span>
+                                    <span className="text-brand-accent font-bold tracking-widest">{formData.password || '••••'}</span>
                                 </div>
                             </div>
                         </div>
-                        <div className="space-y-1.5">
-                            <h6 className="text-[7px] font-black uppercase tracking-widest text-slate-400">Inventory</h6>
+
+                        {/* Documents / Inventory */}
+                        <div className="space-y-2 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800">
+                            <div className="flex items-center justify-between mb-1">
+                                <h6 className="text-[8px] font-black uppercase tracking-widest text-slate-400">Inventory</h6>
+                                <span className="text-[7px] font-bold text-slate-400 uppercase">{Object.keys(uploadedDocs).length}/3 attached</span>
+                            </div>
                             {['CNIC', 'Graduation', 'Experience'].map(doc => (
-                                <div key={doc} className="flex items-center justify-between p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                    <span className="text-[8px] font-black uppercase text-slate-600 truncate">{doc}</span>
-                                    {uploadedDocs[doc] ? <Check size={10} className="text-emerald-500" /> : (
-                                        <button type="button" onClick={() => (document.getElementById(`doc-up-${doc}`) as HTMLInputElement).click()} className="text-slate-300"><Upload size={10} /></button>
+                                <div key={doc} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/50">
+                                    <div className="min-w-0 flex-1">
+                                        <span className="text-[9px] font-black uppercase text-slate-700 dark:text-slate-300 block truncate">{doc}</span>
+                                    </div>
+                                    {uploadedDocs[doc] ? (
+                                        <span className="flex items-center gap-1 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                                            <Check size={10} /> Attached
+                                        </span>
+                                    ) : (
+                                        <button type="button" onClick={() => (document.getElementById(`doc-up-${doc}`) as HTMLInputElement)?.click()} className="flex items-center gap-1 text-[8px] font-bold text-brand-primary dark:text-brand-accent bg-brand-primary/5 hover:bg-brand-primary/10 px-2 py-1 rounded-md transition-colors">
+                                            <Upload size={10} /> Upload
+                                        </button>
                                     )}
                                     <input type="file" id={`doc-up-${doc}`} className="hidden" onChange={(e) => handleDocUpload(doc, e)} />
                                 </div>
                             ))}
                         </div>
                     </aside>
-                    <main className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+
+                    {/* Main Form Content */}
+                    <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6 custom-scrollbar">
                         <form id="faculty-form" onSubmit={handleSubmit} className="space-y-6">
-                            <section className="space-y-4">
-                                <div className="flex items-center gap-2 border-l-2 border-brand-accent pl-2 h-3">
-                                    <h4 className="text-[10px] font-black uppercase text-brand-primary">Personnel Registry</h4>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    {[
-                                        { label: 'Full Name *', name: 'name' },
-                                        { label: 'Father Name', name: 'fatherName' },
-                                        { label: 'CNIC', name: 'cnic' },
-                                        { label: 'DOB', name: 'dob', type: 'date' },
-                                        { label: 'Teacher ID *', name: 'id' }
-                                    ].map(field => (
-                                        <div key={field.name} className="space-y-1">
-                                            <label className="text-[7px] font-black uppercase text-slate-400 tracking-widest">{field.label}</label>
-                                            <input name={field.name} type={field.type || 'text'} value={(formData as any)[field.name]} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-2 ring-blue-500/10" />
+
+                            {/* MOBILE SECTION 1: PERSONNEL INFO */}
+                            <div className={cn("space-y-5", mobileTab !== 'personal' && "hidden lg:block")}>
+                                
+                                {/* Mobile Avatar Section */}
+                                <div className="lg:hidden bg-slate-50 dark:bg-slate-900/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center gap-4">
+                                    <div className="w-24 h-24 rounded-2xl relative overflow-hidden bg-white dark:bg-slate-800 flex items-center justify-center border-2 border-brand-primary/20 shrink-0 shadow-sm">
+                                        {isCameraOpen ? (
+                                            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+                                        ) : teacherPhoto ? (
+                                            <img src={teacherPhoto} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <User className="w-10 h-10 text-slate-300" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 text-center sm:text-left space-y-2 w-full">
+                                        <div>
+                                            <h4 className="text-xs font-black uppercase text-brand-primary dark:text-brand-accent">Faculty Photo</h4>
+                                            <p className="text-[8px] text-slate-400 font-bold uppercase">Upload passport size picture or use live camera</p>
                                         </div>
-                                    ))}
-                                    {[
-                                        { label: 'WhatsApp', name: 'whatsappNumber' },
-                                        { label: 'Email', name: 'email' },
-                                        { label: 'Campus *', name: 'campus', type: 'select', options: ['', ...campuses.map(c => c.name)] },
-                                        { label: 'Gender', name: 'gender', type: 'select', options: ['Male', 'Female'] },
-                                        { label: 'Status *', name: 'status', type: 'select', options: ['Active', 'On Leave'] }
-                                    ].map(field => (
-                                        <div key={field.name} className="space-y-1">
-                                            <label className="text-[7px] font-black uppercase text-slate-400 tracking-widest">{field.label}</label>
-                                            {field.type === 'select' ? (
-                                                <select name={field.name} value={(formData as any)[field.name]} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none">
-                                                    {field.options?.map(o => <option key={o} value={o}>{o}</option>)}
-                                                </select>
-                                            ) : (
-                                                <input name={field.name} value={(formData as any)[field.name]} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none focus:ring-2 ring-blue-500/10" />
-                                            )}
+                                        {isCameraOpen ? (
+                                            <div className="flex gap-2">
+                                                <button type="button" onClick={capturePhoto} className="flex-1 py-1.5 bg-emerald-500 text-white rounded-lg text-[8px] font-black uppercase tracking-wider">Take Snapshot</button>
+                                                <button type="button" onClick={stopCamera} className="px-3 py-1.5 bg-rose-500 text-white rounded-lg"><X size={12} /></button>
+                                            </div>
+                                        ) : (
+                                            <div className="flex gap-2 justify-center sm:justify-start">
+                                                <button type="button" onClick={() => (document.getElementById('teacher-pt-input-mob') as HTMLInputElement)?.click()} className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-[8px] font-black uppercase flex items-center gap-1.5 shadow-sm">
+                                                    <Upload size={12} /> Choose Image
+                                                </button>
+                                                <button type="button" onClick={startCamera} className="px-3 py-1.5 bg-brand-primary text-brand-accent rounded-lg text-[8px] font-black uppercase flex items-center gap-1.5 shadow-sm">
+                                                    <Camera size={12} /> Camera
+                                                </button>
+                                                <input type="file" id="teacher-pt-input-mob" className="hidden" accept="image/*" onChange={handlePhotoChange} />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <section className="space-y-3">
+                                    <div className="flex items-center gap-2 border-l-3 border-brand-accent pl-2.5">
+                                        <h4 className="text-xs font-black uppercase text-brand-primary dark:text-brand-accent tracking-tight">Personnel Particulars</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        {[
+                                            { label: 'Full Name *', name: 'name', placeholder: 'e.g. Mr. Muhammad Basit' },
+                                            { label: 'Father / Guardian Name', name: 'fatherName', placeholder: 'Father Name' },
+                                            { label: 'CNIC Number', name: 'cnic', placeholder: '37101-xxxxxxx-x' },
+                                            { label: 'Date of Birth', name: 'dob', type: 'date' },
+                                            { label: 'Teacher / Staff ID *', name: 'id', placeholder: 'PST-MAIN-1001' },
+                                            { label: 'Residential Address', name: 'address', placeholder: 'Full home address' }
+                                        ].map(field => (
+                                            <div key={field.name} className="space-y-1">
+                                                <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">{field.label}</label>
+                                                <input
+                                                    name={field.name}
+                                                    type={field.type || 'text'}
+                                                    value={(formData as any)[field.name]}
+                                                    onChange={handleInputChange}
+                                                    placeholder={field.placeholder}
+                                                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+
+                                <section className="space-y-3 pt-2">
+                                    <div className="flex items-center gap-2 border-l-3 border-brand-accent pl-2.5">
+                                        <h4 className="text-xs font-black uppercase text-brand-primary dark:text-brand-accent tracking-tight">Communications & Status</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Phone Number</label>
+                                            <input name="phone" value={formData.phone} onChange={handleInputChange} placeholder="03xx-xxxxxxx" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white" />
                                         </div>
-                                    ))}
-                                </div>
-                            </section>
-                            <section className="space-y-4">
-                                <div className="flex items-center gap-2 border-l-2 border-brand-accent pl-2 h-3">
-                                    <h4 className="text-[10px] font-black uppercase text-brand-primary">Professional Record</h4>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[7px] font-black uppercase text-slate-400">Department *</label>
-                                        <select name="subject" value={formData.subject} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none">
-                                            <option value="">Select Category</option>
-                                            <optgroup label="Academic Faculty">
-                                                {['Preschool Teacher', 'Junior Teacher', 'Senior Teacher', 'Lecturer', 'Professor', 'PT Instructor', 'Lab Incharge'].map(s => <option key={s} value={s}>{s}</option>)}
-                                            </optgroup>
-                                            <optgroup label="Administrative Staff">
-                                                {['Principal', 'Vice Principal', 'Section Head', 'Accountant', 'Admin Officer', 'Librarian', 'Clerk'].map(s => <option key={s} value={s}>{s}</option>)}
-                                            </optgroup>
-                                            <optgroup label="Technical & Support">
-                                                {['IT Support', 'Security Guard', 'Driver', 'Sweeper', 'Gardener', 'Helper'].map(s => <option key={s} value={s}>{s}</option>)}
-                                            </optgroup>
-                                        </select>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">WhatsApp Number</label>
+                                            <input name="whatsappNumber" value={formData.whatsappNumber} onChange={handleInputChange} placeholder="03xx-xxxxxxx" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Email Address</label>
+                                            <input name="email" type="email" value={formData.email} onChange={handleInputChange} placeholder="name@institution.edu" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Campus *</label>
+                                            <select name="campus" value={formData.campus} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white">
+                                                <option value="">Select Campus</option>
+                                                {campuses.map(c => <option key={c.id} value={c.name}>{c.name.toUpperCase()}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Gender</label>
+                                            <select name="gender" value={formData.gender} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white">
+                                                <option value="Male">Male</option>
+                                                <option value="Female">Female</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Marital Status</label>
+                                            <select name="maritalStatus" value={formData.maritalStatus} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white">
+                                                <option value="Single">Single</option>
+                                                <option value="Married">Married</option>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Staff Status *</label>
+                                            <select name="status" value={formData.status} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white">
+                                                <option value="Active">Active</option>
+                                                <option value="On Leave">On Leave</option>
+                                                <option value="Resigned">Resigned</option>
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[7px] font-black uppercase text-slate-400">Qualification</label>
-                                        <input name="qualification" value={formData.qualification} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[7px] font-black uppercase text-slate-400">Experience</label>
-                                        <input name="experience" value={formData.experience} onChange={handleInputChange} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-1.5 text-[10px] font-bold outline-none" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[7px] font-black uppercase text-slate-400">Set Role</label>
-                                        <select name="role" value={formData.role} onChange={handleInputChange} className="w-full bg-brand-primary/5 border border-brand-primary/20 text-brand-primary rounded-lg px-2 py-1.5 text-[10px] font-black uppercase outline-none">
-                                            {Object.keys(ROLE_PRESETS).map(r => <option key={r} value={r}>{r}</option>)}
-                                        </select>
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[7px] font-black uppercase text-amber-600 font-outfit tracking-widest">Base Salary (PKR)</label>
-                                        <input name="baseSalary" type="number" value={formData.baseSalary} onChange={handleInputChange} className="w-full bg-amber-500/5 border border-amber-500/20 text-amber-700 dark:text-yellow-400 rounded-lg px-2 py-1.5 text-[10px] font-black outline-none focus:ring-2 ring-amber-500/10" placeholder="0" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[7px] font-black uppercase text-emerald-600">Class Incharge</label>
-                                        <select name="inchargeClass" value={formData.inchargeClass} onChange={handleInputChange} className="w-full bg-emerald-500/5 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-lg px-2 py-1.5 text-[10px] font-black uppercase outline-none">
-                                            <option value="">None</option>
-                                            {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
-                            </section>
-                            <section className="space-y-4">
-                                <div className="flex items-center gap-2 border-l-2 border-brand-accent pl-2 h-3">
-                                    <h4 className="text-[10px] font-black uppercase text-brand-primary">System Access Registry</h4>
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                                    <div className="space-y-1">
-                                        <label className="text-[7px] font-black uppercase text-slate-400">Portal ID (Username)</label>
-                                        <input name="username" value={formData.username} onChange={handleInputChange} className="w-full bg-brand-primary/5 border border-brand-primary/10 text-brand-primary rounded-lg px-2 py-1.5 text-[10px] font-black outline-none" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[7px] font-black uppercase text-slate-400">Key (Password)</label>
-                                        <input name="password" value={formData.password} onChange={handleInputChange} className="w-full bg-brand-primary/5 border border-brand-primary/10 text-brand-primary rounded-lg px-2 py-1.5 text-[10px] font-black outline-none" />
-                                    </div>
-                                </div>
-                            </section>
-                            <section className="space-y-3">
-                                <h4 className="text-[9px] font-black uppercase text-slate-400">Privileges</h4>
-                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
-                                    {PERMISSIONS.map(p => (
-                                        <button key={p.id} type="button" onClick={() => togglePermission(p.id)} className={cn("flex items-center gap-2 p-2 rounded-xl border-2 transition-all", formData.permissions.includes(p.id) ? "border-brand-primary bg-brand-primary/5" : "border-slate-50 opacity-40")}>
-                                            <div className={cn("w-5 h-5 rounded flex items-center justify-center", formData.permissions.includes(p.id) ? "bg-brand-primary text-brand-accent" : "bg-white border")}><Check size={10} strokeWidth={4} /></div>
-                                            <span className="text-[8px] font-black uppercase text-brand-primary truncate">{p.label}</span>
+                                </section>
+
+                                {mobileTab === 'personal' && (
+                                    <div className="lg:hidden pt-4 flex justify-end">
+                                        <button
+                                            type="button"
+                                            onClick={() => setMobileTab('academic')}
+                                            className="px-6 py-2.5 bg-brand-primary text-brand-accent rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg"
+                                        >
+                                            Next: Academic Info →
                                         </button>
-                                    ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* MOBILE SECTION 2: ACADEMIC & PROFESSIONAL */}
+                            <div className={cn("space-y-5", mobileTab !== 'academic' && "hidden lg:block")}>
+                                <section className="space-y-3">
+                                    <div className="flex items-center gap-2 border-l-3 border-brand-accent pl-2.5">
+                                        <h4 className="text-xs font-black uppercase text-brand-primary dark:text-brand-accent tracking-tight">Professional & Academic Profile</h4>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Department / Designation *</label>
+                                            <select name="subject" value={formData.subject} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white">
+                                                <option value="">Select Category</option>
+                                                <optgroup label="Academic Faculty">
+                                                    {['Preschool Teacher', 'Junior Teacher', 'Senior Teacher', 'Lecturer', 'Professor', 'PT Instructor', 'Lab Incharge'].map(s => <option key={s} value={s}>{s}</option>)}
+                                                </optgroup>
+                                                <optgroup label="Administrative Staff">
+                                                    {['Principal', 'Vice Principal', 'Section Head', 'Accountant', 'Admin Officer', 'Librarian', 'Clerk'].map(s => <option key={s} value={s}>{s}</option>)}
+                                                </optgroup>
+                                                <optgroup label="Technical & Support">
+                                                    {['IT Support', 'Security Guard', 'Driver', 'Sweeper', 'Gardener', 'Helper'].map(s => <option key={s} value={s}>{s}</option>)}
+                                                </optgroup>
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Qualification Degree</label>
+                                            <input name="qualification" value={formData.qualification} onChange={handleInputChange} placeholder="e.g. M.Sc / M.Phil" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">Experience (Years / History)</label>
+                                            <input name="experience" value={formData.experience} onChange={handleInputChange} placeholder="e.g. 5 Years in Senior School" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold outline-none focus:ring-2 ring-brand-primary/20 dark:text-white" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-wider block">System Role Preset</label>
+                                            <select name="role" value={formData.role} onChange={handleInputChange} className="w-full bg-brand-primary/5 dark:bg-white/5 border border-brand-primary/20 dark:border-white/10 text-brand-primary dark:text-brand-accent rounded-xl px-3 py-2 text-xs font-black uppercase outline-none">
+                                                {Object.keys(ROLE_PRESETS).map(r => <option key={r} value={r}>{r}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-amber-600 dark:text-amber-400 tracking-wider block">Base Salary (PKR)</label>
+                                            <input name="baseSalary" type="number" value={formData.baseSalary} onChange={handleInputChange} placeholder="0" className="w-full bg-amber-500/5 dark:bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-yellow-400 rounded-xl px-3 py-2 text-xs font-black outline-none focus:ring-2 ring-amber-500/20" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-emerald-600 dark:text-emerald-400 tracking-wider block">Class Incharge</label>
+                                            <select name="inchargeClass" value={formData.inchargeClass} onChange={handleInputChange} className="w-full bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-xl px-3 py-2 text-xs font-black uppercase outline-none">
+                                                <option value="">None (General Staff)</option>
+                                                {allClasses.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {mobileTab === 'academic' && (
+                                    <div className="lg:hidden pt-4 flex items-center justify-between">
+                                        <button
+                                            type="button"
+                                            onClick={() => setMobileTab('personal')}
+                                            className="px-4 py-2 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase"
+                                        >
+                                            ← Previous
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setMobileTab('access')}
+                                            className="px-6 py-2.5 bg-brand-primary text-brand-accent rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center gap-2 shadow-lg"
+                                        >
+                                            Next: Access & Docs →
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* MOBILE SECTION 3: SYSTEM ACCESS & INVENTORY */}
+                            <div className={cn("space-y-5", mobileTab !== 'access' && "hidden lg:block")}>
+                                
+                                {/* Credentials Box on Mobile */}
+                                <div className="lg:hidden p-4 bg-slate-900 rounded-2xl text-white shadow-xl border-t-4 border-brand-accent space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[8px] font-black text-brand-accent uppercase tracking-widest">Portal Credentials</span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase">{formData.role}</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[7px] font-black uppercase text-slate-400 tracking-wider">Portal Username (ID)</label>
+                                            <input name="username" value={formData.username} onChange={handleInputChange} className="w-full bg-white/10 border border-white/10 text-brand-accent font-mono font-bold rounded-xl px-3 py-2 text-xs outline-none" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[7px] font-black uppercase text-slate-400 tracking-wider">Portal Password (Key)</label>
+                                            <input name="password" value={formData.password} onChange={handleInputChange} className="w-full bg-white/10 border border-white/10 text-brand-accent font-mono font-bold rounded-xl px-3 py-2 text-xs outline-none" />
+                                        </div>
+                                    </div>
                                 </div>
-                            </section>
-                            <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
-                                <span className="text-[7px] font-black text-slate-300 uppercase">Institutional Registry • 2026</span>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={onClose} className="px-4 py-2 text-[9px] font-black uppercase text-slate-400">Abort</button>
-                                    <button type="submit" form="faculty-form" className="px-6 py-2 bg-brand-primary text-brand-accent rounded-lg text-[9px] font-black uppercase shadow-lg active:scale-95 border border-brand-accent/20 flex items-center gap-2">
-                                        <Save size={12} /> Commit Profile
+
+                                <section className="hidden lg:block space-y-3">
+                                    <div className="flex items-center gap-2 border-l-3 border-brand-accent pl-2.5">
+                                        <h4 className="text-xs font-black uppercase text-brand-primary dark:text-brand-accent tracking-tight">System Access Registry</h4>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400">Portal ID (Username)</label>
+                                            <input name="username" value={formData.username} onChange={handleInputChange} className="w-full bg-brand-primary/5 dark:bg-white/5 border border-brand-primary/10 dark:border-white/10 text-brand-primary dark:text-brand-accent font-mono font-black rounded-xl px-3 py-2 text-xs outline-none" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[8px] font-black uppercase text-slate-500 dark:text-slate-400">Key (Password)</label>
+                                            <input name="password" value={formData.password} onChange={handleInputChange} className="w-full bg-brand-primary/5 dark:bg-white/5 border border-brand-primary/10 dark:border-white/10 text-brand-primary dark:text-brand-accent font-mono font-black rounded-xl px-3 py-2 text-xs outline-none" />
+                                        </div>
+                                    </div>
+                                </section>
+
+                                {/* Privileges Matrix */}
+                                <section className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 tracking-tight">System Privileges & Permissions</h4>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase">{formData.permissions.length} selected</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                        {PERMISSIONS.map(p => {
+                                            const isChecked = formData.permissions.includes(p.id);
+                                            return (
+                                                <button
+                                                    key={p.id}
+                                                    type="button"
+                                                    onClick={() => togglePermission(p.id)}
+                                                    className={cn(
+                                                        "flex items-center gap-2.5 p-2.5 rounded-xl border-2 transition-all text-left",
+                                                        isChecked
+                                                            ? "border-brand-primary bg-brand-primary/5 dark:border-brand-accent dark:bg-brand-accent/10"
+                                                            : "border-slate-100 dark:border-slate-800 opacity-60 hover:opacity-100"
+                                                    )}
+                                                >
+                                                    <div className={cn(
+                                                        "w-5 h-5 rounded-lg flex items-center justify-center shrink-0 transition-all",
+                                                        isChecked
+                                                            ? "bg-brand-primary dark:bg-brand-accent text-brand-accent dark:text-slate-950"
+                                                            : "bg-slate-100 dark:bg-slate-800 text-transparent"
+                                                    )}>
+                                                        <Check size={12} strokeWidth={3} />
+                                                    </div>
+                                                    <div className="min-w-0">
+                                                        <span className="text-[9px] font-black uppercase text-slate-800 dark:text-white block truncate">{p.label}</span>
+                                                        <span className="text-[7px] text-slate-400 block truncate">{p.description}</span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </section>
+
+                                {/* Mobile Document Inventory */}
+                                <section className="lg:hidden space-y-3 pt-2">
+                                    <div className="flex items-center justify-between">
+                                        <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 tracking-tight">Document Attachments</h4>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase">{Object.keys(uploadedDocs).length}/3</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        {['CNIC', 'Graduation', 'Experience'].map(doc => (
+                                            <div key={doc} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                                <span className="text-[9px] font-black uppercase text-slate-700 dark:text-slate-300">{doc}</span>
+                                                {uploadedDocs[doc] ? (
+                                                    <span className="flex items-center gap-1 text-[8px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-md">
+                                                        <Check size={10} /> Attached
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => (document.getElementById(`doc-up-mob-${doc}`) as HTMLInputElement)?.click()}
+                                                        className="flex items-center gap-1 text-[8px] font-bold text-brand-primary dark:text-brand-accent bg-brand-primary/5 px-2.5 py-1 rounded-lg"
+                                                    >
+                                                        <Upload size={10} /> Upload
+                                                    </button>
+                                                )}
+                                                <input type="file" id={`doc-up-mob-${doc}`} className="hidden" onChange={(e) => handleDocUpload(doc, e)} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </section>
+                            </div>
+
+                            {/* Sticky / Floating Commit Action Bar for all screens */}
+                            <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                                <span className="hidden sm:inline text-[8px] font-black text-slate-400 uppercase tracking-widest">Official HR Matrix • 2026</span>
+                                <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={onClose}
+                                        className="flex-1 sm:flex-none px-4 py-2.5 text-[9px] font-black uppercase tracking-wider text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white rounded-xl transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        form="faculty-form"
+                                        className="flex-1 sm:flex-none px-6 py-2.5 bg-brand-primary dark:bg-brand-accent text-brand-accent dark:text-slate-950 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl active:scale-95 flex items-center justify-center gap-2 hover:opacity-90 transition-all"
+                                    >
+                                        <Save size={14} /> Commit Profile
                                     </button>
                                 </div>
                             </div>

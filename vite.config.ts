@@ -12,6 +12,9 @@ export default defineConfig({
   ],
   server: {
     host: true,
+    watch: {
+      ignored: ['**/android/**', '**/*.apk', '**/dist/**', '**/.git/**']
+    },
     proxy: {
       '/socket.io': {
         target: 'http://localhost:3001',
