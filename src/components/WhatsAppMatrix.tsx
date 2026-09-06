@@ -17,12 +17,12 @@ export const WhatsAppMatrix = () => {
     const { students, teachers, settings } = useStore();
     const DEFAULT_CLOUD_SERVER = 'https://school-system-tzkq.onrender.com';
     const [serverUrl, setServerUrl] = useState<string>(() => {
-        return localStorage.getItem('wa_server_url') || (window.location.hostname === 'localhost' ? '' : DEFAULT_CLOUD_SERVER);
+        return localStorage.getItem('wa_server_url') || DEFAULT_CLOUD_SERVER;
     });
 
     const getEffectiveServerUrl = () => {
         if (serverUrl && serverUrl.trim()) return serverUrl.trim().replace(/\/+$/, '');
-        return window.location.origin;
+        return DEFAULT_CLOUD_SERVER;
     };
 
     const [status, setStatus] = useState<'IDLE' | 'QR' | 'CONNECTED' | 'DISCONNECTED'>('IDLE');
@@ -41,26 +41,57 @@ export const WhatsAppMatrix = () => {
 
     useEffect(() => {
         const targetUrl = getEffectiveServerUrl();
+
+        // Immediate HTTP Status Check on mount
+        const checkImmediateStatus = async () => {
+            try {
+                const res = await fetch(`${targetUrl}/status`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 'ACTIVE' || data.status === 'CONNECTED') {
+                        setStatus('CONNECTED');
+                        setQrCode(null);
+                        addLog('24/7 Cloud Gateway is Active & Authenticated', 'success');
+                    }
+                }
+            } catch (e) {
+                console.warn('Initial status check failed, socket will connect:', e);
+            }
+        };
+        checkImmediateStatus();
+
         const newSocket = io(targetUrl, {
             path: '/socket.io',
-            transports: ['websocket', 'polling']
+            transports: ['websocket', 'polling'],
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000,
+            timeout: 20000
         });
 
         newSocket.on('connect', () => {
-            addLog(`Connected to WhatsApp server (${targetUrl})`, 'info');
+            addLog(`Auto-connected to Cloud WhatsApp Server`, 'info');
         });
 
         newSocket.on('qr', (qr: string) => {
-            setQrCode(qr);
-            setStatus('QR');
-            addLog('New connection QR code generated', 'warning');
+            setStatus(prev => {
+                if (prev === 'CONNECTED') return prev;
+                setQrCode(qr);
+                addLog('Pairing QR code generated', 'warning');
+                return 'QR';
+            });
         });
 
         newSocket.on('status', (newStatus: string) => {
-            setStatus(newStatus as any);
-            if (newStatus === 'CONNECTED') {
+            if (newStatus === 'CONNECTED' || newStatus === 'ACTIVE') {
+                setStatus('CONNECTED');
                 setQrCode(null);
-                addLog('WhatsApp connected successfully', 'success');
+                addLog('WhatsApp Cloud Session Connected', 'success');
+            } else if (newStatus === 'QR') {
+                setStatus('QR');
+            } else if (newStatus === 'DISCONNECTED') {
+                setStatus('DISCONNECTED');
+                setQrCode(null);
             }
         });
 
@@ -70,7 +101,22 @@ export const WhatsAppMatrix = () => {
 
         setSocket(newSocket);
 
+        // Fallback polling every 20s to ensure connection stays verified
+        const interval = setInterval(async () => {
+            try {
+                const res = await fetch(`${targetUrl}/status`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.status === 'ACTIVE') {
+                        setStatus('CONNECTED');
+                        setQrCode(null);
+                    }
+                }
+            } catch (e) { }
+        }, 20000);
+
         return () => {
+            clearInterval(interval);
             newSocket.close();
         };
     }, [serverUrl]);
@@ -329,18 +375,19 @@ export const WhatsAppMatrix = () => {
 
     const handleChangeServer = async () => {
         const result = await Swal.fire({
-            title: 'WhatsApp Server Configuration',
+            title: 'WhatsApp Cloud Server Configuration',
             html: `
                 <div class="text-left space-y-3 font-outfit p-1">
-                    <p class="text-xs text-slate-500 font-medium">Enter your 24/7 Cloud Server URL (Render / VPS) or leave empty for localhost:</p>
+                    <p class="text-xs text-slate-500 font-medium">Active 24/7 Cloud Gateway URL:</p>
                     <input id="swal-server-url" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm border-slate-200" value="${serverUrl}" placeholder="https://school-system-tzkq.onrender.com">
+                    <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Default: https://school-system-tzkq.onrender.com</p>
                 </div>
             `,
             showCancelButton: true,
             confirmButtonText: 'Save & Connect',
             confirmButtonColor: '#003366',
             showDenyButton: true,
-            denyButtonText: 'Use 24/7 Cloud',
+            denyButtonText: 'Reset Default Cloud',
             denyButtonColor: '#10b981',
             preConfirm: () => {
                 return (document.getElementById('swal-server-url') as HTMLInputElement).value.trim();
@@ -348,14 +395,14 @@ export const WhatsAppMatrix = () => {
         });
 
         if (result.isConfirmed) {
-            const newUrl = result.value || '';
+            const newUrl = result.value || DEFAULT_CLOUD_SERVER;
             setServerUrl(newUrl);
             localStorage.setItem('wa_server_url', newUrl);
-            addLog(`Server URL set to: ${newUrl || 'Local Origin'}`, 'info');
+            addLog(`Cloud Server set to: ${newUrl}`, 'info');
         } else if (result.isDenied) {
             setServerUrl(DEFAULT_CLOUD_SERVER);
             localStorage.setItem('wa_server_url', DEFAULT_CLOUD_SERVER);
-            addLog(`Switched to default 24/7 Cloud Server`, 'success');
+            addLog(`Switched to default 24/7 Cloud Gateway`, 'success');
         }
     };
 
@@ -389,11 +436,11 @@ export const WhatsAppMatrix = () => {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handleChangeServer}
-                        className="px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-all flex items-center gap-1.5 shadow-sm"
-                        title="Click to edit Cloud WhatsApp Server URL"
+                        className="px-4 py-2.5 rounded-full text-[10px] font-black uppercase tracking-[0.15em] bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-all flex items-center gap-1.5 shadow-sm"
+                        title="24/7 Cloud Server Config"
                     >
                         <Settings size={12} />
-                        <span>{serverUrl ? '☁️ Cloud Server' : '💻 Local Server'}</span>
+                        <span>☁️ Cloud Gateway</span>
                     </button>
 
                     <motion.div

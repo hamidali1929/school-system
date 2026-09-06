@@ -34,19 +34,24 @@ const io = new Server(server, {
     }
 });
 
-io.on('connection', (socket) => {
-    console.log('Client connected to socket');
-    if (lastQr) socket.emit('qr', lastQr);
-    const sock = sessions.get('admin');
-    if (sock && sock.user) {
-        socket.emit('status', 'CONNECTED');
-    }
-});
-
 const sessions = new Map();
 const messageQueue = [];
 let isProcessingQueue = false;
 let lastQr = null;
+
+io.on('connection', (socket) => {
+    console.log('Client connected to socket');
+    const sock = sessions.get('admin');
+    if (sock && sock.user) {
+        lastQr = null;
+        socket.emit('status', 'CONNECTED');
+    } else if (lastQr) {
+        socket.emit('qr', lastQr);
+        socket.emit('status', 'QR');
+    } else {
+        socket.emit('status', 'INITIALIZING');
+    }
+});
 
 async function processQueue() {
     if (isProcessingQueue || messageQueue.length === 0) return;
@@ -144,6 +149,7 @@ async function startWhatsAppSession(id = 'admin') {
             }
         } else if (connection === 'open') {
             logToFile('WhatsApp Connected!');
+            lastQr = null;
             io.emit('status', 'CONNECTED');
             io.emit('system_log', 'WhatsApp Session Established Successfully');
         }
