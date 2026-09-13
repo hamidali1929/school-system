@@ -21,12 +21,15 @@ import {
     CheckCircle,
     School,
     ChevronRight,
-    ChevronLeft
+    ChevronLeft,
+    Search,
+    Sparkles
 } from 'lucide-react';
 import { useStore, type Student, type AcademicRecord } from '../context/StoreContext';
 import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
 import { FeeVoucher } from './FeeVoucher';
+import { compressImage } from '../utils/imageCompressor';
 
 interface AdmissionFormProps {
     editStudent?: Student;
@@ -85,8 +88,20 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
         miscellaneousCharges: 0,
         documents: {},
         manualId: editStudent?.id || '',
-        ...editStudent
+        ...editStudent,
+        avatar: editStudent?.avatar && editStudent.avatar.length > 5 ? editStudent.avatar : ''
     });
+
+    // Re-sync form data whenever editStudent changes
+    useEffect(() => {
+        if (editStudent) {
+            setFormData({
+                ...editStudent,
+                manualId: editStudent.id || '',
+                avatar: editStudent.avatar && editStudent.avatar.length > 5 ? editStudent.avatar : ''
+            });
+        }
+    }, [editStudent]);
 
     // Auto-generate next sequential number for manualId
     useEffect(() => {
@@ -172,6 +187,65 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
         setFormData(prev => ({ ...prev, academicRecords: updatedRecords }));
     };
 
+    const [alumniSearch, setAlumniSearch] = useState('');
+    const [showAlumniResults, setShowAlumniResults] = useState(false);
+
+    const filteredAlumni = useMemo(() => {
+        if (!alumniSearch.trim()) return [];
+        const q = alumniSearch.toLowerCase().trim();
+        return students.filter(s =>
+            (s.name?.toLowerCase().includes(q) ||
+             s.id?.toLowerCase().includes(q) ||
+             (s.cnic && s.cnic.toLowerCase().includes(q)) ||
+             (s.fatherName && s.fatherName.toLowerCase().includes(q)) ||
+             (s.contactFather && s.contactFather.includes(q)))
+        ).slice(0, 6);
+    }, [students, alumniSearch]);
+
+    const handleSelectAlumni = (alumni: Student) => {
+        setFormData(prev => ({
+            ...prev,
+            name: alumni.name || '',
+            fatherName: alumni.fatherName || '',
+            fatherOccupation: alumni.fatherOccupation || '',
+            monthlyIncome: alumni.monthlyIncome ? String(alumni.monthlyIncome) : '',
+            address: alumni.address || '',
+            dob: alumni.dob || '',
+            gender: alumni.gender || 'Male',
+            religion: alumni.religion || 'Islam',
+            nationality: alumni.nationality || 'Pakistani',
+            cnic: alumni.cnic || '',
+            contactFather: alumni.contactFather || '',
+            contactSelf: alumni.contactSelf || '',
+            whatsappNumber: alumni.whatsappNumber || '',
+            avatar: alumni.avatar || '',
+            documents: alumni.documents || {},
+            academicRecords: [
+                ...(alumni.academicRecords || []),
+                {
+                    degree: alumni.previousClass || alumni.class || 'Matriculation (10th)',
+                    major: alumni.discipline || 'Science',
+                    marksObtained: '',
+                    totalMarks: '1100',
+                    percentage: '',
+                    passingYear: alumni.graduatedYear || new Date().getFullYear().toString(),
+                    board: 'Board of Intermediate & Secondary Education'
+                }
+            ]
+        }));
+        setAlumniSearch('');
+        setShowAlumniResults(false);
+        Swal.fire({
+            title: '⚡ Student Data Autofilled!',
+            text: `Successfully loaded records for ${alumni.name}. All family, personal, and previous school data are populated.`,
+            icon: 'success',
+            timer: 3500,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    };
+
     const addAcademicRecord = () => {
         setFormData(prev => ({
             ...prev,
@@ -192,15 +266,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        // Fallback: If not on the final section, navigating instead of submitting
-        // This prevents premature submission via Enter key or accidental triggers
         if (activeSection !== 'financial') {
-            const currentIndex = SECTIONS.findIndex(s => s.id === activeSection);
-            if (currentIndex !== -1 && currentIndex < SECTIONS.length - 1) {
-                setActiveSection(SECTIONS[currentIndex + 1].id);
-                const container = document.querySelector('.custom-scrollbar');
-                if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
-            }
             return;
         }
 
@@ -226,27 +292,13 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
         const campus = campuses.find(c => c.id === campusId || c.name.toLowerCase() === campusId.toLowerCase());
         const finalCampusName = campus?.name || campusId;
 
-        // Robust ID cleaning: Ensure PS-[PREFIX]-[NUMBER]
-        let inputId = (formData as any).manualId || '';
-
-        // If it's just numbers, prepend prefix
-        if (/^\d+$/.test(inputId)) {
-            const rawPrefix = campus?.idPrefix ? campus.idPrefix.replace(/^PS-/, '').replace(/-$/, '') : 'GEN';
-            inputId = `PS-${rawPrefix}-${inputId.padStart(4, '0')}`;
-        } else {
-            // Clean double prefixing and formatting
-            const numericPart = inputId.match(/(\d+)$/)?.[1] || '0001';
-            let prefixPart = inputId.replace(numericPart, '').replace(/-$/, '');
-
-            // Remove redundant PS-PS- or similar
-            let cleanPrefix = prefixPart.replace(/PS-/g, '').replace(/-/g, '').trim() || 'GEN';
-            inputId = `PS-${cleanPrefix}-${numericPart.padStart(4, '0')}`;
-        }
-
-        finalData.id = inputId;
-        finalData.campus = finalCampusName;
-
         if (editStudent) {
+            finalData.id = editStudent.id;
+            finalData.campus = finalCampusName;
+            finalData.avatar = (formData.avatar && formData.avatar.length > 5)
+                ? formData.avatar
+                : (editStudent.avatar && editStudent.avatar.length > 5 ? editStudent.avatar : (formData.name || 'S').charAt(0));
+
             updateStudent(editStudent.id, finalData);
             Swal.fire({
                 title: 'Data Updated',
@@ -258,19 +310,43 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                 showConfirmButton: false
             });
             onClose();
-        } else {
-            addStudent(finalData);
-            setSubmittedStudent(finalData);
-            Swal.fire({
-                title: 'Admission Successful',
-                text: 'Student registered. Showing fee voucher...',
-                icon: 'success',
-                toast: true,
-                position: 'top-end',
-                timer: 3000,
-                showConfirmButton: false
-            });
+            return;
         }
+
+        // Robust ID cleaning for new student: Ensure PS-[PREFIX]-[NUMBER]
+        let inputId = (formData as any).manualId || '';
+
+        // If it's just numbers, prepend prefix
+        if (/^\d+$/.test(inputId)) {
+            const rawPrefix = campus?.idPrefix ? campus.idPrefix.replace(/^PS-/, '').replace(/-$/, '') : 'GEN';
+            inputId = `PS-${rawPrefix}-${inputId.padStart(4, '0')}`;
+        } else if (inputId) {
+            // Clean double prefixing and formatting
+            const numericPart = inputId.match(/(\d+)$/)?.[1] || '0001';
+            let prefixPart = inputId.replace(numericPart, '').replace(/-$/, '');
+
+            // Remove redundant PS-PS- or similar
+            let cleanPrefix = prefixPart.replace(/PS-/g, '').replace(/-/g, '').trim() || 'GEN';
+            inputId = `PS-${cleanPrefix}-${numericPart.padStart(4, '0')}`;
+        }
+
+        finalData.id = inputId || `PS-GEN-${Date.now()}`;
+        finalData.campus = finalCampusName;
+        finalData.avatar = (formData.avatar && formData.avatar.length > 5)
+            ? formData.avatar
+            : (formData.name || 'S').charAt(0);
+
+        addStudent(finalData);
+        setSubmittedStudent(finalData);
+        Swal.fire({
+            title: 'Admission Successful',
+            text: 'Student registered. Showing fee voucher...',
+            icon: 'success',
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false
+        });
     };
 
 
@@ -284,7 +360,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-xl flex items-center justify-center p-4 md:p-10 overflow-hidden antialiased"
+            className="fixed inset-0 z-[100] bg-slate-950/60 backdrop-blur-xl flex items-center justify-center p-0 sm:p-4 md:p-10 overflow-hidden antialiased"
         >
             <div className="absolute inset-0" onClick={onClose}></div>
 
@@ -292,46 +368,46 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                 initial={{ scale: 0.95, opacity: 0, y: 30 }}
                 animate={{ scale: 1, opacity: 1, y: 0 }}
                 exit={{ scale: 0.95, opacity: 0, y: 30 }}
-                className="relative w-full max-w-4xl h-full max-h-[95vh] bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-[0_40px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
+                className="relative w-full max-w-4xl h-full sm:h-auto sm:max-h-[95vh] bg-white dark:bg-slate-900 rounded-none sm:rounded-[2.5rem] shadow-[0_40px_100px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Advanced Premium Header */}
-                <div className="relative px-6 md:px-12 pt-6 pb-4 border-b border-slate-100 dark:border-white/5">
+                <div className="relative px-4 sm:px-6 md:px-12 pt-4 sm:pt-6 pb-3 sm:pb-4 border-b border-slate-100 dark:border-white/5">
                     {/* Upper Header: Logo + Title + Progress */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-                        <div className="flex items-center gap-6">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4 mb-3 sm:mb-6">
+                        <div className="flex items-center gap-3 sm:gap-6 pr-10 md:pr-0">
                             <div className="relative group">
                                 <div className="absolute -inset-2 bg-gradient-to-tr from-brand-primary to-blue-400 opacity-20 blur-xl rounded-full group-hover:opacity-30 transition-opacity"></div>
-                                <div className="relative w-12 h-12 md:w-16 md:h-16 bg-white dark:bg-slate-800 rounded-2xl shadow-xl flex items-center justify-center p-2 border border-slate-50 dark:border-white/10">
+                                <div className="relative w-10 h-10 sm:w-12 sm:h-12 md:w-16 md:h-16 bg-white rounded-xl sm:rounded-2xl shadow-xl flex items-center justify-center p-1.5 sm:p-2 border border-slate-50 dark:border-white/10">
                                     {detectedType === 'College' ? (
-                                        settings.logo2 ? <img src={settings.logo2} className="w-full h-full object-contain" alt="College Logo" /> : <GraduationCap className="w-10 h-10 text-brand-primary" />
+                                        settings.logo2 ? <img src={settings.logo2} className="w-full h-full object-contain" alt="College Logo" /> : <GraduationCap className="w-8 h-8 md:w-10 md:h-10 text-brand-primary" />
                                     ) : (
-                                        settings.logo1 ? <img src={settings.logo1} className="w-full h-full object-contain" alt="School Logo" /> : <School className="w-10 h-10 text-brand-primary" />
+                                        settings.logo1 ? <img src={settings.logo1} className="w-full h-full object-contain" alt="School Logo" /> : <School className="w-8 h-8 md:w-10 md:h-10 text-brand-primary" />
                                     )}
                                 </div>
                             </div>
 
-                            <div className="space-y-1">
-                                <div className="flex flex-wrap items-center gap-3">
-                                    <h2 className="text-2xl md:text-3xl font-[1000] text-[#003366] dark:text-white tracking-tighter uppercase font-outfit">
+                            <div className="space-y-0.5 sm:space-y-1 min-w-0">
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                                    <h2 className="text-xl sm:text-2xl md:text-3xl font-[1000] text-[#003366] dark:text-white tracking-tighter uppercase font-outfit">
                                         Admission Form
                                     </h2>
-                                    <span className="px-4 py-1 bg-amber-400 text-[#003366] rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-400/20">
+                                    <span className="px-2.5 sm:px-4 py-0.5 sm:py-1 bg-amber-400 text-[#003366] rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-widest shadow-lg shadow-amber-400/20 truncate max-w-[150px] sm:max-w-none">
                                         {formData.campus}
                                     </span>
                                 </div>
-                                <p className="text-[10px] md:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.3em] flex items-center gap-2">
+                                <p className="text-[9px] sm:text-[10px] md:text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-2">
                                     Student Registration <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span> {detectedType || 'Institution'}
                                 </p>
                             </div>
                         </div>
 
-                        <div className="flex flex-col items-end gap-2 md:min-w-[200px]">
-                            <div className="flex items-center justify-between w-full mb-1">
-                                <span className="text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Form Progress</span>
-                                <span className="text-[10px] font-black text-[#003366] dark:text-blue-400 uppercase tracking-widest">Step {SECTIONS.findIndex(s => s.id === activeSection) + 1}/{SECTIONS.length}</span>
+                        <div className="flex flex-col items-start md:items-end gap-1.5 sm:gap-2 md:min-w-[200px]">
+                            <div className="flex items-center justify-between w-full mb-0.5">
+                                <span className="text-[9px] sm:text-[10px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Form Progress</span>
+                                <span className="text-[9px] sm:text-[10px] font-black text-[#003366] dark:text-blue-400 uppercase tracking-widest">Step {SECTIONS.findIndex(s => s.id === activeSection) + 1}/{SECTIONS.length}</span>
                             </div>
-                            <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div className="w-full h-1.5 sm:h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                                 <motion.div
                                     className="h-full bg-[#003366] dark:bg-blue-500 shadow-[0_0_15px_rgba(0,51,102,0.3)]"
                                     initial={{ width: 0 }}
@@ -341,16 +417,16 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                             </div>
                         </div>
 
-                        <button onClick={onClose} className="absolute top-8 right-8 p-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-all text-slate-300 hover:text-rose-500 group">
-                            <X className="w-6 h-6 group-hover:rotate-90 transition-transform" />
+                        <button onClick={onClose} className="absolute top-4 sm:top-8 right-4 sm:right-8 p-2 sm:p-3 hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl transition-all text-slate-400 hover:text-rose-500 group">
+                            <X className="w-5 h-5 sm:w-6 sm:h-6 group-hover:rotate-90 transition-transform" />
                         </button>
                     </div>
 
                     {/* Lower Header: Stepper */}
-                    <div className="relative pt-2 overflow-x-auto custom-scrollbar-hide pb-1">
-                        <div className="flex items-center justify-between min-w-[700px] px-4 relative">
+                    <div className="relative pt-1 sm:pt-2 overflow-x-auto no-scrollbar pb-1">
+                        <div className="flex items-center justify-between sm:min-w-[550px] min-w-max gap-2 sm:gap-4 px-1 sm:px-4 relative">
                             {/* Connector Line */}
-                            <div className="absolute top-6 left-12 right-12 h-[2px] bg-slate-100 dark:bg-white/5 z-0"></div>
+                            <div className="hidden sm:block absolute top-6 left-12 right-12 h-[2px] bg-slate-100 dark:bg-white/5 z-0"></div>
 
                             {SECTIONS.map((s, idx) => {
                                 const currentIndex = SECTIONS.findIndex(sec => sec.id === activeSection);
@@ -358,25 +434,26 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                                 const isActive = currentIndex === idx;
                                 return (
                                     <button
+                                        type="button"
                                         key={s.id}
                                         onClick={() => setActiveSection(s.id)}
-                                        className="relative z-10 flex flex-col items-center gap-4 group cursor-pointer"
+                                        className="relative z-10 flex flex-col items-center gap-1.5 sm:gap-4 group cursor-pointer shrink-0"
                                     >
                                         <div className={cn(
-                                            "w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-500",
-                                            isActive ? "bg-[#003366] text-white shadow-2xl shadow-[#003366]/30 scale-110" :
+                                            "w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center transition-all duration-500",
+                                            isActive ? "bg-[#003366] text-white shadow-2xl shadow-[#003366]/30 scale-105 sm:scale-110" :
                                                 isCompleted ? "bg-emerald-500 text-white shadow-lg" :
                                                     "bg-white dark:bg-slate-800 text-slate-300 border border-slate-100 dark:border-white/5"
                                         )}>
-                                            {isCompleted ? <CheckCircle className="w-6 h-6" /> : <s.icon className="w-6 h-6" />}
+                                            {isCompleted ? <CheckCircle className="w-4 h-4 sm:w-6 sm:h-6" /> : <s.icon className="w-4 h-4 sm:w-6 sm:h-6" />}
                                         </div>
                                         <div className="text-center">
                                             <p className={cn(
-                                                "text-[9.5px] font-[1000] uppercase tracking-widest mb-0.5 transition-colors",
+                                                "text-[8px] sm:text-[9.5px] font-[1000] uppercase tracking-wider sm:tracking-widest mb-0.5 transition-colors whitespace-nowrap",
                                                 isActive ? "text-slate-900 dark:text-white" : "text-slate-800/60 dark:text-slate-400"
                                             )}>{s.label}</p>
                                             <p className={cn(
-                                                "text-[8px] font-black uppercase tracking-tight transition-colors",
+                                                "hidden sm:block text-[8px] font-black uppercase tracking-tight transition-colors",
                                                 isActive ? "text-slate-900/80 dark:text-white/80" : "text-slate-800/40 dark:text-slate-500"
                                             )}>{s.sub}</p>
                                         </div>
@@ -390,7 +467,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                     </div>
                 </div>
 
-                <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+                <form onSubmit={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') e.preventDefault(); }} className="flex-1 flex flex-col overflow-hidden">
                     <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar bg-white dark:bg-slate-900/50">
                         <AnimatePresence mode="wait">
                             <motion.div
@@ -403,41 +480,144 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                             >
                                 {activeSection === 'personal' && (
                                     <div className="space-y-12">
+                                        {!editStudent && (
+                                            <div className="relative p-4 bg-gradient-to-r from-purple-900/10 via-indigo-900/10 to-blue-900/10 dark:from-purple-500/10 dark:via-indigo-500/10 dark:to-blue-500/10 rounded-3xl border border-purple-500/20 shadow-sm">
+                                                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 mb-2">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-xs shadow-md shadow-purple-600/30 shrink-0">
+                                                            <Sparkles className="w-4 h-4" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-xs font-black text-purple-900 dark:text-purple-300 uppercase tracking-tight">Fast-Autofill from Alumni / Matric Records</h4>
+                                                            <p className="text-[9px] font-bold text-slate-500 dark:text-slate-400">Re-admitting student into 1st Year? Search by Name, B-Form / CNIC, or ID.</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="relative">
+                                                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-purple-400 pointer-events-none" />
+                                                    <input
+                                                        type="text"
+                                                        value={alumniSearch}
+                                                        onChange={(e) => {
+                                                            setAlumniSearch(e.target.value);
+                                                            setShowAlumniResults(true);
+                                                        }}
+                                                        onFocus={() => setShowAlumniResults(true)}
+                                                        placeholder="Search passed-out student by Name, CNIC, Phone, or ID..."
+                                                        className="w-full pl-10 pr-10 py-2.5 bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-500/30 rounded-2xl text-xs font-bold text-slate-800 dark:text-white outline-none focus:ring-2 ring-purple-500/30 transition-all placeholder:text-slate-400"
+                                                    />
+                                                    {alumniSearch && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setAlumniSearch('');
+                                                                setShowAlumniResults(false);
+                                                            }}
+                                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-rose-500"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    )}
+
+                                                    {/* Dropdown Results */}
+                                                    {showAlumniResults && alumniSearch.trim().length > 0 && (
+                                                        <div className="absolute top-full mt-2 left-0 right-0 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-purple-100 dark:border-purple-500/20 shadow-2xl overflow-hidden max-h-60 overflow-y-auto custom-scrollbar">
+                                                            {filteredAlumni.length > 0 ? (
+                                                                <div className="divide-y divide-slate-100 dark:divide-white/5">
+                                                                    {filteredAlumni.map((alum) => (
+                                                                        <button
+                                                                            key={alum.id}
+                                                                            type="button"
+                                                                            onClick={() => handleSelectAlumni(alum)}
+                                                                            className="w-full text-left p-3 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center justify-between gap-3 transition-colors group"
+                                                                        >
+                                                                            <div className="flex items-center gap-3 min-w-0">
+                                                                                <div className="w-9 h-9 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-xs shrink-0">
+                                                                                    {alum.name.charAt(0)}
+                                                                                </div>
+                                                                                <div className="min-w-0">
+                                                                                    <p className="text-xs font-black text-slate-800 dark:text-white uppercase truncate group-hover:text-purple-600 transition-colors">
+                                                                                        {alum.name}
+                                                                                    </p>
+                                                                                    <p className="text-[9px] font-bold text-slate-400 truncate">
+                                                                                        Father: {alum.fatherName || 'N/A'} • Class: {alum.previousClass || alum.class} • ID: {alum.id}
+                                                                                    </p>
+                                                                                </div>
+                                                                            </div>
+                                                                            <span className="px-2.5 py-1 bg-purple-600 text-white text-[8px] font-black uppercase rounded-lg shrink-0 tracking-wider shadow-sm">
+                                                                                Autofill ⚡
+                                                                            </span>
+                                                                        </button>
+                                                                    ))}
+                                                                </div>
+                                                            ) : (
+                                                                <div className="p-4 text-center text-xs font-bold text-slate-400">
+                                                                    No student found matching "{alumniSearch}"
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )}
+
                                         <div className="relative p-0.5 bg-slate-50 dark:bg-white/5 rounded-[2rem] border border-slate-100 dark:border-white/5 overflow-hidden">
                                             <div className="bg-white dark:bg-[#000d1a] rounded-[1.95rem] p-5 flex flex-col md:flex-row items-center gap-6 group">
                                                 <div className="relative shrink-0">
                                                     <div className="absolute -inset-4 bg-blue-500/10 rounded-[3rem] blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
-                                                    <div className="relative w-28 h-28 rounded-2xl border-2 border-dashed border-slate-100 dark:border-white/10 flex items-center justify-center overflow-hidden bg-slate-50 dark:bg-white/5 transition-all group-hover:border-[#003366] group-hover:scale-[1.02]">
-                                                        {formData.avatar ? (
+                                                    <div className="relative w-28 h-28 rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 flex items-center justify-center overflow-hidden bg-slate-50 dark:bg-white/5 transition-all group-hover:border-[#003366] group-hover:scale-[1.02]">
+                                                        {formData.avatar && formData.avatar.length > 5 ? (
                                                             <img src={formData.avatar} className="w-full h-full object-cover" alt="Student" />
                                                         ) : (
-                                                            <Camera className="w-12 h-12 text-slate-300 group-hover:scale-110 transition-transform" />
+                                                            <div className="flex flex-col items-center justify-center text-slate-300 dark:text-slate-600">
+                                                                <Camera className="w-10 h-10 group-hover:scale-110 transition-transform" />
+                                                                <span className="text-[8px] font-black uppercase tracking-wider mt-1 text-slate-400">Add Photo</span>
+                                                            </div>
                                                         )}
                                                         <input
                                                             type="file"
+                                                            accept="image/*"
                                                             className="absolute inset-0 opacity-0 cursor-pointer"
-                                                            onChange={(e) => {
+                                                            onChange={async (e) => {
                                                                 const file = e.target.files?.[0];
                                                                 if (file) {
-                                                                    const reader = new FileReader();
-                                                                    reader.onloadend = () => setFormData(prev => ({ ...prev, avatar: reader.result as string }));
-                                                                    reader.readAsDataURL(file);
+                                                                    try {
+                                                                        const compressed = await compressImage(file, 800, 800, 0.82);
+                                                                        setFormData(prev => ({ ...prev, avatar: compressed }));
+                                                                    } catch (err) {
+                                                                        console.error('Photo upload failed:', err);
+                                                                    }
                                                                 }
                                                             }}
                                                         />
                                                     </div>
-                                                    <div className="absolute -bottom-1 -right-1 flex gap-2">
-                                                        <label className="p-2 bg-[#003366] text-white rounded-xl shadow-lg cursor-pointer hover:bg-[#002b57] transition-all flex items-center justify-center">
+                                                    <div className="absolute -bottom-1 -right-1 flex gap-1.5">
+                                                        {formData.avatar && formData.avatar.length > 5 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setFormData(prev => ({ ...prev, avatar: '' }))}
+                                                                className="p-2 bg-rose-500 text-white rounded-xl shadow-lg hover:bg-rose-600 transition-all flex items-center justify-center"
+                                                                title="Remove Photo"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
+                                                        <label className="p-2 bg-[#003366] text-white rounded-xl shadow-lg cursor-pointer hover:bg-[#002b57] transition-all flex items-center justify-center" title="Upload Photo">
                                                             <Upload className="w-4 h-4" />
                                                             <input
                                                                 type="file"
+                                                                accept="image/*"
                                                                 className="hidden"
-                                                                onChange={(e) => {
+                                                                onChange={async (e) => {
                                                                     const file = e.target.files?.[0];
                                                                     if (file) {
-                                                                        const reader = new FileReader();
-                                                                        reader.onloadend = () => setFormData(prev => ({ ...prev, avatar: reader.result as string }));
-                                                                        reader.readAsDataURL(file);
+                                                                        try {
+                                                                            const compressed = await compressImage(file, 800, 800, 0.82);
+                                                                            setFormData(prev => ({ ...prev, avatar: compressed }));
+                                                                        } catch (err) {
+                                                                            console.error('Photo upload failed:', err);
+                                                                        }
                                                                     }
                                                                 }}
                                                             />
@@ -446,6 +626,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                                                             type="button"
                                                             onClick={() => setShowCamera('avatar')}
                                                             className="p-2 bg-emerald-500 text-white rounded-xl shadow-lg hover:bg-emerald-600 transition-all flex items-center justify-center"
+                                                            title="Live Camera"
                                                         >
                                                             <Camera className="w-4 h-4" />
                                                         </button>
@@ -458,7 +639,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                                                         Upload a professional photo of the student for school ID cards and institutional records.
                                                     </p>
                                                     <div className="inline-flex mt-6 px-4 py-2 bg-slate-900 text-white dark:bg-white/10 rounded-xl">
-                                                        <span className="text-[10px] font-black uppercase tracking-widest italic">Supports: JPG, PNG, WEBP</span>
+                                                        <span className="text-[10px] font-black uppercase tracking-widest italic">Supports: JPG, PNG, WEBP (Auto-optimized)</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -616,7 +797,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                                                 return [
                                                     { id: 'bform', label: 'B-Form / CNIC Scanned', required: true },
                                                     { id: 'fatherCnic', label: 'Father CNIC (Both Sides)', required: true },
-                                                    ...(formData.isOrphan === 'Yes' ? [{ id: 'deathCert', label: 'Father Death Certificate', required: true }] : []),
+                                                    ...(formData.isOrphan ? [{ id: 'deathCert', label: 'Father Death Certificate', required: true }] : []),
                                                     ...(needsNOC ? [{ id: 'noc', label: 'NOC / Migration Certificate', required: true }] : []),
                                                     ...(needsGap ? [{ id: 'gapCert', label: 'Gap Certificate', required: true }] : []),
                                                     { id: 'leavingCert', label: 'Migration / Character Certificate', required: detectedType === 'College' },
@@ -648,15 +829,18 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                                                                 type="file"
                                                                 className="hidden"
                                                                 accept="application/pdf,image/*"
-                                                                onChange={(e) => {
+                                                                onChange={async (e) => {
                                                                     const file = e.target.files?.[0];
                                                                     if (file) {
-                                                                        const reader = new FileReader();
-                                                                        reader.onloadend = () => setFormData(prev => ({
-                                                                            ...prev,
-                                                                            documents: { ...(prev.documents || {}), [doc.id]: reader.result as string }
-                                                                        }));
-                                                                        reader.readAsDataURL(file);
+                                                                        try {
+                                                                            const compressed = await compressImage(file, 1200, 1200, 0.8);
+                                                                            setFormData(prev => ({
+                                                                                ...prev,
+                                                                                documents: { ...(prev.documents || {}), [doc.id]: compressed }
+                                                                            }));
+                                                                        } catch (err) {
+                                                                            console.error('Doc upload error:', err);
+                                                                        }
                                                                     }
                                                                 }}
                                                             />

@@ -11,7 +11,7 @@ export const supabase = {
       select: async (_fields: string = '*'): Promise<{ data: any[] | null; error: any }> => {
         try {
           const snapshot = await getDocs(collection(db, tableName));
-          const data = snapshot.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+          const data = snapshot.docs.map(d => ({ ...(d.data() as any), id: d.id }));
           return { data, error: null };
         } catch (error) {
           return { data: null, error };

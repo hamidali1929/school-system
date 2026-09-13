@@ -1,8 +1,9 @@
 import { X, Upload, Save, User, Check, Camera, GraduationCap } from 'lucide-react';
 import { useStore, type Teacher } from '../context/StoreContext';
 import Swal from 'sweetalert2';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { cn } from '../utils/cn';
+import { compressImage } from '../utils/imageCompressor';
 
 interface TeacherFormProps {
     onClose: () => void;
@@ -67,19 +68,26 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
         inchargeClass: editTeacher?.inchargeClass || ''
     });
 
-    const [teacherPhoto, setTeacherPhoto] = useState<string | null>(editTeacher?.avatar || null);
+    const [teacherPhoto, setTeacherPhoto] = useState<string | null>(editTeacher?.avatar && editTeacher.avatar.length > 5 ? editTeacher.avatar : null);
     const [uploadedDocs, setUploadedDocs] = useState<Record<string, string>>(editTeacher?.documents || {});
 
-    const handleDocUpload = (docName: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    useEffect(() => {
+        if (editTeacher) {
+            setTeacherPhoto(editTeacher.avatar && editTeacher.avatar.length > 5 ? editTeacher.avatar : null);
+            setUploadedDocs(editTeacher.documents || {});
+        }
+    }, [editTeacher]);
+
+    const handleDocUpload = async (docName: string, e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
             if (file.type !== 'application/pdf' && !file.type.startsWith('image/')) {
                 Swal.fire('Invalid Format', 'Please upload PDF or Image files.', 'error');
                 return;
             }
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setUploadedDocs(prev => ({ ...prev, [docName]: reader.result as string }));
+            try {
+                const compressed = await compressImage(file, 1200, 1200, 0.8);
+                setUploadedDocs(prev => ({ ...prev, [docName]: compressed }));
                 Swal.fire({
                     title: 'Document Attached',
                     text: `${docName} has been encrypted and attached.`,
@@ -89,8 +97,9 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
                     showConfirmButton: false,
                     timer: 2000
                 });
-            };
-            reader.readAsDataURL(file);
+            } catch (err) {
+                console.error('Doc upload error:', err);
+            }
         }
     };
 
@@ -138,12 +147,15 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
         }));
     };
 
-    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onloadend = () => setTeacherPhoto(reader.result as string);
-            reader.readAsDataURL(file);
+            try {
+                const compressed = await compressImage(file, 800, 800, 0.82);
+                setTeacherPhoto(compressed);
+            } catch (err) {
+                console.error('Photo change error:', err);
+            }
         }
     };
 

@@ -1,7 +1,7 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
     Plus, Trophy, BookOpen, Users, Calendar,
-    CheckCircle2, AlertCircle, Trash2, Medal, Calculator, Save,
+    CheckCircle2, AlertCircle, Trash2, Medal, Calculator,
     Printer, Award, Star, ClipboardList, MessageSquare, Share2, Edit2,
     FileDown, FileUp, Building2
 } from 'lucide-react';
@@ -12,6 +12,7 @@ import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
+import { ClassTestsTab } from '../components/ClassTestsTab';
 
 export const Exams = () => {
     const {
@@ -27,18 +28,26 @@ export const Exams = () => {
     const canFinalizeResults = isAdmin || userProfile?.permissions?.includes('results_manage');
     const canManageSessions = isAdmin;
 
-    const [activeTab, setActiveTab] = useState<'manage' | 'marks' | 'results' | 'top' | 'custom' | 'campus_toppers' | 'range_toppers'>('manage');
+    const [activeTab, setActiveTab] = useState<'manage' | 'marks' | 'results' | 'top' | 'custom' | 'campus_toppers' | 'range_toppers' | 'class_tests'>('manage');
     const [selectedExamId, setSelectedExamId] = useState<string | null>(null);
     const [selectedCampus, setSelectedCampus] = useState<string | null>(null);
     const [selectedClass, setSelectedClass] = useState<string | null>(currentUser?.role === 'teacher' && currentUser?.inchargeClass ? currentUser.inchargeClass : null);
     const [selectedClassesForRange, setSelectedClassesForRange] = useState<string[]>([]);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
     const [certificateData, setCertificateData] = useState<null | Record<string, any>>(null);
+    const [certMode, setCertMode] = useState<'academic' | 'course'>('academic');
     const [customCert, setCustomCert] = useState({
         name: '',
         category: '',
         position: '',
         event: '',
+        date: new Date().toLocaleDateString()
+    });
+    const [courseCert, setCourseCert] = useState({
+        name: '',
+        course: '',
+        duration: '',
+        grade: '',
         date: new Date().toLocaleDateString()
     });
 
@@ -1413,195 +1422,207 @@ export const Exams = () => {
                         <title>Official Certificate of Excellence</title>
                         <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=EB+Garamond:ital,wght@0,400;0,700;1,400;1,700&family=Cinzel:wght@600;900&family=Outfit:wght@400;600;800&family=Playfair+Display:wght@700;900&display=swap" rel="stylesheet">
                         <style>
-                            @media print {
-                                @page { size: A4 landscape; margin: 0; }
-                                body { margin: 0; padding: 0; background: white !important; -webkit-print-color-adjust: exact; }
-                                .cert-page { width: 297mm; height: 210mm; page-break-after: always; margin: 0 auto; overflow: hidden; transform: scale(1); }
-                            }
-                            body { 
-                                margin: 0; padding: 0; 
-                                background: #fafafa; 
-                                display: flex; justify-content: center; align-items: center; 
-                                min-height: 100vh;
-                                font-family: 'EB Garamond', "Times New Roman", serif;
-                            }
-                            .cert-page {
-                                width: 297mm;
-                                height: 210mm;
-                                background: #fff;
-                                padding: 10mm;
-                                box-sizing: border-box;
-                                position: relative;
-                                overflow: hidden;
-                            }
-                            
-                            /* 3D Curved Luxury Border System */
-                            .border-layer-1 {
-                                height: 100%; width: 100%;
-                                border: 8px double #c5a059;
-                                border-radius: 40px;
-                                padding: 4px;
-                                box-sizing: border-box;
-                                position: relative;
-                                background: #fff;
-                            }
-                            .border-layer-2 {
-                                height: 100%; width: 100%;
-                                border: 1.5px solid #c5a059;
-                                border-radius: 32px;
-                                padding: 12px;
-                                box-sizing: border-box;
-                                background: #fdfbf7;
-                                position: relative;
-                            }
-                            .border-layer-3 {
-                                height: 100%; width: 100%;
-                                border: 1px solid #e5d5b7;
-                                border-radius: 24px;
-                                box-sizing: border-box;
-                                background: white;
-                                position: relative;
-                                padding: 30px 45px;
-                                display: flex;
-                                flex-direction: column;
-                                align-items: center;
-                                background-image: 
-                                    radial-gradient(#c5a05908 1.5px, transparent 1.5px),
-                                    linear-gradient(to right, #ffffff, #faf7f2, #ffffff);
-                                background-size: 30px 30px, 100% 100%;
-                            }
-
-                            /* Ornate Corner Elements */
-                            .corner-ornament {
-                                position: absolute; width: 80px; height: 80px;
-                                pointer-events: none; z-index: 5;
-                            }
-                            .top-left { top: 10px; left: 10px; border-top: 4px solid #c5a059; border-left: 4px solid #c5a059; border-radius: 25px 0 0 0; }
-                            .top-right { top: 10px; right: 10px; border-top: 4px solid #c5a059; border-right: 4px solid #c5a059; border-radius: 0 25px 0 0; }
-                            .bottom-left { bottom: 10px; left: 10px; border-bottom: 4px solid #c5a059; border-left: 4px solid #c5a059; border-radius: 0 0 0 25px; }
-                            .bottom-right { bottom: 10px; right: 10px; border-bottom: 4px solid #c5a059; border-right: 4px solid #c5a059; border-radius: 0 0 25px 0; }
-
-                            .header { display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 10px; }
-                            .logo-box { width: 100px; height: 100px; padding: 10px; background: #fff; border: 2px solid #c5a059; border-radius: 20px; box-shadow: 0 10px 20px rgba(197, 160, 89, 0.15); }
-                            .logo-img { width: 100%; height: 100%; object-fit: contain; }
-                            
-                            .school-info { text-align: center; flex: 1; margin: 0 20px; }
-                            .school-name { 
-                                font-family: 'Cinzel', serif; 
-                                font-size: 44px; 
-                                color: #1a1a1a; 
-                                margin: 0; 
-                                font-weight: 900; 
-                                letter-spacing: 1px;
-                                text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
-                            }
-                            .subtitle { 
-                                font-size: 11px; 
-                                color: #666; 
-                                font-weight: 800; 
-                                letter-spacing: 5px; 
-                                text-transform: uppercase; 
-                                margin-top: 5px;
-                                font-family: 'Outfit', sans-serif;
-                            }
-                            
-                            .cert-title-calligraphy { 
-                                font-family: 'Great Vibes', cursive; 
-                                font-size: 100px; 
-                                color: #c5a059; 
-                                margin: 0px 0 5px; 
-                                line-height: 0.9;
-                                text-shadow: 2px 2px 4px rgba(0,0,0,0.05);
-                            }
-                            
-                            .award-banner {
-                                background: #1a1a1a;
-                                color: #fff;
-                                padding: 6px 30px;
-                                border-radius: 50px;
-                                font-family: 'Cinzel', serif;
-                                font-size: 14px;
-                                font-weight: 700;
-                                letter-spacing: 4px;
-                                margin-bottom: 20px;
-                                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-                            }
-
-                            .presented-to { 
-                                font-family: 'EB Garamond', serif;
-                                font-size: 16px; 
-                                font-style: italic;
-                                color: #888; 
-                                margin-bottom: 5px; 
-                            }
-                            
-                            .student-name { 
-                                font-family: 'Cinzel', serif; 
-                                font-size: 58px; 
-                                color: #c5a059; 
-                                margin-bottom: 15px; 
-                                font-weight: 900; 
-                                border-bottom: 1.5px solid #c5a05930;
-                                min-width: 500px;
-                                text-align: center;
-                                padding-bottom: 2px;
-                            }
-                            
-                            .narrative { 
-                                font-family: 'EB Garamond', serif;
-                                font-size: 22px; 
-                                color: #444; 
-                                line-height: 1.5; 
-                                text-align: center; 
-                                max-width: 850px; 
-                            }
-                            .narrative b { color: #000; font-weight: 700; font-family: 'EB Garamond', serif; font-size: 24px; }
-
-                            .medal-container {
-                                flex: 1;
-                                display: flex;
-                                align-items: center;
-                                justify-content: center;
-                                margin: 15px 0;
-                            }
-                            
-                            /* Luxury Medal Style */
-                            .gold-medal {
-                                width: 130px; height: 130px;
-                                position: relative;
-                                background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-                                border-radius: 50%;
-                                border: 4px solid #c5a059;
-                                box-shadow: 0 15px 35px rgba(197, 160, 89, 0.3), inset 0 0 20px rgba(197, 160, 89, 0.2);
-                                display: flex; flex-direction: column; align-items: center; justify-content: center;
-                            }
-                            .gold-medal::before {
-                                content: "";
-                                position: absolute; top: -5px; bottom: -5px; left: -5px; right: -5px;
-                                border: 1px solid #c5a05950; border-radius: 50%;
-                            }
-                            .medal-pos { font-family: 'Cinzel', serif; font-size: 50px; font-weight: 900; color: #1a1a1a; line-height: 1; }
-                            .medal-suffix { font-family: 'Cinzel', serif; font-size: 16px; vertical-align: super; margin-left: -2px; }
-                            .medal-label { font-family: 'Outfit', sans-serif; font-size: 8px; font-weight: 900; text-transform: uppercase; color: #c5a059; letter-spacing: 2px; margin-top: -5px; }
-
-                            .footer { 
-                                position: absolute; 
-                                bottom: 45px; 
-                                left: 60px; 
-                                right: 60px;
-                                display: flex; 
-                                justify-content: space-between; 
-                                padding: 0 30px; 
-                            }
-                            .sig-box { text-align: center; width: 220px; }
-                            .sig-line { border-top: 1.5px solid #1a1a1a; margin-bottom: 8px; }
-                            .sig-label { font-family: 'Outfit', sans-serif; font-size: 11px; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 3px; }
-
-                            .watermark { 
-                                position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-                                width: 450px; height: 450px; opacity: 0.04; pointer-events: none;
-                                background: url("${settings.logo1 || ''}") center/contain no-repeat;
-                            }
+                                @media print {
+                                    @page { size: A4 landscape; margin: 0 !important; }
+                                    body { margin: 0 !important; padding: 0 !important; background: white !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                                    .cert-page { width: 297mm; height: 210mm; page-break-after: always; margin: 0; overflow: hidden; transform: scale(1); box-sizing: border-box; }
+                                }
+                                @page { size: A4 landscape; margin: 0 !important; }
+                                body { 
+                                    margin: 0; padding: 0; 
+                                    background: #fafafa; 
+                                    display: flex; justify-content: center; align-items: center; 
+                                    min-height: 100vh;
+                                    font-family: 'EB Garamond', "Times New Roman", serif;
+                                }
+                                .cert-page {
+                                    width: 297mm;
+                                    height: 210mm;
+                                    background: #fff;
+                                    padding: 10mm;
+                                    box-sizing: border-box;
+                                    position: relative;
+                                    overflow: hidden;
+                                }
+                                
+                                /* 3D Curved Luxury Border System */
+                                .border-layer-1 {
+                                    height: 100%; width: 100%;
+                                    border: 8px double #c5a059;
+                                    border-radius: 40px;
+                                    padding: 4px;
+                                    box-sizing: border-box;
+                                    position: relative;
+                                    background: #fff;
+                                    box-shadow: inset 0 0 30px rgba(197, 160, 89, 0.1);
+                                }
+                                .border-layer-2 {
+                                    height: 100%; width: 100%;
+                                    border: 2px solid #c5a059;
+                                    border-radius: 32px;
+                                    padding: 12px;
+                                    box-sizing: border-box;
+                                    background: #fdfbf7;
+                                    position: relative;
+                                }
+                                .border-layer-3 {
+                                    height: 100%; width: 100%;
+                                    border: 1px solid #e5d5b7;
+                                    border-radius: 24px;
+                                    box-sizing: border-box;
+                                    background: white;
+                                    position: relative;
+                                    padding: 25px 45px;
+                                    display: flex;
+                                    flex-direction: column;
+                                    align-items: center;
+                                    background-image: 
+                                        radial-gradient(#c5a05910 1.5px, transparent 1.5px),
+                                        linear-gradient(135deg, #ffffff 0%, #faf7f2 50%, #ffffff 100%);
+                                    background-size: 30px 30px, 100% 100%;
+                                    box-shadow: inset 0 0 50px rgba(197, 160, 89, 0.05);
+                                }
+    
+                                /* Ornate Corner Elements */
+                                .corner-ornament {
+                                    position: absolute; width: 90px; height: 90px;
+                                    pointer-events: none; z-index: 5;
+                                }
+                                .top-left { top: 12px; left: 12px; border-top: 5px solid #c5a059; border-left: 5px solid #c5a059; border-radius: 30px 0 0 0; }
+                                .top-right { top: 12px; right: 12px; border-top: 5px solid #c5a059; border-right: 5px solid #c5a059; border-radius: 0 30px 0 0; }
+                                .bottom-left { bottom: 12px; left: 12px; border-bottom: 5px solid #c5a059; border-left: 5px solid #c5a059; border-radius: 0 0 0 30px; }
+                                .bottom-right { bottom: 12px; right: 12px; border-bottom: 5px solid #c5a059; border-right: 5px solid #c5a059; border-radius: 0 0 30px 0; }
+    
+                                .header { display: flex; justify-content: space-between; width: 100%; align-items: center; margin-bottom: 5px; }
+                                .logo-box { width: 90px; height: 90px; padding: 10px; background: #fff; border: 2px solid #c5a059; border-radius: 20px; box-shadow: 0 10px 20px rgba(197, 160, 89, 0.15); }
+                                .logo-img { width: 100%; height: 100%; object-fit: contain; }
+                                
+                                .school-info { text-align: center; flex: 1; margin: 0 20px; }
+                                .school-name { 
+                                    font-family: 'Cinzel', serif; 
+                                    font-size: 42px; 
+                                    color: #1a1a1a; 
+                                    margin: 0; 
+                                    font-weight: 900; 
+                                    letter-spacing: 2px;
+                                    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+                                }
+                                .subtitle { 
+                                    font-size: 11px; 
+                                    color: #666; 
+                                    font-weight: 800; 
+                                    letter-spacing: 5px; 
+                                    text-transform: uppercase; 
+                                    margin-top: 5px;
+                                    font-family: 'Outfit', sans-serif;
+                                }
+                                
+                                .cert-title-calligraphy { 
+                                    font-family: 'Great Vibes', cursive; 
+                                    font-size: 100px; 
+                                    color: #c5a059; 
+                                    margin: 0px 0 5px; 
+                                    line-height: 0.9;
+                                    text-shadow: 1px 1px 0px #fff, 3px 3px 6px rgba(197,160,89,0.3);
+                                }
+                                
+                                .award-banner {
+                                    background: linear-gradient(to right, #1a1a1a, #333, #1a1a1a);
+                                    color: #e5d5b7;
+                                    padding: 8px 40px;
+                                    border-radius: 50px;
+                                    font-family: 'Cinzel', serif;
+                                    font-size: 14px;
+                                    font-weight: 800;
+                                    letter-spacing: 5px;
+                                    margin-bottom: 20px;
+                                    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+                                    border: 1px solid #c5a059;
+                                }
+    
+                                .presented-to { 
+                                    font-family: 'EB Garamond', serif;
+                                    font-size: 18px; 
+                                    font-style: italic;
+                                    color: #666; 
+                                    margin-bottom: 5px; 
+                                    letter-spacing: 1px;
+                                }
+                                
+                                .student-name { 
+                                    font-family: 'Cinzel', serif; 
+                                    font-size: 55px; 
+                                    color: #c5a059; 
+                                    margin-bottom: 12px; 
+                                    font-weight: 900; 
+                                    border-bottom: 2px solid #c5a05950;
+                                    min-width: 550px;
+                                    text-align: center;
+                                    padding-bottom: 5px;
+                                    text-shadow: 1px 1px 2px rgba(0,0,0,0.05);
+                                }
+                                
+                                .narrative { 
+                                    font-family: 'EB Garamond', serif;
+                                    font-size: 21px; 
+                                    color: #444; 
+                                    line-height: 1.5; 
+                                    text-align: center; 
+                                    max-width: 850px; 
+                                }
+                                .narrative b { color: #1a1a1a; font-weight: 700; font-family: 'EB Garamond', serif; font-size: 23px; }
+    
+                                .medal-container {
+                                    flex: 1;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    margin: 5px 0 0 0;
+                                }
+                                
+                                /* Luxury Medal Style */
+                                .gold-medal {
+                                    width: 120px; height: 120px;
+                                    position: relative;
+                                    background: linear-gradient(135deg, #fff 0%, #fdfbf7 50%, #ebedee 100%);
+                                    border-radius: 50%;
+                                    border: 5px solid #c5a059;
+                                    box-shadow: 0 15px 35px rgba(197, 160, 89, 0.4), inset 0 0 25px rgba(197, 160, 89, 0.3);
+                                    display: flex; flex-direction: column; align-items: center; justify-content: center;
+                                }
+                                .gold-medal::before {
+                                    content: "";
+                                    position: absolute; top: -6px; bottom: -6px; left: -6px; right: -6px;
+                                    border: 1px solid #c5a05960; border-radius: 50%;
+                                }
+                                .gold-medal::after {
+                                    content: "";
+                                    position: absolute; top: 3px; bottom: 3px; left: 3px; right: 3px;
+                                    border: 1px dashed #c5a05980; border-radius: 50%;
+                                }
+                                .medal-pos { font-family: 'Cinzel', serif; font-size: 38px; font-weight: 900; color: #1a1a1a; line-height: 1; margin-top: 5px; position: relative; z-index: 2; }
+                                .medal-suffix { font-family: 'Cinzel', serif; font-size: 14px; vertical-align: super; margin-left: -2px; }
+                                .medal-label { font-family: 'Outfit', sans-serif; font-size: 9px; font-weight: 900; text-transform: uppercase; color: #c5a059; letter-spacing: 3px; margin-top: 2px; position: relative; z-index: 2; }
+    
+                                .footer { 
+                                    position: absolute; 
+                                    bottom: 35px; 
+                                    left: 60px; 
+                                    right: 60px;
+                                    display: flex; 
+                                    justify-content: space-between; 
+                                    padding: 0 30px; 
+                                }
+                              .sig-box { text-align: center; width: 220px; z-index: 10; }
+                              .sig-line { border-top: 1.5px solid #1a1a1a; margin-bottom: 8px; }
+                              .sig-label { font-family: 'Outfit', sans-serif; font-size: 11px; font-weight: 900; color: #000; text-transform: uppercase; letter-spacing: 3px; }
+  
+                              .watermark { 
+                                  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                                  width: 550px; height: 550px; opacity: 0.03; pointer-events: none;
+                                  background: url("${settings.logo1 || ''}") center/contain no-repeat;
+                                  filter: grayscale(100%) sepia(100%) hue-rotate(5deg) saturate(200%);
+                              }
                             .registry-info {
                                 position: absolute; 
                                 bottom: 10mm; 
@@ -1646,14 +1667,20 @@ export const Exams = () => {
                                         <div class="cert-title-calligraphy">Certificate of Achievement</div>
                                         
                                         <div class="award-banner">
-                                            ${certData?.isCustom ? (certData.category || 'Special Award').toUpperCase() : 'ACADEMIC MERIT AWARD'}
+                                            ${certData?.type === 'course' ? 'PROFESSIONAL CERTIFICATION' : certData?.isCustom ? (certData.category || 'Special Award').toUpperCase() : 'ACADEMIC MERIT AWARD'}
                                         </div>
 
                                         <div class="presented-to">This honorable distinction is proudly presented to</div>
                                         <div class="student-name">${certData?.student?.name || '---'}</div>
 
                                         <div class="narrative">
-                                            ${certData?.isCustom ? `
+                                            ${certData?.type === 'course' ? `
+                                                Has successfully completed the professional computer course in
+                                                <b>${certData.course || 'Technology'}</b> spanning a duration of
+                                                <b>${certData.duration || 'Specified Period'}</b>, and achieved 
+                                                <b>Grade ${certData.grade || 'A'}</b>. 
+                                                This certificate recognizes your dedication and technical excellence.
+                                            ` : certData?.isCustom ? `
                                                 Has demonstrated exceptional prowess and dedication by achieving
                                                 <b>${certData.position || 'Outstanding Success'}</b> in the 
                                                 <b>${certData.event || 'Institutional Category'}</b> event. 
@@ -1669,10 +1696,10 @@ export const Exams = () => {
                                         <div class="medal-container">
                                             <div class="gold-medal">
                                                 <div class="medal-pos">
-                                                    ${certData?.isCustom ? (certData.position?.includes('1') ? '1' : certData.position?.includes('2') ? '2' : '★') : (certData?.result?.position || '1')}
-                                                    ${!certData?.isCustom || (certData.position?.includes('1') || certData.position?.includes('2')) ? `<span class="medal-suffix">${certData?.isCustom ? (certData.position?.includes('1') ? 'st' : 'nd') : (certData?.result?.position === 1 ? 'st' : certData?.result?.position === 2 ? 'nd' : certData?.result?.position === 3 ? 'rd' : 'th')}</span>` : ''}
+                                                    ${certData?.type === 'course' ? (certData.grade || 'A+') : certData?.isCustom ? (certData.position?.includes('1') ? '1' : certData.position?.includes('2') ? '2' : '★') : (certData?.result?.position || '1')}
+                                                    ${certData?.type === 'course' ? '' : !certData?.isCustom || (certData.position?.includes('1') || certData.position?.includes('2')) ? `<span class="medal-suffix">${certData?.isCustom ? (certData.position?.includes('1') ? 'st' : 'nd') : (certData?.result?.position === 1 ? 'st' : certData?.result?.position === 2 ? 'nd' : certData?.result?.position === 3 ? 'rd' : 'th')}</span>` : ''}
                                                 </div>
-                                                <div class="medal-label">Rank / Merit</div>
+                                                <div class="medal-label">${certData?.type === 'course' ? 'GRADE' : 'Rank / Merit'}</div>
                                             </div>
                                         </div>
 
@@ -1744,8 +1771,9 @@ export const Exams = () => {
             <div className="w-full pb-2 md:pb-4 overflow-x-auto no-scrollbar pt-2 px-1">
                 <div className="flex bg-slate-200/50 dark:bg-slate-800/50 p-1.5 rounded-full md:rounded-[var(--brand-radius,1rem)] w-max md:w-auto border border-white/50 dark:border-white/5 gap-1.5 md:gap-2 shadow-inner ring-1 ring-slate-900/5 dark:ring-0">
                     {[
-                        { id: 'manage', label: 'Sessions', icon: Calendar, visible: true },
-                        { id: 'marks', label: 'Marks', icon: Save, visible: true },
+                        { id: 'manage', label: 'Sessions', icon: Calendar, visible: canManageSessions },
+                        { id: 'class_tests', label: 'Class Tests', icon: ClipboardList, visible: true },
+                        { id: 'marks', label: 'Marks Portal', icon: Calculator, visible: true },
                         { id: 'results', label: 'Standings', icon: Trophy, visible: true },
                         { id: 'top', label: 'Top Rankers', icon: Medal, visible: true },
                         { id: 'campus_toppers', label: 'Campus Tops', icon: Building2, visible: true },
@@ -1771,6 +1799,11 @@ export const Exams = () => {
                     ))}
                 </div>
             </div>
+
+            {/* Daily Class Tests View */}
+            {activeTab === 'class_tests' && (
+                <ClassTestsTab />
+            )}
 
             {/* Sessions View */}
             {activeTab === 'manage' && (
@@ -2833,70 +2866,147 @@ export const Exams = () => {
                                 </div>
                                 <div>
                                     <h2 className="text-xl md:text-3xl font-black text-slate-800 dark:text-white tracking-tight">Generate Special Award</h2>
-                                    <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] md:text-sm">Create luxury certificates for varied ceremonies</p>
+                                    <p className="text-slate-500 dark:text-slate-400 font-bold text-[10px] md:text-sm">Create luxury certificates for varied ceremonies or computer courses</p>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 max-w-5xl">
-                                <div className="space-y-2 md:space-y-3">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Student Full Name</label>
-                                    <input
-                                        type="text"
-                                        value={customCert.name}
-                                        onChange={(e) => setCustomCert({ ...customCert, name: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
-                                        placeholder="e.g. Muhammad Ali"
-                                    />
-                                </div>
-                                <div className="space-y-2 md:space-y-3">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Award Category</label>
-                                    <input
-                                        type="text"
-                                        value={customCert.category}
-                                        onChange={(e) => setCustomCert({ ...customCert, category: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
-                                        placeholder="e.g. Sports Excellence"
-                                    />
-                                </div>
-                                <div className="space-y-2 md:space-y-3">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Position / Achievement</label>
-                                    <input
-                                        type="text"
-                                        value={customCert.position}
-                                        onChange={(e) => setCustomCert({ ...customCert, position: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
-                                        placeholder="e.g. 1st Position"
-                                    />
-                                </div>
-                                <div className="space-y-2 md:space-y-3">
-                                    <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Event / Occasion</label>
-                                    <input
-                                        type="text"
-                                        value={customCert.event}
-                                        onChange={(e) => setCustomCert({ ...customCert, event: e.target.value })}
-                                        className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
-                                        placeholder="e.g. Annual Gala 2026"
-                                    />
-                                </div>
+                            <div className="flex gap-4 mb-8">
+                                <button 
+                                    onClick={() => setCertMode('academic')}
+                                    className={`py-3 px-6 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${certMode === 'academic' ? 'bg-[#003366] text-white shadow-xl' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200'}`}
+                                >
+                                    Academic / Event
+                                </button>
+                                <button 
+                                    onClick={() => setCertMode('course')}
+                                    className={`py-3 px-6 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${certMode === 'course' ? 'bg-[#003366] text-white shadow-xl' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200'}`}
+                                >
+                                    Computer Course
+                                </button>
                             </div>
+
+                            {certMode === 'academic' ? (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 max-w-5xl">
+                                    <div className="space-y-2 md:space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Student Full Name</label>
+                                        <input
+                                            type="text"
+                                            value={customCert.name}
+                                            onChange={(e) => setCustomCert({ ...customCert, name: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
+                                            placeholder="e.g. Muhammad Ali"
+                                        />
+                                    </div>
+                                    <div className="space-y-2 md:space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Award Category</label>
+                                        <input
+                                            type="text"
+                                            value={customCert.category}
+                                            onChange={(e) => setCustomCert({ ...customCert, category: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
+                                            placeholder="e.g. Sports Excellence"
+                                        />
+                                    </div>
+                                    <div className="space-y-2 md:space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Position / Achievement</label>
+                                        <input
+                                            type="text"
+                                            value={customCert.position}
+                                            onChange={(e) => setCustomCert({ ...customCert, position: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
+                                            placeholder="e.g. 1st Position"
+                                        />
+                                    </div>
+                                    <div className="space-y-2 md:space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Event / Occasion</label>
+                                        <input
+                                            type="text"
+                                            value={customCert.event}
+                                            onChange={(e) => setCustomCert({ ...customCert, event: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
+                                            placeholder="e.g. Annual Gala 2026"
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-8 max-w-5xl">
+                                    <div className="space-y-2 md:space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Student Full Name</label>
+                                        <input
+                                            type="text"
+                                            value={courseCert.name}
+                                            onChange={(e) => setCourseCert({ ...courseCert, name: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
+                                            placeholder="e.g. Abdullah"
+                                        />
+                                    </div>
+                                    <div className="space-y-2 md:space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Course Name</label>
+                                        <input
+                                            type="text"
+                                            value={courseCert.course}
+                                            onChange={(e) => setCourseCert({ ...courseCert, course: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
+                                            placeholder="e.g. Graphic Design"
+                                        />
+                                    </div>
+                                    <div className="space-y-2 md:space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Duration</label>
+                                        <input
+                                            type="text"
+                                            value={courseCert.duration}
+                                            onChange={(e) => setCourseCert({ ...courseCert, duration: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
+                                            placeholder="e.g. 3 Months"
+                                        />
+                                    </div>
+                                    <div className="space-y-2 md:space-y-3">
+                                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-widest ml-2">Grade</label>
+                                        <input
+                                            type="text"
+                                            value={courseCert.grade}
+                                            onChange={(e) => setCourseCert({ ...courseCert, grade: e.target.value })}
+                                            className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 p-4 md:p-5 rounded-xl md:rounded-[var(--brand-radius,1rem)] text-sm font-bold outline-none dark:text-white"
+                                            placeholder="e.g. A+"
+                                        />
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="mt-8 md:mt-12 pt-6 md:pt-10 border-t border-slate-100 dark:border-white/10 flex flex-wrap items-center gap-4 md:gap-6">
                                 <button
                                     onClick={() => {
-                                        if (!customCert.name || !customCert.category || !customCert.position || !customCert.event) {
-                                            Swal.fire({ title: 'Wait!', text: 'Fill all details.', icon: 'warning' });
-                                            return;
+                                        if (certMode === 'academic') {
+                                            if (!customCert.name || !customCert.category || !customCert.position || !customCert.event) {
+                                                Swal.fire({ title: 'Wait!', text: 'Fill all details.', icon: 'warning' });
+                                                return;
+                                            }
+                                            const data = {
+                                                student: { name: customCert.name },
+                                                isCustom: true,
+                                                category: customCert.category,
+                                                position: customCert.position,
+                                                event: customCert.event,
+                                                date: customCert.date
+                                            };
+                                            setCertificateData(data);
+                                            handlePrintCertificate(data);
+                                        } else {
+                                            if (!courseCert.name || !courseCert.course || !courseCert.duration || !courseCert.grade) {
+                                                Swal.fire({ title: 'Wait!', text: 'Fill all course details.', icon: 'warning' });
+                                                return;
+                                            }
+                                            const data = {
+                                                student: { name: courseCert.name },
+                                                type: 'course',
+                                                course: courseCert.course,
+                                                duration: courseCert.duration,
+                                                grade: courseCert.grade,
+                                                date: courseCert.date
+                                            };
+                                            setCertificateData(data);
+                                            handlePrintCertificate(data);
                                         }
-                                        const data = {
-                                            student: { name: customCert.name },
-                                            isCustom: true,
-                                            category: customCert.category,
-                                            position: customCert.position,
-                                            event: customCert.event,
-                                            date: customCert.date
-                                        };
-                                        setCertificateData(data);
-                                        handlePrintCertificate(data);
                                     }}
                                     className="w-full md:w-auto bg-brand-primary text-white px-8 md:px-12 py-4 md:py-5 rounded-xl md:rounded-[var(--brand-radius,2rem)] text-[11px] md:text-sm font-black shadow-xl hover:scale-105 transition-all flex items-center justify-center gap-3"
                                 >

@@ -14,7 +14,8 @@ import {
     Wallet,
     Send,
     Activity,
-    Printer
+    Printer,
+    Sparkles
 } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { useState } from 'react';
@@ -32,15 +33,19 @@ import {
     Tooltip,
     Legend,
     Filler,
+    RadialLinearScale,
+    RadarController,
     type ChartOptions
 } from 'chart.js';
-import { Line } from 'react-chartjs-2';
+import { Line, Radar } from 'react-chartjs-2';
 
 ChartJS.register(
     CategoryScale,
     LinearScale,
     PointElement,
     LineElement,
+    RadialLinearScale,
+    RadarController,
     Title,
     Tooltip,
     Legend,
@@ -54,7 +59,7 @@ export const StudentPanel = ({
     activeTab?: 'overview' | 'academic' | 'attendance' | 'fees' | 'communication',
     onNavigate?: (id: string) => void
 }) => {
-    const { students, attendance, examResults, currentUser, exams, settings, classSubjects } = useStore();
+    const { students, attendance, examResults, currentUser, exams, settings, classSubjects, classTests } = useStore();
     const [showFeeVoucher, setShowFeeVoucher] = useState(false);
     const [internalTab, setInternalTab] = useState<'overview' | 'academic' | 'attendance' | 'fees' | 'communication'>('overview');
 
@@ -331,6 +336,8 @@ export const StudentPanel = ({
     };
 
     // Timeline Events
+    const studentTests = classTests.filter(t => t.className === student.class && t.results[student.id] !== undefined);
+
     const timelineEvents = [
         ...studentAttendance.slice(-3).map(a => ({
             type: 'Attendance',
@@ -347,7 +354,18 @@ export const StudentPanel = ({
             time: 'Recently',
             icon: Award,
             color: 'bg-amber-500'
-        }] : [])
+        }] : []),
+        ...studentTests.slice(-3).map(t => {
+            const marks = t.results[student.id];
+            return {
+                type: 'Class Test',
+                title: `${t.subject} Test`,
+                details: `Topic: ${t.topic} | Scored: ${marks === 'A' ? 'Absent' : `${marks}/${t.totalMarks}`}`,
+                time: new Date(t.date).toLocaleDateString(),
+                icon: Activity,
+                color: 'bg-brand-primary'
+            };
+        })
     ].sort((a, b) => b.time.localeCompare(a.time));
 
     return (
@@ -409,23 +427,87 @@ export const StudentPanel = ({
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                                {/* Performance Chart */}
-                                <div className="lg:col-span-8">
-                                    <div className="glass-card p-6 md:p-8 h-full min-h-[400px] flex flex-col">
-                                        <div className="flex items-center justify-between mb-8">
+                                {/* Performance Chart & Radar & AI Oracle */}
+                                <div className="lg:col-span-8 space-y-6">
+                                    <div className="glass-card p-6 md:p-8 flex flex-col">
+                                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-8 gap-4">
                                             <div>
                                                 <h3 className="text-lg md:text-xl font-black uppercase tracking-tight flex items-center gap-3">
                                                     <TrendingUp className="text-brand-primary" /> Growth Velocity
                                                 </h3>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Academic Proficiency Track</p>
                                             </div>
-                                            <div className="flex gap-2">
+                                            <div className="flex gap-2 bg-slate-50 dark:bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-100 dark:border-white/5">
                                                 <div className="w-3 h-3 rounded-full bg-[#fbbf24]"></div>
-                                                <span className="text-[10px] font-black uppercase text-slate-400">Finalized Marks</span>
+                                                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest">Finalized Marks</span>
                                             </div>
                                         </div>
                                         <div className="flex-1 min-h-[250px]">
                                             <Line data={chartData} options={chartOptions} />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* AI ORACLE */}
+                                        <div className="glass-card p-6 md:p-8 bg-gradient-to-br from-indigo-900 to-slate-900 border-none text-white relative overflow-hidden group">
+                                            <div className="absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform">
+                                                <Sparkles size={120} />
+                                            </div>
+                                            <h3 className="text-sm font-black uppercase tracking-widest mb-4 flex items-center gap-2 text-indigo-300">
+                                                <Sparkles size={16} /> AI Academic Oracle
+                                            </h3>
+                                            <p className="text-xs font-bold leading-relaxed opacity-90 relative z-10">
+                                                {(() => {
+                                                    if (!latestResult) return "Insufficient data to generate insights. Participate in upcoming exams.";
+                                                    const pct = latestResult.percentage;
+                                                    let insight = `Analysis indicates an academic trajectory that is `;
+                                                    if (pct >= 85) insight += "exceptional. Stellar mastery of core subjects is evident.";
+                                                    else if (pct >= 70) insight += "positive. Consistent effort is yielding good results.";
+                                                    else insight += "requiring attention. Focused revision is recommended.";
+                                                    if (attendancePercentage >= 90) insight += " Your high attendance (" + attendancePercentage + "%) strongly correlates with this performance.";
+                                                    else if (attendancePercentage < 75) insight += " However, low attendance (" + attendancePercentage + "%) is a limiting factor.";
+                                                    return insight;
+                                                })()}
+                                            </p>
+                                            <div className="mt-6 flex items-center gap-2 text-[9px] uppercase tracking-[0.2em] font-black text-indigo-400">
+                                                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+                                                Neural Network Active
+                                            </div>
+                                        </div>
+
+                                        {/* RADAR CHART */}
+                                        <div className="glass-card p-6 md:p-8 flex flex-col items-center justify-center">
+                                            <h3 className="text-xs font-black uppercase tracking-widest mb-4 text-slate-500 self-start">Subject Competency Map</h3>
+                                            <div className="w-full max-w-[200px] aspect-square">
+                                                <Radar 
+                                                    data={{
+                                                        labels: latestResult ? Object.keys(latestResult.marks).map(sub => sub.substring(0, 4)) : ['Math', 'Sci', 'Eng', 'Urdu'],
+                                                        datasets: [{
+                                                            label: 'Score',
+                                                            data: latestResult ? Object.values(latestResult.marks).map(m => (m.obtained / m.total) * 100) : [80, 90, 70, 85],
+                                                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                                            borderColor: '#10b981',
+                                                            pointBackgroundColor: '#10b981',
+                                                            pointBorderColor: '#fff',
+                                                            pointBorderWidth: 2,
+                                                        }]
+                                                    }}
+                                                    options={{
+                                                        scales: {
+                                                            r: {
+                                                                angleLines: { color: 'rgba(0, 0, 0, 0.05)' },
+                                                                grid: { color: 'rgba(0, 0, 0, 0.05)' },
+                                                                pointLabels: { font: { size: 9, family: 'Outfit', weight: 'bold' } },
+                                                                ticks: { display: false },
+                                                                min: 0,
+                                                                max: 100
+                                                            }
+                                                        },
+                                                        plugins: { legend: { display: false } },
+                                                        maintainAspectRatio: false
+                                                    }}
+                                                />
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

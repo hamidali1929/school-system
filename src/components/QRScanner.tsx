@@ -3,6 +3,7 @@ import { BrowserMultiFormatReader, DecodeHintType } from '@zxing/library';
 import { X, Zap, Keyboard, Camera, Search, CheckCircle2, Clock } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../utils/cn';
+import { hapticFeedback } from '../utils/haptics';
 
 interface QRScannerProps {
     onScan: (decodedText: string) => void;
@@ -43,6 +44,16 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, mode, onM
         codeReaderRef.current = reader;
 
         try {
+            // First explicitly request camera permission to trigger Android / Browser prompt
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                try {
+                    const tempStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                    tempStream.getTracks().forEach(t => t.stop());
+                } catch (pErr) {
+                    console.warn("Initial permission request check:", pErr);
+                }
+            }
+
             const videoInputDevices = await reader.listVideoInputDevices();
             if (videoInputDevices.length === 0) {
                 setError("No camera found.");
@@ -51,12 +62,14 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, mode, onM
 
             const backCamera = videoInputDevices.find(device =>
                 device.label.toLowerCase().includes('back') ||
-                device.label.toLowerCase().includes('rear')
+                device.label.toLowerCase().includes('rear') ||
+                device.label.toLowerCase().includes('environment')
             ) || videoInputDevices[0];
 
             reader.decodeFromVideoDevice(backCamera.deviceId, videoRef.current!, (result) => {
                 if (result) {
-                    // Trigger institutional scan success
+                    // Trigger institutional scan success with haptic pulse
+                    hapticFeedback.success();
                     onScan(result.getText());
 
                     // Visual Neural Blink
@@ -69,9 +82,9 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, mode, onM
             });
         } catch (err) {
             console.error("Camera error:", err);
-            setError("Camera access denied.");
+            setError("Camera access denied. Please grant camera permission.");
         }
-    }, [onScan]); // onScan is now stable from parent via useCallback
+    }, [onScan]);
 
     useEffect(() => {
         if (activeTab === 'camera') {

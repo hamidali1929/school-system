@@ -1,27 +1,55 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
-import { Dashboard } from '../pages/Dashboard';
-import { Students } from '../pages/Students';
-import { Fees } from '../pages/Fees';
-import { Exams } from '../pages/Exams';
-import { Teachers } from '../pages/Teachers';
-import { AdminPanel } from '../pages/Admin';
-
-import { Attendance } from '../pages/Attendance';
-import { ClassesPage } from '../pages/Classes';
-import { TimetablePage } from '../pages/Timetable';
-
-import { FinancePage } from '../pages/Finance';
-import { Documents } from '../pages/Documents';
-import { Analytics } from '../pages/Analytics';
 import { MobileArcMenu } from '../components/MobileArcMenu';
-import { StudentPanel } from '../pages/StudentPanel';
-import { ParentPanel } from '../pages/Parents';
+import { PullToRefresh } from '../components/PullToRefresh';
+
+// 🚀 Dynamic Lazy-Loaded Subpages for Fast Navigation
+const Dashboard = lazy(() => import('../pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const Students = lazy(() => import('../pages/Students').then(m => ({ default: m.Students })));
+const Fees = lazy(() => import('../pages/Fees').then(m => ({ default: m.Fees })));
+const Exams = lazy(() => import('../pages/Exams').then(m => ({ default: m.Exams })));
+const Teachers = lazy(() => import('../pages/Teachers').then(m => ({ default: m.Teachers })));
+const AdminPanel = lazy(() => import('../pages/Admin').then(m => ({ default: m.AdminPanel })));
+const Attendance = lazy(() => import('../pages/Attendance').then(m => ({ default: m.Attendance })));
+const ClassesPage = lazy(() => import('../pages/Classes').then(m => ({ default: m.ClassesPage })));
+const TimetablePage = lazy(() => import('../pages/Timetable').then(m => ({ default: m.TimetablePage })));
+const Courses = lazy(() => import('../pages/Courses').then(m => ({ default: m.Courses })));
+const FinancePage = lazy(() => import('../pages/Finance').then(m => ({ default: m.FinancePage })));
+const Documents = lazy(() => import('../pages/Documents').then(m => ({ default: m.Documents })));
+const Analytics = lazy(() => import('../pages/Analytics').then(m => ({ default: m.Analytics })));
+const StudentPanel = lazy(() => import('../pages/StudentPanel').then(m => ({ default: m.StudentPanel })));
+const ParentPanel = lazy(() => import('../pages/Parents').then(m => ({ default: m.ParentPanel })));
+
+const ModuleLoader = () => (
+    <div className="flex items-center justify-center min-h-[300px] w-full">
+        <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-2 border-primary-500/20 border-t-primary-500 rounded-full animate-spin" />
+            <span className="text-[11px] font-semibold text-slate-400">Loading module...</span>
+        </div>
+    </div>
+);
 
 export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: string; role: string; permissions?: string[] }; onLogout: () => void }) => {
-    const [activeTab, setActiveTab] = useState(user.role === 'teacher' ? 'attendance' : user.role === 'student' ? 'dashboard' : 'dashboard');
+    const [activeTab, setActiveTab] = useState(() => {
+        const hash = typeof window !== 'undefined' ? window.location.hash.replace('#/', '') : '';
+        const validTabs = ['dashboard', 'students', 'classes', 'courses', 'teachers', 'fees', 'exams', 'admin', 'attendance', 'timetable', 'finance', 'documents', 'analytics', 'parents', 'academic', 'attendance_log', 'fees_ledger', 'communication'];
+        if (hash && validTabs.includes(hash)) return hash;
+        return user.role === 'teacher' ? 'attendance' : user.role === 'student' ? 'dashboard' : 'dashboard';
+    });
+
+    useEffect(() => {
+        window.location.hash = `/${activeTab}`;
+    }, [activeTab]);
+
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [refreshKey, setRefreshKey] = useState(0);
+
+    const handleRefresh = useCallback(async () => {
+        // Quick synthetic sync
+        await new Promise(resolve => setTimeout(resolve, 800));
+        setRefreshKey(prev => prev + 1);
+    }, []);
 
     const renderContent = () => {
         // Strict Role-Based Containment
@@ -38,6 +66,7 @@ export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: 
             };
 
             return <StudentPanel
+                key={refreshKey}
                 activeTab={tabMap[activeTab] as any || 'overview'}
                 onNavigate={setActiveTab}
             />;
@@ -45,31 +74,33 @@ export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: 
 
         switch (activeTab) {
             case 'dashboard':
-                return <Dashboard onNavigate={setActiveTab} />;
+                return <Dashboard key={refreshKey} onNavigate={setActiveTab} />;
             case 'students':
-                return (user.role === 'admin' || user.role === 'teacher') ? <Students /> : <StudentPanel />;
+                return (user.role === 'admin' || user.role === 'teacher') ? <Students key={refreshKey} /> : <StudentPanel key={refreshKey} />;
             case 'parents':
-                return <ParentPanel />;
+                return <ParentPanel key={refreshKey} />;
             case 'classes':
-                return <ClassesPage />;
+                return <ClassesPage key={refreshKey} />;
+            case 'courses':
+                return <Courses key={refreshKey} />;
             case 'teachers':
-                return <Teachers />;
+                return <Teachers key={refreshKey} />;
             case 'fees':
-                return <Fees />;
+                return <Fees key={refreshKey} />;
             case 'exams':
-                return <Exams />;
+                return <Exams key={refreshKey} />;
             case 'admin':
-                return <AdminPanel />;
+                return <AdminPanel key={refreshKey} />;
             case 'attendance':
-                return <Attendance />;
+                return <Attendance key={refreshKey} />;
             case 'timetable':
-                return <TimetablePage />;
+                return <TimetablePage key={refreshKey} />;
             case 'finance':
-                return <FinancePage />;
+                return <FinancePage key={refreshKey} />;
             case 'documents':
-                return <Documents />;
+                return <Documents key={refreshKey} />;
             case 'analytics':
-                return <Analytics />;
+                return <Analytics key={refreshKey} />;
             default:
                 return null;
         }
@@ -102,10 +133,14 @@ export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: 
                     onOpenSidebar={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                 />
 
-                <main className="flex-1 overflow-y-auto p-4 md:p-8 relative scroll-smooth">
-                    <div className="max-w-7xl mx-auto pb-12 w-full">
-                        {renderContent()}
-                    </div>
+                <main className="flex-1 overflow-hidden relative">
+                    <PullToRefresh onRefresh={handleRefresh}>
+                        <div className="p-4 md:p-8 max-w-7xl mx-auto pb-20 w-full">
+                            <Suspense fallback={<ModuleLoader />}>
+                                {renderContent()}
+                            </Suspense>
+                        </div>
+                    </PullToRefresh>
 
                     {/* Background Orbs */}
                     <div className="fixed bottom-0 right-0 w-[500px] h-[500px] bg-primary-500/5 rounded-full blur-[120px] -z-10 pointer-events-none"></div>
@@ -115,3 +150,4 @@ export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: 
         </div>
     );
 };
+

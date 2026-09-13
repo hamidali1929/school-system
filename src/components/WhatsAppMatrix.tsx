@@ -11,11 +11,11 @@ import {
 import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
 import { motion, AnimatePresence } from 'framer-motion';
-import { normalizeWhatsAppNumber, MESSAGE_TEMPLATES } from '../utils/whatsapp';
+import { normalizeWhatsAppNumber, MESSAGE_TEMPLATES, sendWhatsAppViaServer } from '../utils/whatsapp';
 
 export const WhatsAppMatrix = () => {
     const { students, teachers, settings } = useStore();
-    const DEFAULT_CLOUD_SERVER = 'https://school-system-tzkq.onrender.com';
+    const DEFAULT_CLOUD_SERVER = 'https://16-16-124-14.nip.io';
     const [serverUrl, setServerUrl] = useState<string>(() => {
         return localStorage.getItem('wa_server_url') || DEFAULT_CLOUD_SERVER;
     });
@@ -205,14 +205,12 @@ export const WhatsAppMatrix = () => {
 
         if (formValues) {
             try {
-                const baseUrl = getEffectiveServerUrl();
-                const response = await fetch(`${baseUrl}/send-message`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(formValues)
+                Swal.showLoading();
+                const res = await sendWhatsAppViaServer({
+                    to: formValues.to,
+                    message: formValues.message
                 });
-                const data = await response.json();
-                if (data.success) {
+                if (res.success) {
                     Swal.fire({
                         title: 'Sent!',
                         text: 'Your message has been sent successfully.',
@@ -220,9 +218,9 @@ export const WhatsAppMatrix = () => {
                         timer: 2000,
                         showConfirmButton: false
                     });
-                    addLog(`Message sent to ${formValues.to}`, 'success');
+                    addLog(`Message dispatched to ${formValues.to}`, 'success');
                 } else {
-                    throw new Error(data.error);
+                    throw new Error(res.error || 'Failed to dispatch message');
                 }
             } catch (err: any) {
                 Swal.fire('Error', err.message, 'error');
@@ -379,8 +377,8 @@ export const WhatsAppMatrix = () => {
             html: `
                 <div class="text-left space-y-3 font-outfit p-1">
                     <p class="text-xs text-slate-500 font-medium">Active 24/7 Cloud Gateway URL:</p>
-                    <input id="swal-server-url" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm border-slate-200" value="${serverUrl}" placeholder="https://school-system-tzkq.onrender.com">
-                    <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Default: https://school-system-tzkq.onrender.com</p>
+                    <input id="swal-server-url" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm border-slate-200" value="${serverUrl}" placeholder="https://16-16-124-14.nip.io">
+                    <p class="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Default: https://16-16-124-14.nip.io</p>
                 </div>
             `,
             showCancelButton: true,
@@ -553,25 +551,37 @@ export const WhatsAppMatrix = () => {
                                                     <button
                                                         onClick={async () => {
                                                             const { isConfirmed } = await Swal.fire({
-                                                                title: 'Disconnect WhatsApp?',
-                                                                text: 'Are you sure you want to log out?',
-                                                                icon: 'warning',
+                                                                title: 'Switch / Disconnect WhatsApp?',
+                                                                text: 'Are you sure you want to unlink the current WhatsApp account? You can immediately scan a new QR code with any other phone/number.',
+                                                                icon: 'question',
                                                                 showCancelButton: true,
-                                                                confirmButtonText: 'Yes, Log out',
+                                                                confirmButtonText: 'Yes, Unlink & Switch',
                                                                 confirmButtonColor: '#ff4757',
-                                                                cancelButtonColor: '#f1f2f6'
+                                                                cancelButtonColor: '#94a3b8'
                                                             });
                                                             if (isConfirmed) {
                                                                 setQrCode(null);
                                                                 setStatus('IDLE');
                                                                 const baseUrl = getEffectiveServerUrl();
-                                                                fetch(`${baseUrl}/logout`, { method: 'POST' });
-                                                                addLog('WhatsApp logged out', 'warning');
+                                                                try {
+                                                                    await fetch(`${baseUrl}/logout`, { method: 'POST' });
+                                                                    addLog('WhatsApp session cleared. Fresh QR code requested.', 'warning');
+                                                                    Swal.fire({
+                                                                        title: 'Session Cleared',
+                                                                        text: 'Generating fresh QR code for your new WhatsApp account...',
+                                                                        icon: 'info',
+                                                                        timer: 2500,
+                                                                        showConfirmButton: false
+                                                                    });
+                                                                } catch (err: any) {
+                                                                    addLog(`Logout error: ${err.message}`, 'warning');
+                                                                }
                                                             }
                                                         }}
-                                                        className="w-full py-4 text-rose-500 border-2 border-rose-50 hover:bg-rose-50 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all"
+                                                        className="w-full py-4 text-rose-500 border-2 border-rose-100 hover:bg-rose-50 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-2 shadow-sm"
                                                     >
-                                                        Disconnect Account
+                                                        <RefreshCcw size={14} />
+                                                        <span>Switch / Disconnect WhatsApp</span>
                                                     </button>
                                                 </div>
                                             </div>
@@ -604,13 +614,21 @@ export const WhatsAppMatrix = () => {
 
                                                     <button
                                                         onClick={async () => {
-                                                            fetch('/api/wa/logout', { method: 'POST' });
-                                                            setStatus('IDLE');
-                                                            setQrCode(null);
+                                                            const baseUrl = getEffectiveServerUrl();
+                                                            try {
+                                                                await fetch(`${baseUrl}/logout`, { method: 'POST' });
+                                                                setStatus('IDLE');
+                                                                setQrCode(null);
+                                                                addLog('Refreshing QR code...', 'info');
+                                                            } catch (e) {
+                                                                setStatus('IDLE');
+                                                                setQrCode(null);
+                                                            }
                                                         }}
-                                                        className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-300 hover:text-rose-500 transition-all font-outfit"
+                                                        className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 hover:text-rose-500 transition-all font-outfit inline-flex items-center gap-1.5"
                                                     >
-                                                        Refresh QR Code
+                                                        <RefreshCcw size={12} />
+                                                        <span>Regenerate Fresh QR</span>
                                                     </button>
                                                 </div>
                                             </div>

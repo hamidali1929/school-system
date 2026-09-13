@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, type Student } from '../context/StoreContext';
-import { Phone, Edit2, RefreshCw, Download, Printer, Loader2, Eye, X } from 'lucide-react';
+import { Phone, Edit2, RefreshCw, Printer, Loader2, Eye, X, Share2, MessageCircle } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import Swal from 'sweetalert2';
 import { saveAndSharePDF } from '../utils/fileDownloader';
+import { hapticFeedback } from '../utils/haptics';
+import { MESSAGE_TEMPLATES, sendWhatsAppViaServer, getStudentParentPhone } from '../utils/whatsapp';
 
 interface FeeVoucherProps {
     student: Student;
@@ -157,7 +159,7 @@ const VoucherCopy = ({
 };
 
 export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOnly = false }) => {
-    const { settings, attendance, feeStructure, updateStudent } = useStore();
+    const { settings, attendance, feeStructure, updateStudent, sendNotification } = useStore();
 
     const [editableTuition, setEditableTuition] = useState(0);
     const [editableAbsentFine, setEditableAbsentFine] = useState(0);
@@ -343,6 +345,76 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
     const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
     const currentMonthName = monthNames[currentMonth];
 
+    const handleSendWhatsAppVoucher = async () => {
+        hapticFeedback.light();
+        let targetPhone = getStudentParentPhone(student);
+        const dueDateStr = `10th ${currentMonthName} ${currentYear}`;
+        const message = MESSAGE_TEMPLATES.FEE_VOUCHER_ISSUED(
+            student.name,
+            student.id,
+            currentMonthName,
+            currentYear,
+            totalAmount,
+            dueDateStr,
+            settings.schoolName || 'School Administration'
+        );
+
+        if (!targetPhone) {
+            const { value: enteredPhone } = await Swal.fire({
+                title: 'WhatsApp Number Required',
+                text: `No phone number found in ${student.name}'s admission records. Please enter parent WhatsApp number:`,
+                input: 'tel',
+                inputPlaceholder: '03001234567 or 923001234567',
+                showCancelButton: true,
+                confirmButtonText: 'Send Alert',
+                confirmButtonColor: '#25D366'
+            });
+            if (!enteredPhone) return;
+            targetPhone = enteredPhone;
+        }
+
+        // Direct Background WhatsApp Delivery via Render Baileys Server (No Redirection)
+        Swal.fire({
+            title: 'Sending WhatsApp Voucher...',
+            text: `Connecting to Cloud WhatsApp server for ${targetPhone}...`,
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const result = await sendWhatsAppViaServer({
+            to: targetPhone,
+            message
+        });
+
+        if (sendNotification) {
+            sendNotification(student.id, 'Fee', message);
+        }
+
+        if (result.success) {
+            Swal.fire({
+                title: 'Voucher Sent! ✅',
+                text: `Fee voucher WhatsApp alert sent to parent (${targetPhone}) via Cloud server.`,
+                icon: 'success',
+                timer: 3500,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
+            });
+        } else {
+            Swal.fire({
+                title: 'WhatsApp Notification Note',
+                text: result.error ? `Status: ${result.error}` : 'Notification queued in WhatsApp gateway.',
+                icon: 'info',
+                timer: 3500,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
+            });
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-[150] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-0 md:p-4 overflow-hidden print:p-0 print:bg-white print:backdrop-blur-none">
             <div className={`bg-white w-full ${readOnly ? 'max-w-[1100px]' : 'max-w-[1300px]'} shadow-2xl rounded-none md:rounded-3xl overflow-hidden print:shadow-none print:rounded-none flex flex-col md:flex-row h-full md:h-[90vh] print:h-auto`}>
@@ -484,16 +556,31 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                                 {readOnly ? 'Back' : 'Cancel'}
                             </button>
                             <button
-                                onClick={handleDownloadPDF}
-                                disabled={isExporting}
-                                className="px-2.5 sm:px-4 md:px-6 py-2 md:py-3 bg-emerald-600 text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-1.5"
+                                onClick={handleSendWhatsAppVoucher}
+                                className="px-2.5 sm:px-4 md:px-5 py-2 md:py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-[#25D366]/20 flex items-center gap-1.5"
+                                title="Send Voucher Alert to Parent's WhatsApp"
                             >
-                                {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
-                                <span>PDF</span>
+                                <MessageCircle size={14} />
+                                <span>WhatsApp</span>
                             </button>
                             <button
-                                onClick={handlePrint}
-                                className="px-2.5 sm:px-4 md:px-6 py-2 md:py-3 bg-brand-primary text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-primary/20 flex items-center gap-1.5"
+                                onClick={() => {
+                                    hapticFeedback.light();
+                                    handleDownloadPDF();
+                                }}
+                                disabled={isExporting}
+                                className="px-2.5 sm:px-4 md:px-5 py-2 md:py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-emerald-600/20 flex items-center gap-1.5"
+                                title="Share on WhatsApp / Save PDF"
+                            >
+                                {isExporting ? <Loader2 size={13} className="animate-spin" /> : <Share2 size={13} />}
+                                <span>Share PDF</span>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    hapticFeedback.light();
+                                    handlePrint();
+                                }}
+                                className="hidden sm:flex px-2.5 sm:px-4 md:px-5 py-2 md:py-3 bg-brand-primary text-white rounded-xl font-black text-[10px] uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-brand-primary/20 items-center gap-1.5"
                             >
                                 <Printer size={13} />
                                 <span>Print</span>

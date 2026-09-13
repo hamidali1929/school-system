@@ -27,15 +27,41 @@ export const Topbar = ({ onOpenSidebar }: TopbarProps) => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
+
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
     return (
         <div className="h-20 glass-nav px-4 md:px-8 flex items-center justify-between sticky top-0 z-[100] transition-all duration-300">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4">
                 <button
                     onClick={onOpenSidebar}
                     className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl lg:hidden transition-colors"
                 >
                     <Menu className="w-6 h-6 text-slate-600 dark:text-slate-300" />
                 </button>
+
+                {/* Mobile / Desktop Online-Offline status pill */}
+                <div className={cn(
+                    "flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[8px] font-black uppercase tracking-widest border transition-all",
+                    isOnline
+                        ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                        : "bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30 animate-pulse"
+                )}>
+                    <span className={cn("w-1.5 h-1.5 rounded-full", isOnline ? "bg-emerald-500" : "bg-amber-500")}></span>
+                    <span>{isOnline ? "Cloud Active" : "Offline Cache"}</span>
+                </div>
 
                 <div className="hidden lg:flex flex-col">
                     <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none">

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import {
-    LayoutDashboard,
+    
     UserSquare2,
     GraduationCap,
     CreditCard,
@@ -16,17 +16,22 @@ import {
     Award,
     Calendar,
     Wallet,
-    MessageCircle
+    MessageCircle,
+    Home,
+    Laptop
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useStore } from '../context/StoreContext';
 
 const menuItems = [
-    { id: 'dashboard', label: 'dashboard', icon: LayoutDashboard, role: ['admin', 'student'], studentTab: 'overview' },
+    { id: 'dashboard', label: 'Dashboard', icon: Home, role: ['admin', 'teacher', 'student'], studentTab: 'overview' },
+    { id: 'timetable', label: 'Timetable', icon: Calendar, role: ['student'] },
+
     { id: 'admin', label: 'Admin Panel', icon: Settings, role: ['admin'] },
     { id: 'teachers', label: 'Teacher Panel', icon: UserSquare2, role: ['admin'] },
     { id: 'students', label: 'All Students', icon: GraduationCap, role: ['admin', 'teacher'] },
     { id: 'classes', label: 'Classes & Fee Control', icon: Library, role: ['admin'] },
+    { id: 'courses', label: 'Skill Courses', icon: Laptop, role: ['admin'] },
 
     { id: 'academic', label: 'Academic Record', icon: Award, role: ['student'], studentTab: 'academic' },
     { id: 'attendance_log', label: 'Attendance Log', icon: Calendar, role: ['student'], studentTab: 'attendance' },
@@ -88,8 +93,8 @@ export const Sidebar = ({ user, activeTab, setActiveTab, onLogout, onClose }: {
             <div className="flex flex-col items-center text-center gap-4 mb-8 px-2">
                 <div className="flex items-center gap-5 justify-center">
                     {settings.logo1 ? (
-                        <div className="w-16 h-16 flex items-center justify-center bg-white dark:bg-[#001529] rounded-2xl p-1 shadow-2xl shadow-yellow-500/20 border-2 border-yellow-400 dark:border-yellow-400/50">
-                            <img src={settings.logo1} alt="Logo 1" className="w-full h-full object-contain rounded-xl" />
+                        <div className="w-20 h-20 flex items-center justify-center transition-transform hover:scale-110 drop-shadow-2xl">
+                            <img src={settings.logo1} alt="Logo 1" className="w-full h-full object-contain" />
                         </div>
                     ) : (
                         <div className="w-16 h-16 bg-yellow-400 rounded-2xl flex items-center justify-center shadow-2xl shadow-yellow-500/40 border-4 border-white dark:border-[#000816]">
@@ -98,8 +103,8 @@ export const Sidebar = ({ user, activeTab, setActiveTab, onLogout, onClose }: {
                     )}
 
                     {settings.logo2 && (
-                        <div className="w-16 h-16 flex items-center justify-center bg-white dark:bg-[#001529] rounded-2xl p-1 shadow-2xl shadow-yellow-500/20 border-2 border-yellow-400 dark:border-yellow-400/50">
-                            <img src={settings.logo2} alt="Logo 2" className="w-full h-full object-contain rounded-xl" />
+                        <div className="w-20 h-20 flex items-center justify-center transition-transform hover:scale-110 drop-shadow-2xl">
+                            <img src={settings.logo2} alt="Logo 2" className="w-full h-full object-contain" />
                         </div>
                     )}
                 </div>

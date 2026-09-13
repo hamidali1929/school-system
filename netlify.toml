@@ -3,8 +3,14 @@
   publish = "dist"
 
 [[redirects]]
+  from = "/assets/*"
+  to = "/static/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
   from = "/api/wa/*"
-  to = "https://school-system-backend.onrender.com/:splat"
+  to = "https://16-16-124-14.nip.io/:splat"
   status = 200
 
 [[redirects]]

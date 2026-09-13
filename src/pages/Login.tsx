@@ -1,16 +1,61 @@
-import { useState } from 'react';
-import { Lock, User, GraduationCap, ShieldCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Lock, User, GraduationCap, ShieldCheck, Fingerprint } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
+import { NativeBiometric } from '@capgo/capacitor-native-biometric';
 
 export const Login = () => {
     const { settings, login } = useStore();
     const [role, setRole] = useState<'admin' | 'teacher' | 'student'>('admin');
     const [userId, setUserId] = useState('');
     const [password, setPassword] = useState('');
+    const [biometricAvailable, setBiometricAvailable] = useState(false);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    useEffect(() => {
+        const checkBiometric = async () => {
+            try {
+                const { isAvailable } = await NativeBiometric.isAvailable();
+                if (isAvailable) {
+                    const result = await NativeBiometric.isCredentialsSaved({ server: 'school_system' });
+                    if (result.isSaved) {
+                        setBiometricAvailable(true);
+                    }
+                }
+            } catch (e) {
+                console.error("Biometric check failed", e);
+            }
+        };
+        checkBiometric();
+    }, []);
+
+    const handleBiometricLogin = async () => {
+        try {
+            await NativeBiometric.verifyIdentity({
+                reason: 'Scan fingerprint to access the system',
+                title: 'Biometric Login',
+                subtitle: 'Use your fingerprint or face to login',
+                description: 'Fast and secure access to your portal'
+            });
+            
+            const credentials = await NativeBiometric.getCredentials({ server: 'school_system' });
+            const [savedRole, savedId] = credentials.username.split(':');
+            const success = login(savedId, credentials.password, savedRole as any);
+            
+            if (!success) {
+                Swal.fire({
+                    title: 'Access Denied',
+                    text: 'Invalid stored credentials.',
+                    icon: 'error',
+                    confirmButtonColor: '#003366'
+                });
+            }
+        } catch (error) {
+            console.error("Biometric login error", error);
+        }
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
         // Use store's login logic
@@ -23,6 +68,44 @@ export const Login = () => {
                 icon: 'error',
                 confirmButtonColor: '#003366'
             });
+        } else {
+            // Ask to save credentials if available and not saved
+            try {
+                const { isAvailable } = await NativeBiometric.isAvailable();
+                if (isAvailable) {
+                    const saved = await NativeBiometric.isCredentialsSaved({ server: 'school_system' });
+                    if (!saved.isSaved) {
+                        Swal.fire({
+                            title: 'Enable Biometrics?',
+                            text: 'Would you like to use Fingerprint/Face ID for quick login next time?',
+                            icon: 'question',
+                            showCancelButton: true,
+                            confirmButtonText: 'Yes, Enable',
+                            cancelButtonText: 'Not Now',
+                            confirmButtonColor: '#003366'
+                        }).then(async (result) => {
+                            if (result.isConfirmed) {
+                                await NativeBiometric.setCredentials({
+                                    username: `${role}:${userId}`,
+                                    password: password,
+                                    server: 'school_system'
+                                });
+                                // Toast
+                                Swal.fire({
+                                    toast: true,
+                                    position: 'top-end',
+                                    showConfirmButton: false,
+                                    timer: 3000,
+                                    icon: 'success',
+                                    title: 'Biometric login enabled'
+                                });
+                            }
+                        });
+                    }
+                }
+            } catch (e) {
+                console.error("Biometric prompt error", e);
+            }
         }
     };
 
@@ -164,15 +247,44 @@ export const Login = () => {
                             </div>
                         </div>
 
-                        <button
-                            type="submit"
-                            className="w-full py-4 bg-[#003366] hover:bg-blue-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98]"
-                        >
-                            Open Institutional Link
-                        </button>
+                        <div className="flex flex-col gap-3">
+                            <button
+                                type="submit"
+                                className="w-full py-4 bg-[#003366] hover:bg-blue-900 text-white font-black uppercase tracking-[0.2em] rounded-2xl shadow-xl shadow-blue-500/20 transition-all active:scale-[0.98]"
+                            >
+                                Open Institutional Link
+                            </button>
+
+                            {biometricAvailable && (
+                                <button
+                                    type="button"
+                                    onClick={handleBiometricLogin}
+                                    className="w-full py-4 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-[#003366] dark:text-blue-400 font-black uppercase tracking-widest rounded-2xl shadow-lg border-2 border-slate-100 dark:border-slate-800 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                                >
+                                    <Fingerprint className="w-5 h-5" />
+                                    <span>Login with Biometrics</span>
+                                </button>
+                            )}
+                        </div>
                     </form>
 
-                    <p className="mt-12 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">
+                    {/* Public Online Admission Link for Parents */}
+                    <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800 text-center">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                window.location.hash = '#/apply';
+                            }}
+                            className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-black uppercase tracking-wider shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+                        >
+                            <span>📝 Parents: Apply Online for Admission (2026-27)</span>
+                        </button>
+                        <p className="text-[10px] text-slate-400 font-bold mt-2">
+                            New students & parents can fill online form directly.
+                        </p>
+                    </div>
+
+                    <p className="mt-8 text-center text-slate-400 text-[10px] font-black uppercase tracking-[0.3em]">
                         © 2026 {settings.schoolName} <br />
                         CLEARANCE: ALPHA-4 AUTHORIZED
                     </p>

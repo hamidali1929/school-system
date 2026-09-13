@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Edit2, Trash2, GraduationCap, Users, RotateCcw, BookOpen, UserPlus, UploadCloud, DownloadCloud, Search } from 'lucide-react';
+import { Plus, Edit2, Trash2, GraduationCap, Users, RotateCcw, BookOpen, UserPlus, UploadCloud, DownloadCloud, Search, Layers, ArrowRightLeft } from 'lucide-react';
 import { useStore } from '../context/StoreContext';
 import Swal from 'sweetalert2';
 import { cn } from '../utils/cn';
@@ -9,10 +9,13 @@ export const ClassesPage = () => {
         classes, feeStructure, addClass, updateClass, deleteClass, students, teachers,
         classSubjects, classInCharge, subjectTeachers, updateClassSubjects, updateClassInCharge,
         updateClassSubjectTeachers, campuses, addStudent, subjectTotalMarks, updateClassSubjectMarks,
-        migrateClass
+        migrateClass, campusSections, addCampusSection, deleteCampusSection,
+        wingAssignments, updateWingAssignments, passOutClass,
+        classPrograms, updateClassPrograms
     } = useStore();
 
     const [campusFilter, setCampusFilter] = useState('All');
+    const [sectionFilter, setSectionFilter] = useState('All');
     const [search, setSearch] = useState('');
 
     const handleRestoreDefaults = () => {
@@ -41,8 +44,92 @@ export const ClassesPage = () => {
         });
     };
 
+    const handleManageSections = async () => {
+        const sectionsList = campusSections || [];
+        const { value: action } = await Swal.fire({
+            title: 'Campus Sections & Wings',
+            html: `
+                <div class="text-left font-outfit p-2">
+                    <p class="text-[10px] text-slate-500 font-bold mb-3 uppercase tracking-wider">Configure Section categories (Junior, Boys, Girls, Custom) across campuses.</p>
+                    
+                    <div class="space-y-2 max-h-[260px] overflow-y-auto pr-1">
+                        ${sectionsList.map(s => `
+                            <div class="p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-between">
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2.5 h-2.5 rounded-full ${s.color === 'blue' ? 'bg-blue-500' : s.color === 'purple' ? 'bg-purple-500' : 'bg-emerald-500'}"></span>
+                                        <h4 class="text-xs font-black text-slate-800 dark:text-white uppercase">${s.name}</h4>
+                                    </div>
+                                    <p class="text-[8px] font-bold text-slate-400 mt-0.5">${s.description || 'General Section'}</p>
+                                    <span class="text-[7px] font-black uppercase px-2 py-0.5 bg-slate-200 dark:bg-white/10 rounded-md text-slate-600 dark:text-slate-300 mt-1 inline-block">Campus: ${s.campusName || 'All'}</span>
+                                </div>
+                                ${!['sec-junior', 'sec-boys', 'sec-girls'].includes(s.id) ? `
+                                    <button onclick="window.deleteSec('${s.id}')" class="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18m-2 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                                    </button>
+                                ` : '<span class="text-[8px] font-black text-slate-400 uppercase">System</span>'}
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <div class="mt-4 pt-3 border-t border-slate-100 dark:border-white/10">
+                        <h4 class="text-[10px] font-black text-brand-primary dark:text-brand-accent uppercase mb-2">Add New Custom Section</h4>
+                        <div class="space-y-2">
+                            <input id="swal-sec-name" class="swal2-input !m-0 !w-full !rounded-xl !text-xs !h-9 !border-slate-200" placeholder="e.g. Pre-Medical Section">
+                            <div class="grid grid-cols-2 gap-2">
+                                <select id="swal-sec-campus" class="swal2-input !m-0 !w-full !rounded-xl !text-[10px] !h-9 !border-slate-200 !bg-white">
+                                    <option value="All">All Campuses</option>
+                                    ${campuses.map(c => `<option value="${c.name}">${c.name}</option>`).join('')}
+                                </select>
+                                <select id="swal-sec-key" class="swal2-input !m-0 !w-full !rounded-xl !text-[10px] !h-9 !border-slate-200 !bg-white">
+                                    <option value="primary">Junior Type</option>
+                                    <option value="boys">Boys Type</option>
+                                    <option value="girls">Girls Type</option>
+                                    <option value="custom">Special Wing</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '+ Create Section',
+            confirmButtonColor: 'var(--brand-primary)',
+            cancelButtonText: 'Close',
+            customClass: {
+                popup: 'rounded-[2.5rem] border-0 shadow-2xl',
+                confirmButton: 'rounded-full px-6 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider',
+                cancelButton: 'rounded-full px-6 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider !bg-slate-100'
+            },
+            preConfirm: () => {
+                const name = (document.getElementById('swal-sec-name') as HTMLInputElement)?.value;
+                const campusName = (document.getElementById('swal-sec-campus') as HTMLSelectElement)?.value || 'All';
+                const key = (document.getElementById('swal-sec-key') as HTMLSelectElement)?.value || 'custom';
+                if (!name) return null;
+                return { name, campusName, key, description: `${name} for ${campusName}`, color: key === 'boys' ? 'blue' : key === 'girls' ? 'purple' : 'emerald' };
+            }
+        });
+
+        if (action && action.name) {
+            addCampusSection(action);
+            Swal.fire('Section Created', `${action.name} has been added to sections.`, 'success');
+        }
+    };
+
+    (window as any).deleteSec = (id: string) => {
+        deleteCampusSection(id);
+        Swal.close();
+        handleManageSections();
+    };
+
     const handleAddClass = async () => {
         const campusOptions = campuses.reduce((acc, c) => ({ ...acc, [c.name]: c.name.toUpperCase() }), {} as Record<string, string>);
+        const sectionOptions = [
+            { key: 'primary', label: '👶 JUNIOR SECTION (PG - 5)' },
+            { key: 'boys', label: '👦 BOYS SECTION (6 - 12)' },
+            { key: 'girls', label: '👧 GIRLS SECTION (6 - 12)' },
+            ...(campusSections || []).filter(s => !['sec-junior', 'sec-boys', 'sec-girls'].includes(s.id)).map(s => ({ key: s.key || s.id, label: `✨ ${s.name.toUpperCase()}` }))
+        ];
 
         const { value: formValues } = await Swal.fire({
             title: '',
@@ -54,7 +141,7 @@ export const ClassesPage = () => {
                         </div>
                         <div>
                             <h3 class="text-sm font-black text-brand-primary uppercase tracking-tight leading-none">Class Designer</h3>
-                            <p class="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Add New Class</p>
+                            <p class="text-[7px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Add New Class & Assign Section</p>
                         </div>
                     </div>
 
@@ -62,11 +149,27 @@ export const ClassesPage = () => {
                         <div class="grid grid-cols-2 gap-2.5">
                             <div>
                                 <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Class Name</label>
-                                <input id="swal-class-name" class="swal2-input !mt-0 !w-full !rounded-2xl !text-xs !border-slate-100 focus:!border-brand-primary transition-all !h-9 !px-4 !m-0" placeholder="e.g. Grade 10">
+                                <input id="swal-class-name" class="swal2-input !mt-0 !w-full !rounded-2xl !text-xs !border-slate-100 focus:!border-brand-primary transition-all !h-9 !px-4 !m-0" placeholder="e.g. Class 7">
                             </div>
                             <div>
-                                <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Section</label>
-                                <input id="swal-class-section" class="swal2-input !mt-0 !w-full !rounded-2xl !text-xs !border-slate-100 !h-9 !px-4 !m-0" placeholder="e.g. A">
+                                <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Section Suffix</label>
+                                <input id="swal-class-section" class="swal2-input !mt-0 !w-full !rounded-2xl !text-xs !border-slate-100 !h-9 !px-4 !m-0" placeholder="e.g. Boys or A">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-2.5">
+                            <div>
+                                <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Program Type</label>
+                                <select id="swal-class-program" class="swal2-input !mt-0 !w-full !rounded-2xl !text-[10px] !border-slate-100 !h-9 !px-3 !m-0 !bg-white">
+                                    <option value="School">School</option>
+                                    <option value="College">College</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Section / Wing Category</label>
+                                <select id="swal-class-wing" class="swal2-input !mt-0 !w-full !rounded-2xl !text-[10px] !border-slate-100 !h-9 !px-3 !m-0 !bg-white">
+                                    ${sectionOptions.map(opt => `<option value="${opt.key}">${opt.label}</option>`).join('')}
+                                </select>
                             </div>
                         </div>
 
@@ -79,36 +182,22 @@ export const ClassesPage = () => {
                                 </div>
                             </div>
                             <div>
-                                <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Admission Fee</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-brand-secondary font-black text-[7px] pointer-events-none">PKR</span>
-                                    <input id="swal-admission-fee" type="number" class="swal2-input !mt-0 !w-full !rounded-2xl !text-xs !pl-9 !border-slate-100 !h-9 !m-0" placeholder="5000">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-2.5">
-                            <div>
                                 <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Campus</label>
                                 <select id="swal-campus" class="swal2-input !mt-0 !w-full !rounded-2xl !text-[10px] !border-slate-100 !h-9 !px-3 !m-0 !bg-white">
-                                    <option value="" disabled ${campusFilter === 'All' ? 'selected' : ''}>Select...</option>
+                                    <option value="All">ALL CAMPUSES</option>
                                     ${Object.entries(campusOptions).map(([name, upperName]) => `<option value="${name}" ${campusFilter.toLowerCase() === name.toLowerCase() ? 'selected' : ''}>${upperName}</option>`).join('')}
                                 </select>
-                            </div>
-                            <div>
-                                <label class="text-[7px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Student Capacity</label>
-                                <input id="swal-capacity" type="number" class="swal2-input !mt-0 !w-full !rounded-2xl !text-xs !border-slate-100 !h-9 !px-4 !m-0" placeholder="45">
                             </div>
                         </div>
 
                         <div class="flex items-center gap-2 p-2 bg-brand-primary/5 rounded-2xl border border-brand-primary/10">
                             <svg class="text-brand-primary shrink-0" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                            <p class="text-[7px] text-slate-400 font-medium">Information will be saved automatically.</p>
+                            <p class="text-[7px] text-slate-400 font-medium">Class will automatically link to the selected section & campus timetable.</p>
                         </div>
                     </div>
                 </div>
             `,
-            width: '360px',
+            width: '380px',
             padding: '1.25rem',
             background: 'white',
             showCancelButton: true,
@@ -120,23 +209,45 @@ export const ClassesPage = () => {
                 confirmButton: 'rounded-full px-8 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider shadow-sm active:scale-95 transition-all !m-0',
                 cancelButton: 'rounded-full px-8 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider !bg-slate-50 !text-slate-400 hover:!bg-slate-100 transition-all !m-0 mr-2'
             },
+            didOpen: () => {
+                const nameInput = document.getElementById('swal-class-name') as HTMLInputElement;
+                const programSelect = document.getElementById('swal-class-program') as HTMLSelectElement;
+                if (nameInput && programSelect) {
+                    nameInput.addEventListener('input', (e) => {
+                        const val = (e.target as HTMLInputElement).value.toLowerCase();
+                        if (['year', 'fsc', 'ics', 'fa', 'i.com', '11th', '12th', 'inter'].some(k => val.includes(k))) {
+                            programSelect.value = 'College';
+                        } else if (['class', 'playgroup', 'nursery', 'prep', 'kg', 'th', 'grade', 'school'].some(k => val.includes(k))) {
+                            programSelect.value = 'School';
+                        }
+                    });
+                }
+            },
             preConfirm: () => {
                 const name = (document.getElementById('swal-class-name') as HTMLInputElement).value;
                 const section = (document.getElementById('swal-class-section') as HTMLInputElement).value;
+                const wingKey = (document.getElementById('swal-class-wing') as HTMLSelectElement).value;
+                const program = (document.getElementById('swal-class-program') as HTMLSelectElement).value;
                 const fee = Number((document.getElementById('swal-class-fee') as HTMLInputElement).value);
 
                 if (!name) {
-                    Swal.showValidationMessage('Unit designation is mandatory');
+                    Swal.showValidationMessage('Class designation is mandatory');
                     return false;
                 }
 
                 const fullName = section ? `${name} (${section})` : name;
-                return { name: fullName, fee };
+                return { name: fullName, fee, wingKey, program };
             }
         });
 
         if (formValues) {
             addClass(formValues.name, formValues.fee);
+            if (formValues.wingKey) {
+                updateWingAssignments({ ...wingAssignments, [formValues.name]: formValues.wingKey });
+            }
+            if (formValues.program) {
+                updateClassPrograms({ ...classPrograms, [formValues.name]: formValues.program });
+            }
             Swal.fire({
                 title: 'Unit Established',
                 text: `${formValues.name} has been integrated into the institutional registry.`,
@@ -301,8 +412,8 @@ export const ClassesPage = () => {
     };
 
     const handleAssignInCharge = async (className: string) => {
-        const teacherOptions = teachers.reduce((acc, t) => {
-            acc[t.id] = `${t.name} (${t.subject})`;
+        const teacherOptions = teachers.filter(t => t.status === 'Active' && (campusFilter === 'All' || t.campus?.trim().toLowerCase() === campusFilter.trim().toLowerCase())).reduce((acc, t) => {
+            acc[t.id] = `${t.name} (${t.subject}) ${campusFilter === 'All' ? `- ${t.campus}` : ''}`;
             return acc;
         }, {} as Record<string, string>);
 
@@ -351,7 +462,7 @@ export const ClassesPage = () => {
                                 <label class="text-[8px] font-black uppercase text-indigo-600 mb-1.5 block tracking-widest">${s}</label>
                                 <select id="teacher-select-${s.replace(/\s+/g, '-')}" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/20 rounded-xl px-3 py-2 text-[10px] font-black uppercase tracking-wider outline-none focus:ring-2 ring-indigo-500/20">
                                     <option value="">Select Teacher...</option>
-                                    ${teachers.map(t => `<option value="${t.id}" ${currentAssignments[s] === t.id ? 'selected' : ''}>${t.name} (${t.subject})</option>`).join('')}
+                                    ${teachers.filter(t => t.status === 'Active' && (campusFilter === 'All' || t.campus?.trim().toLowerCase() === campusFilter.trim().toLowerCase())).map(t => `<option value="${t.id}" ${currentAssignments[s] === t.id ? 'selected' : ''}>${t.name} (${t.subject}) ${campusFilter === 'All' ? `- ${t.campus}` : ''}</option>`).join('')}
                                 </select>
                             </div>
                         `).join('')}
@@ -577,9 +688,89 @@ export const ClassesPage = () => {
         }
     };
 
+    const handlePassOutBatch = async (className: string) => {
+        const matchingStudents = students.filter(s => s.class?.trim().toLowerCase() === className.trim().toLowerCase() && s.status === 'Active');
+        const count = matchingStudents.length;
+        const currentYear = new Date().getFullYear();
+        const defaultSession = `${currentYear - 1}-${currentYear}`;
+
+        const { value: passOutData } = await Swal.fire({
+            title: `
+                <div class="flex items-center justify-center gap-3">
+                    <div class="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center text-lg font-black">
+                        🎓
+                    </div>
+                    <span class="font-outfit uppercase font-black text-base">Graduate / Pass-Out Batch</span>
+                </div>
+            `,
+            html: `
+                <div class="text-left font-outfit p-4 bg-slate-50 dark:bg-white/5 rounded-3xl border border-slate-100 dark:border-white/5 mb-4">
+                    <p class="text-[10px] font-bold text-slate-500 dark:text-slate-400 mb-4">
+                        You are about to graduate <span class="text-brand-primary dark:text-brand-accent font-black">${count} active students</span> from <span class="text-slate-800 dark:text-white font-black">${className}</span>.
+                    </p>
+                    <div class="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20 mb-4 text-[9px] font-bold text-amber-700 dark:text-amber-400">
+                        ℹ️ All student records, father details, contact numbers, and certificates will remain <b>safely archived</b> in Alumni. They can be 1-Click Re-Admitted into College (1st Year) anytime!
+                    </div>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[8px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Passing Academic Session</label>
+                            <input id="swal-passout-session" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-xs font-black uppercase tracking-widest text-brand-primary outline-none" value="${defaultSession}" placeholder="e.g. 2025-2026" />
+                        </div>
+                        <div>
+                            <label class="text-[8px] font-black uppercase text-slate-400 mb-1 block tracking-wider">Batch Remarks / Notes</label>
+                            <input id="swal-passout-remarks" class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-white outline-none" value="${className} Matric / Graduation Passed Out Batch" />
+                        </div>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: `Graduate ${count} Students`,
+            confirmButtonColor: '#003366',
+            customClass: {
+                popup: 'rounded-[2.5rem] border-0 shadow-2xl',
+                confirmButton: 'rounded-full px-8 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider',
+                cancelButton: 'rounded-full px-8 py-2.5 !text-[9px] !font-black !uppercase !tracking-wider'
+            },
+            preConfirm: () => {
+                const session = (document.getElementById('swal-passout-session') as HTMLInputElement)?.value.trim() || defaultSession;
+                const remarks = (document.getElementById('swal-passout-remarks') as HTMLInputElement)?.value.trim() || 'Graduated Batch';
+                return { session, remarks };
+            }
+        });
+
+        if (passOutData) {
+            await passOutClass(className, passOutData.session, passOutData.remarks);
+            Swal.fire({
+                title: '🎓 Batch Graduated!',
+                text: `${count} students from ${className} moved to Alumni archive. Class is now clear for new admissions!`,
+                icon: 'success',
+                timer: 3000,
+                showConfirmButton: false
+            });
+        }
+    };
+
     const displayClasses = classes.filter(c => {
         const matchesSearch = c.toLowerCase().includes(search.toLowerCase());
         if (!matchesSearch) return false;
+
+        // Section filter
+        if (sectionFilter !== 'All') {
+            const assignedWing = wingAssignments[c];
+            if (assignedWing) {
+                if (assignedWing !== sectionFilter) return false;
+            } else {
+                const cLow = c.toLowerCase();
+                const isGirls = cLow.includes('girls');
+                const isBoys = cLow.includes('boys') || ['6th', '7th', '8th', '9th', '10th', '1st year', '2nd year', '11th', '12th', 'inter', 'matric'].some(p => cLow.includes(p));
+                let defaultWing = 'primary';
+                if (isGirls) defaultWing = 'girls';
+                else if (isBoys) defaultWing = 'boys';
+
+                if (defaultWing !== sectionFilter) return false;
+            }
+        }
+
         if (campusFilter === 'All') return true;
         // Show class if it has students or teachers in this campus
         const hasStudents = students.some(s =>
@@ -597,19 +788,44 @@ export const ClassesPage = () => {
         return hasStudents || hasTeachers || isGloballyEmpty;
     });
 
-    const schoolClasses = displayClasses.filter(c => !c.toLowerCase().includes('year'));
-    const collegeClasses = displayClasses.filter(c => c.toLowerCase().includes('year'));
+    const isCollegeClass = (className: string) => {
+        if (classPrograms && classPrograms[className]) {
+            return classPrograms[className] === 'College';
+        }
+        const lower = className.toLowerCase();
+        return ['year', 'fsc', 'ics', 'fa', 'i.com', '11th', '12th', 'inter'].some(kw => lower.includes(kw));
+    };
+
+    const schoolClasses = displayClasses.filter(c => !isCollegeClass(c));
+    const collegeClasses = displayClasses.filter(c => isCollegeClass(c));
 
     const ClassCard = ({ className }: { className: string }) => {
         const studentCount = students.filter(s =>
             s.class?.trim().toLowerCase() === className.trim().toLowerCase() &&
+            s.status === 'Active' &&
             (campusFilter === 'All' || s.campus?.toLowerCase() === campusFilter.toLowerCase())
+        ).length;
+        const totalAlumniCount = students.filter(s =>
+            s.class?.trim().toLowerCase() === className.trim().toLowerCase() &&
+            s.status === 'Passed Out'
         ).length;
         const fee = feeStructure[className] || 0;
         const isCollege = className.toLowerCase().includes('year');
         const subjects = classSubjects[className] || [];
         const inChargeId = classInCharge[className];
         const inCharge = teachers.find(t => t.id === inChargeId);
+
+        // Determine Section Tag
+        const assignedWing = wingAssignments[className];
+        let sectionBadge = { label: '👶 Junior Section', bg: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' };
+        if (assignedWing === 'boys' || (!assignedWing && (className.toLowerCase().includes('boys') || ['6th', '7th', '8th', '9th', '10th', '1st year', '2nd year', '11th', '12th'].some(p => className.toLowerCase().includes(p)) && !className.toLowerCase().includes('girls')))) {
+            sectionBadge = { label: '👦 Boys Section', bg: 'bg-blue-500/10 text-blue-600 border-blue-500/20' };
+        } else if (assignedWing === 'girls' || (!assignedWing && className.toLowerCase().includes('girls'))) {
+            sectionBadge = { label: '👧 Girls Section', bg: 'bg-purple-500/10 text-purple-600 border-purple-500/20' };
+        } else if (assignedWing && !['primary', 'boys', 'girls'].includes(assignedWing)) {
+            const customSec = (campusSections || []).find(s => s.id === assignedWing || s.key === assignedWing);
+            sectionBadge = { label: `✨ ${customSec?.name || assignedWing}`, bg: 'bg-amber-500/10 text-amber-600 border-amber-500/20' };
+        }
 
         // Dynamic capacity for visual strength meter
         const capacity = isCollege ? 60 : 45;
@@ -655,155 +871,133 @@ export const ClassesPage = () => {
                                         {className}
                                     </span>
                                 </h3>
-                                <span className={cn(
-                                    "inline-block px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest whitespace-nowrap",
-                                    isCollege ? "bg-amber-500/10 text-amber-600 border border-amber-500/20" : "bg-brand-primary/10 text-brand-primary dark:text-brand-accent border border-brand-primary/20 dark:border-brand-accent/20"
-                                )}>
-                                    {isCollege ? 'College Department' : 'School Department'}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className={cn(
+                                        "inline-block px-2.5 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-widest whitespace-nowrap border",
+                                        sectionBadge.bg
+                                    )}>
+                                        {sectionBadge.label}
+                                    </span>
+                                    <span className={cn(
+                                        "inline-block px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest whitespace-nowrap",
+                                        isCollege ? "bg-amber-500/10 text-amber-600" : "bg-slate-100 text-slate-600 dark:bg-white/10 dark:text-slate-300"
+                                    )}>
+                                        {isCollege ? 'College' : 'School'}
+                                    </span>
+                                    {totalAlumniCount > 0 && (
+                                        <span className="inline-block px-2 py-0.5 bg-purple-500/10 text-purple-600 rounded-full text-[8px] font-black uppercase tracking-widest whitespace-nowrap">
+                                            🎓 {totalAlumniCount} Alumni
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
 
                         {/* Three Column Stats Grid */}
-                        <div className="grid grid-cols-2 gap-3 bg-slate-50/50 dark:bg-white/[0.02] p-4 rounded-2xl border border-slate-100 dark:border-white/5">
-                            {/* Tuition */}
-                            <div className="flex flex-col gap-1 border-r border-slate-200 dark:border-white/10 pr-2">
-                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Tuition</p>
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-[10px] font-black text-slate-400">RS</span>
-                                    <span className="text-base font-black text-brand-primary dark:text-white truncate">
-                                        {fee.toLocaleString()}
-                                    </span>
-                                </div>
+                        <div className="grid grid-cols-3 gap-2 p-3 bg-slate-50/80 dark:bg-white/[0.02] rounded-2xl border border-slate-100 dark:border-white/5">
+                            <div className="text-center">
+                                <p className="text-[7.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Tuition</p>
+                                <p className="text-xs font-black text-slate-800 dark:text-white mt-0.5">₨ {fee.toLocaleString()}</p>
                             </div>
-
-                            {/* Density */}
-                            <div className="flex flex-col gap-1 pl-1">
-                                <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Density</p>
-                                <div className="flex items-baseline gap-1">
-                                    <span className="text-base font-black text-slate-800 dark:text-white">{studentCount}</span>
-                                    <span className="text-[10px] font-black text-slate-400">/ {capacity}</span>
-                                </div>
-                                <div className="h-1.5 w-full bg-slate-200 dark:bg-white/10 rounded-full overflow-hidden mt-1">
-                                    <div
-                                        className={cn(
-                                            "h-full transition-all duration-1000 ease-in-out rounded-full",
-                                            isCollege ? "bg-amber-500" : "bg-gradient-to-r from-brand-primary to-brand-secondary"
-                                        )}
-                                        style={{ width: `${strengthPercentage}%` }}
-                                    ></div>
-                                </div>
+                            <div className="text-center border-x border-slate-200/50 dark:border-white/5 px-1">
+                                <p className="text-[7.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Active Students</p>
+                                <p className="text-xs font-black text-brand-primary dark:text-brand-accent mt-0.5">{studentCount}</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-[7.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Subjects</p>
+                                <p className="text-xs font-black text-slate-800 dark:text-white mt-0.5">{subjects.length}</p>
                             </div>
                         </div>
 
-                        {/* Mapped Curriculum */}
-                        <div className="space-y-2">
-                            <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
-                                <BookOpen className="w-3 h-3" />
-                                Mapped Curriculum
-                            </p>
-                            <div className="flex flex-wrap gap-1.5">
-                                {subjects.length > 0 ? (
-                                    subjects.slice(0, 4).map(s => (
-                                        <div key={s} className="px-2.5 py-1 bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg text-[10px] font-bold text-slate-600 dark:text-slate-300">
-                                            {s}
-                                        </div>
-                                    ))
-                                ) : (
-                                    <div className="text-[10px] text-slate-400 italic">No curriculum mapped</div>
-                                )}
-                                {subjects.length > 4 && (
-                                    <div className="px-2.5 py-1 bg-brand-primary/10 text-brand-primary dark:text-brand-accent rounded-lg text-[10px] font-black">
-                                        +{subjects.length - 4} More
-                                    </div>
-                                )}
+                        {/* Class Capacity Strength Meter */}
+                        <div className="space-y-1">
+                            <div className="flex justify-between items-center text-[7.5px] font-black uppercase text-slate-400">
+                                <span>Active Fill</span>
+                                <span>{studentCount} / {capacity} ({Math.round(strengthPercentage)}%)</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                <div 
+                                    className={cn(
+                                        "h-full rounded-full transition-all duration-500",
+                                        strengthPercentage > 90 ? "bg-rose-500" :
+                                        strengthPercentage > 75 ? "bg-amber-500" :
+                                        "bg-brand-primary dark:bg-brand-accent"
+                                    )}
+                                    style={{ width: `${strengthPercentage}%` }}
+                                />
                             </div>
                         </div>
 
-                        {/* Coordinator section moved inside the card body, taking full width */}
-                        <div className="flex-1"></div> {/* Spacer to push bottom section down */}
-
-                        <div className="bg-slate-50 dark:bg-[#05264c] p-3 rounded-2xl border border-slate-100 dark:border-white/5 flex items-center justify-between">
-                            {inCharge ? (
-                                <div className="flex items-center gap-3 w-full">
-                                    <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-brand-primary to-brand-secondary p-0.5 shadow-sm shrink-0">
-                                        <div className="w-full h-full rounded-[0.6rem] overflow-hidden bg-white dark:bg-[#001a33] flex items-center justify-center text-xs font-black text-brand-primary">
-                                            {inCharge.avatar && inCharge.avatar.length > 5 ? (
-                                                <img src={inCharge.avatar} className="w-full h-full object-cover" alt={inCharge.name} />
-                                            ) : (
-                                                <span>{inCharge.avatar || inCharge.name.charAt(0)}</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="min-w-0 flex-1">
-                                        <p className="text-[8px] font-black text-brand-primary dark:text-brand-accent uppercase tracking-[0.15em] mb-0.5">Academic Lead</p>
-                                        <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{inCharge.name}</p>
-                                    </div>
-                                    <button
-                                        onClick={() => handleAssignInCharge(className)}
-                                        className="w-8 h-8 rounded-full bg-white dark:bg-white/10 flex items-center justify-center text-slate-400 hover:text-brand-primary shadow-sm border border-slate-100 dark:border-white/5 shrink-0 transition-colors"
-                                        title="Change Lead"
-                                    >
-                                        <Edit2 size={12} />
-                                    </button>
+                        {/* Class In-Charge Info */}
+                        <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-2xl border border-slate-100 dark:border-white/5">
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-lg bg-brand-primary/10 dark:bg-brand-accent/10 flex items-center justify-center text-brand-primary dark:text-brand-accent text-[10px] font-black">
+                                    {inCharge ? inCharge.name[0] : '?'}
                                 </div>
-                            ) : (
-                                <button
-                                    onClick={() => handleAssignInCharge(className)}
-                                    className="flex items-center justify-center gap-2 w-full py-2 group/btn"
-                                >
-                                    <div className="w-8 h-8 rounded-full border-2 border-dashed border-slate-300 dark:border-white/20 flex items-center justify-center text-slate-400 group-hover/btn:border-brand-primary group-hover/btn:text-brand-primary transition-colors">
-                                        <UserPlus size={14} />
-                                    </div>
-                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest group-hover/btn:text-brand-primary transition-colors">Assign Lead</span>
-                                </button>
-                            )}
+                                <div>
+                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">Class In-Charge</p>
+                                    <p className="text-[10px] font-black text-slate-700 dark:text-white truncate max-w-[120px]">{inCharge?.name || 'Unassigned'}</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => handleAssignInCharge(className)}
+                                className="px-2.5 py-1 bg-white dark:bg-white/10 hover:bg-brand-primary hover:text-white dark:hover:bg-brand-accent dark:hover:text-[#001a33] text-slate-600 dark:text-white rounded-lg text-[8px] font-black uppercase transition-all shadow-sm"
+                            >
+                                {inCharge ? 'Change' : 'Assign'}
+                            </button>
                         </div>
                     </div>
 
-                    {/* Action Footer (Always Visible, neatly spaced) */}
-                    <div className="grid grid-cols-6 border-t border-slate-100 dark:border-white/10 divide-x divide-slate-100 dark:divide-white/10">
+                    {/* Card Actions Ribbon */}
+                    <div className="grid grid-cols-7 border-t border-slate-100 dark:border-white/5 divide-x divide-slate-100 dark:divide-white/5 bg-slate-50/50 dark:bg-white/[0.01]">
                         <button
                             onClick={() => handleEditClass(className)}
-                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-brand-primary transition-colors"
+                            className="p-3 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-brand-primary transition-colors"
                             title="Edit Configuration"
                         >
-                            <Edit2 size={16} />
+                            <Edit2 size={14} />
                         </button>
                         <button
                             onClick={() => handleManageSubjects(className)}
-                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-blue-500 transition-colors"
+                            className="p-3 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-blue-500 transition-colors"
                             title="Manage Curriculum"
                         >
-                            <BookOpen size={16} />
+                            <BookOpen size={14} />
                         </button>
                         <button
-                            onClick={() => document.getElementById(`import-students-${className}`)?.click()}
-                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-emerald-500 transition-colors"
-                            title="Import Students CSV"
+                            onClick={() => handlePassOutBatch(className)}
+                            className="p-3 flex items-center justify-center text-slate-400 hover:bg-amber-500/10 hover:text-amber-600 transition-colors"
+                            title="Graduate / Pass-Out Batch to Alumni"
                         >
-                            <UploadCloud size={16} />
-                        </button>
-                        <button
-                            onClick={() => handleExportClassStudents(className)}
-                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-indigo-500 transition-colors"
-                            title="Export Students CSV"
-                        >
-                            <DownloadCloud size={16} />
-                        </button>
-                        <button
-                            onClick={() => handleDeleteClass(className)}
-                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
-                            title="Decommission Unit"
-                        >
-                            <Trash2 size={16} />
+                            <GraduationCap size={14} />
                         </button>
                         <button
                             onClick={() => handleMigrateClass(className)}
-                            className="p-4 flex items-center justify-center text-slate-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-500 transition-colors"
-                            title="Migrate Class Students"
+                            className="p-3 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-purple-500 transition-colors"
+                            title="Migrate Class Campus"
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5" /><path d="M8 3H3v5" /><path d="M12 22V12" /><path d="M3 21l9-9 9 9" /></svg>
+                            <ArrowRightLeft size={14} />
+                        </button>
+                        <button
+                            onClick={() => document.getElementById(`import-students-${className}`)?.click()}
+                            className="p-3 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-emerald-500 transition-colors"
+                            title="Import Students CSV"
+                        >
+                            <UploadCloud size={14} />
+                        </button>
+                        <button
+                            onClick={() => handleExportClassStudents(className)}
+                            className="p-3 flex items-center justify-center text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5 hover:text-indigo-500 transition-colors"
+                            title="Export Students CSV"
+                        >
+                            <DownloadCloud size={14} />
+                        </button>
+                        <button
+                            onClick={() => handleDeleteClass(className)}
+                            className="p-3 flex items-center justify-center text-slate-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-500 transition-colors"
+                            title="Decommission Unit"
+                        >
+                            <Trash2 size={14} />
                         </button>
                     </div>
 
@@ -832,46 +1026,68 @@ export const ClassesPage = () => {
                             <h2 className="text-2xl md:text-4xl font-black tracking-tighter text-brand-primary dark:text-brand-accent uppercase leading-none">Class Registry</h2>
                         </div>
                         <p className="text-[11px] md:text-sm text-slate-500 dark:text-slate-400 font-bold max-w-lg leading-relaxed">
-                            Configure institutional categories, define revenue tiers, and optimize enrollment density across departments.
+                            Configure institutional categories, define revenue tiers, and organize classes into Junior, Boys, and Girls sections.
                         </p>
                     </div>
 
-                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-white/5 p-1 rounded-2xl border border-slate-100 dark:border-white/5">
+                    <div className="flex flex-wrap items-center gap-2 bg-slate-50 dark:bg-white/5 p-1 rounded-2xl border border-slate-100 dark:border-white/5">
                         <div className="relative flex items-center">
                             <Search className="absolute left-3 w-3 h-3 text-slate-400" />
                             <input
                                 type="text"
-                                placeholder="Search classes..."
+                                placeholder="Search..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="bg-transparent text-[10px] font-bold pl-8 pr-4 py-2 outline-none w-[150px] text-slate-700 dark:text-white"
+                                className="bg-transparent text-[10px] font-bold pl-8 pr-3 py-2 outline-none w-[110px] text-slate-700 dark:text-white"
                             />
                         </div>
                         <div className="w-[1px] h-4 bg-slate-200 dark:bg-white/10"></div>
                         <select
                             value={campusFilter}
                             onChange={(e) => setCampusFilter(e.target.value)}
-                            className="bg-transparent text-[10px] font-black px-4 py-2 outline-none cursor-pointer uppercase tracking-widest text-brand-primary dark:text-brand-accent min-w-[150px]"
+                            className="bg-transparent text-[10px] font-black px-3 py-2 outline-none cursor-pointer uppercase tracking-widest text-brand-primary dark:text-brand-accent"
                         >
                             <option value="All">All Campuses</option>
                             {campuses.map(c => <option key={c.id} value={c.name}>{c.name.toUpperCase()}</option>)}
                         </select>
+                        <div className="w-[1px] h-4 bg-slate-200 dark:bg-white/10"></div>
+                        <select
+                            value={sectionFilter}
+                            onChange={(e) => setSectionFilter(e.target.value)}
+                            className="bg-transparent text-[10px] font-black px-3 py-2 outline-none cursor-pointer uppercase tracking-widest text-emerald-600 dark:text-emerald-400"
+                        >
+                            <option value="All">All Sections</option>
+                            <option value="primary">👶 Junior Section</option>
+                            <option value="boys">👦 Boys Section</option>
+                            <option value="girls">👧 Girls Section</option>
+                            {(campusSections || []).filter(s => !['sec-junior', 'sec-boys', 'sec-girls'].includes(s.id)).map(s => (
+                                <option key={s.id} value={s.key || s.id}>✨ {s.name.toUpperCase()}</option>
+                            ))}
+                        </select>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={handleManageSections}
+                            className="px-4 py-3 bg-white dark:bg-brand-primary-dark border border-slate-200 dark:border-white/10 text-brand-primary dark:text-white rounded-[var(--brand-radius,1rem)] text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 transition-all flex items-center justify-center gap-2 shadow-sm"
+                            title="Manage Campus Sections & Wings"
+                        >
+                            <Layers className="w-4 h-4 text-emerald-500" />
+                            Sections
+                        </button>
                         <button
                             onClick={handleRestoreDefaults}
-                            className="px-5 py-3 border-2 border-brand-primary/10 text-brand-primary dark:text-white dark:border-white/10 rounded-[var(--brand-radius,1rem)] text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:border-brand-accent transition-all flex items-center justify-center gap-2 group"
+                            className="px-4 py-3 border-2 border-brand-primary/10 text-brand-primary dark:text-white dark:border-white/10 rounded-[var(--brand-radius,1rem)] text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:border-brand-accent transition-all flex items-center justify-center gap-2 group"
                         >
                             <RotateCcw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" />
-                            Restore Defaults
+                            Defaults
                         </button>
                         <button
                             onClick={handleAddClass}
-                            className="px-8 py-3 bg-brand-primary text-white rounded-[var(--brand-radius,1rem)] text-[10px] md:text-[11px] font-black uppercase tracking-widest hover:bg-brand-accent hover:text-brand-primary transition-all flex items-center justify-center gap-3 shadow-2xl active:scale-95 group"
+                            className="px-6 py-3 bg-brand-primary text-white rounded-[var(--brand-radius,1rem)] text-[10px] md:text-[11px] font-black uppercase tracking-widest hover:bg-brand-accent hover:text-brand-primary transition-all flex items-center justify-center gap-2 shadow-2xl active:scale-95 group"
                         >
                             <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                            Add New Class
+                            Add Class
                         </button>
                     </div>
                 </div>

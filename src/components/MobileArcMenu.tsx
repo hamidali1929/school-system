@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion';
 import {
-    LayoutDashboard,
+    LayoutDashboard, Laptop,
     UserSquare2,
     GraduationCap,
     CreditCard,
@@ -16,12 +16,13 @@ import {
 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import { useStore } from '../context/StoreContext';
+import { hapticFeedback } from '../utils/haptics';
 
 const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, role: ['admin', 'student'], color: '#fbbf24' },
     { id: 'admin', label: 'Admin Panel', icon: Settings, role: ['admin'], color: '#f87171' },
     { id: 'teachers', label: 'Teacher Panel', icon: UserSquare2, role: ['admin'], color: '#60a5fa' },
-    { id: 'students', label: 'All Students', icon: GraduationCap, role: ['admin', 'student'], color: '#34d399' },
+    { id: 'students', label: 'All Students', icon: GraduationCap, role: ['admin', 'student'], color: '#34d399' }, { id: 'courses', label: 'Skill Courses', icon: Laptop, role: ['admin'], color: '#eab308' },
     { id: 'classes', label: 'Classes & Fees', icon: Library, role: ['admin'], color: '#a78bfa' },
     { id: 'fees', label: 'Fees Collection', icon: CreditCard, role: ['admin', 'student'], color: '#fb923c' },
     { id: 'exams', label: 'Exams & Results', icon: FileText, role: ['admin', 'student', 'teacher'], color: '#f472b6' },
@@ -73,7 +74,7 @@ export const MobileArcMenu = ({
     const radius = Math.max(110, Math.min(155, Math.floor(availableDim * 0.38)));
     const buttonSize = radius < 125 ? 46 : radius < 140 ? 52 : 58;
     const iconSize = radius < 125 ? 20 : radius < 140 ? 22 : 25;
-    const centerSize = radius < 125 ? 90 : radius < 140 ? 104 : 120;
+    const centerSize = radius < 125 ? 76 : radius < 140 ? 86 : 96;
 
     // Rotation engine with butter-smooth physics
     const rotation = useMotionValue(0);
@@ -173,6 +174,7 @@ export const MobileArcMenu = ({
                                             whileTap={{ scale: 0.9 }}
                                             onClick={(e) => {
                                                 e.stopPropagation();
+                                                hapticFeedback.light();
                                                 setActiveTab(item.id);
                                             }}
                                             className={cn(
@@ -220,7 +222,7 @@ export const MobileArcMenu = ({
                                     rotate: oppositeRotation
                                 }}
                             >
-                                <div className="relative w-full h-full p-2 flex items-center justify-center">
+                                <div className="relative w-full h-full p-2.5 sm:p-3 flex items-center justify-center">
                                     <motion.img
                                         src={settings.logo1 || "/logo1.png"}
                                         className="w-full h-full object-contain"

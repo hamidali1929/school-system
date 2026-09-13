@@ -10,7 +10,12 @@ import {
     CreditCard,
     ChevronRight,
     Calendar,
-    Target
+    Target,
+    UserPlus,
+    CheckSquare,
+    Wallet,
+    MessageSquare,
+    FileText
 } from 'lucide-react';
 import { Line } from 'react-chartjs-2';
 import {
@@ -197,6 +202,36 @@ export const Dashboard = ({ onNavigate }: { onNavigate: (page: any) => void }) =
                     </div>
                 </div>
             </div>
+
+            {/* App-like Quick Actions Grid (For Mobile & Desktop) */}
+            {isAdmin && (
+                <div className="mb-8">
+                    <h2 className="text-sm font-black uppercase tracking-widest text-slate-400 mb-4 px-1">Quick Actions</h2>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
+                        {[
+                            { name: 'Students', icon: UserPlus, path: 'students', color: 'bg-emerald-500', shadow: 'shadow-emerald-500/30' },
+                            { name: 'Attendance', icon: CheckSquare, path: 'attendance', color: 'bg-blue-500', shadow: 'shadow-blue-500/30' },
+                            { name: 'Collect Fee', icon: Wallet, path: 'fees', color: 'bg-amber-500', shadow: 'shadow-amber-500/30' },
+                            { name: 'Messages', icon: MessageSquare, path: 'admin', color: 'bg-indigo-500', shadow: 'shadow-indigo-500/30' },
+                            { name: 'Results', icon: FileText, path: 'exams', color: 'bg-rose-500', shadow: 'shadow-rose-500/30' },
+                            { name: 'Classes', icon: Users, path: 'classes', color: 'bg-teal-500', shadow: 'shadow-teal-500/30' }
+                        ].map((action, i) => (
+                            <button
+                                key={i}
+                                onClick={() => onNavigate(action.path)}
+                                className="flex flex-col items-center justify-center p-3 sm:p-4 glass-card hover:-translate-y-1 duration-200 group gap-2"
+                            >
+                                <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center text-white shadow-lg transition-transform group-hover:scale-110", action.color, action.shadow)}>
+                                    <action.icon className="w-5 h-5 sm:w-6 sm:h-6" />
+                                </div>
+                                <span className="text-[10px] sm:text-xs font-bold text-slate-700 dark:text-slate-300 text-center leading-tight">
+                                    {action.name}
+                                </span>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Quick Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

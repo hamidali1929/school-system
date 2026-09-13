@@ -212,6 +212,48 @@ export const Teachers = () => {
         }
     };
 
+    const handleBulkMigrate = async () => {
+        if (selectedIds.length === 0) return;
+
+        const selectedTeachers = teachers.filter(t => selectedIds.includes(t.id));
+        const campusOptions = campuses.reduce((acc, c) => ({ ...acc, [c.name]: c.name.toUpperCase() }), {} as Record<string, string>);
+
+        const { value: toCampus } = await Swal.fire({
+            title: `Migrate ${selectedIds.length} Teachers`,
+            text: `Select destination campus to transfer all ${selectedIds.length} selected faculty members:`,
+            input: 'select',
+            inputOptions: campusOptions,
+            showCancelButton: true,
+            confirmButtonText: `Transfer ${selectedIds.length} Teachers`,
+            confirmButtonColor: '#003366',
+            cancelButtonColor: '#94a3b8',
+            customClass: {
+                popup: 'rounded-[2.5rem] border-0 shadow-2xl p-6 font-outfit',
+                confirmButton: 'rounded-xl px-6 py-2.5 !text-[10px] !font-black !uppercase !tracking-wider flex items-center gap-2 m-0',
+                cancelButton: 'rounded-xl px-6 py-2.5 !text-[10px] !font-black !uppercase !tracking-wider !bg-slate-100 !text-slate-600 hover:!bg-slate-200 transition-all !m-0 mr-2'
+            },
+            inputValidator: (value) => {
+                if (!value) return 'Please choose a destination campus';
+                return null;
+            }
+        });
+
+        if (toCampus) {
+            Swal.showLoading();
+            for (const teacherId of selectedIds) {
+                await migrateTeacher(teacherId, toCampus);
+            }
+            setSelectedIds([]);
+            Swal.fire({
+                title: 'Batch Migration Complete!',
+                text: `Successfully transferred ${selectedTeachers.length} teachers to ${toCampus}.`,
+                icon: 'success',
+                timer: 2500,
+                showConfirmButton: false
+            });
+        }
+    };
+
     return (
         <div className="space-y-8 animate-fade-in font-outfit pb-10">
             {/* Premium Compact Header */}
@@ -248,6 +290,20 @@ export const Teachers = () => {
                                 </div>
                                 <span className="text-[7px] md:text-[9px] font-black uppercase tracking-widest text-white/90">Select</span>
                             </div>
+                            <div className="w-[1px] h-4 bg-white/10 mx-0.5"></div>
+                            <button
+                                onClick={handleBulkMigrate}
+                                disabled={selectedIds.length === 0}
+                                className={cn(
+                                    "px-3 py-1.5 rounded-lg text-[7px] md:text-[9px] font-black uppercase tracking-widest transition-all flex items-center gap-1",
+                                    selectedIds.length > 0
+                                        ? "bg-amber-400 hover:bg-amber-300 text-slate-900 shadow-xl shadow-amber-500/20 active:scale-95 cursor-pointer font-bold"
+                                        : "text-white/20 cursor-not-allowed"
+                                )}
+                            >
+                                <RotateCcw className="w-2.5 h-2.5" />
+                                <span>Migrate ({selectedIds.length})</span>
+                            </button>
                             <div className="w-[1px] h-4 bg-white/10 mx-0.5"></div>
                             <button onClick={handleBulkDelete} disabled={selectedIds.length === 0} className={cn("px-3 py-1.5 rounded-lg text-[7px] md:text-[9px] font-black uppercase tracking-widest transition-all", selectedIds.length > 0 ? "bg-rose-500 text-white shadow-xl shadow-rose-500/30" : "text-white/20 cursor-not-allowed")}>
                                 Delete ({selectedIds.length})
@@ -363,10 +419,18 @@ export const Teachers = () => {
                                         <button
                                             onClick={() => setSelectedTeacherForId(teacher)}
                                             className="p-3 bg-blue-500/5 dark:bg-white/5 rounded-xl text-slate-400 hover:text-brand-primary dark:hover:text-brand-accent transition-all"
+                                            title="ID Card"
                                         >
                                             <Contact className="w-4 h-4" />
                                         </button>
-                                        <button onClick={() => handleEditTeacher(teacher)} className="p-3 bg-emerald-500/5 rounded-xl text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all"><Edit className="w-4 h-4" /></button>
+                                        <button
+                                            onClick={() => handleMigrateTeacher(teacher)}
+                                            className="p-3 bg-amber-500/10 text-amber-600 hover:bg-amber-500 hover:text-white rounded-xl transition-all"
+                                            title="Transfer Campus"
+                                        >
+                                            <RotateCcw className="w-4 h-4" />
+                                        </button>
+                                        <button onClick={() => handleEditTeacher(teacher)} className="p-3 bg-emerald-500/5 rounded-xl text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all" title="Edit"><Edit className="w-4 h-4" /></button>
                                     </div>
                                     <button onClick={() => handleDeleteTeacher(teacher.id, teacher.name)} className="p-3 bg-rose-500/5 rounded-xl text-rose-500 hover:bg-rose-500 hover:text-white transition-all"><Trash2 className="w-4 h-4" /></button>
                                 </div>

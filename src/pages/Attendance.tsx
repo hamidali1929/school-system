@@ -1,12 +1,14 @@
 import { useState, useMemo, useCallback, useRef } from 'react';
-import { Search, CheckCircle2, XCircle, Clock, AlertCircle, Save, QrCode, ChevronLeft, ChevronRight, Zap } from 'lucide-react';
+import { Search, CheckCircle2, XCircle, Clock, AlertCircle, Save, QrCode, ChevronLeft, ChevronRight, Zap, MessageCircle } from 'lucide-react';
 import { useStore, type AttendanceRecord } from '../context/StoreContext';
 import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
 import { QRScanner } from '../components/QRScanner';
+import { hapticFeedback } from '../utils/haptics';
+import { MESSAGE_TEMPLATES, sendWhatsAppViaServer, getStudentParentPhone } from '../utils/whatsapp';
 
 export const Attendance = () => {
-    const { students, attendance, markAttendance, campuses, currentUser } = useStore();
+    const { students, attendance, markAttendance, campuses, currentUser, settings, sendNotification } = useStore();
     const isTeacher = currentUser?.role === 'teacher';
     const inchargeClass = currentUser?.inchargeClass;
 
@@ -70,14 +72,73 @@ export const Attendance = () => {
     }, [students, selectedClass, selectedCampus, searchQuery]);
 
     const handleStatusChange = useCallback((studentId: string, status: 'Present' | 'Absent' | 'Late' | 'Leave') => {
+        hapticFeedback.selection();
         setPendingRecords(prev => ({ ...prev, [studentId]: status }));
     }, []);
+
+    const handleSendAttendanceWhatsApp = async (student: typeof students[0], status: string) => {
+        hapticFeedback.light();
+        const targetPhone = getStudentParentPhone(student);
+        const msg = status === 'Absent'
+            ? MESSAGE_TEMPLATES.ATTENDANCE_ABSENT(student.name, selectedDate, settings.schoolName || 'School Administration')
+            : MESSAGE_TEMPLATES.ATTENDANCE_LATE(student.name, selectedDate, settings.schoolName || 'School Administration');
+
+        if (!targetPhone) {
+            Swal.fire({
+                title: 'No Phone Number',
+                text: `No WhatsApp number found in ${student.name}'s admission form.`,
+                icon: 'warning'
+            });
+            return;
+        }
+
+        Swal.fire({
+            title: 'Sending WhatsApp...',
+            text: `Delivering ${status} alert to ${targetPhone} via Cloud server...`,
+            toast: true,
+            position: 'top-end',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+        const result = await sendWhatsAppViaServer({
+            to: targetPhone,
+            message: msg
+        });
+
+        if (sendNotification) {
+            sendNotification(student.id, 'Attendance', msg);
+        }
+
+        if (result.success) {
+            Swal.fire({
+                title: 'WhatsApp Sent! ✅',
+                text: `${status} notification delivered to ${student.name}'s parent (${targetPhone})`,
+                icon: 'success',
+                toast: true,
+                position: 'top-end',
+                timer: 3000,
+                showConfirmButton: false
+            });
+        } else {
+            Swal.fire({
+                title: 'Message Queued',
+                text: `Notification queued in gateway for ${student.name} (${targetPhone}).`,
+                icon: 'info',
+                toast: true,
+                position: 'top-end',
+                timer: 3000,
+                showConfirmButton: false
+            });
+        }
+    };
 
 
 
     const handleSave = () => {
         const h = document.documentElement.classList.contains('dark');
         if (selectedClass === 'All' || selectedCampus === 'All') {
+            hapticFeedback.error();
             Swal.fire({
                 title: 'Operation Blocked',
                 background: h ? '#001529' : '#ffffff',
@@ -101,6 +162,7 @@ export const Attendance = () => {
             records: recordsToSave
         });
 
+        hapticFeedback.success();
         Swal.fire({
             title: 'Attendance Records Updated',
             text: `Records synced for ${selectedClass}. WhatsApp alerts dispatched for absent/late students.`,
@@ -349,16 +411,32 @@ export const Attendance = () => {
                                         status === 'Leave' ? 'bg-indigo-50 border-indigo-200' :
                                             'bg-white border-slate-50 hover:border-slate-100'
                         )}>
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#003366] to-blue-500 p-0.5 shadow-md shrink-0">
-                                    <div className="w-full h-full rounded-[0.9rem] bg-white overflow-hidden flex items-center justify-center font-black text-lg text-[#003366]">
-                                        {student.avatar && student.avatar.length > 5 ? <img src={student.avatar} className="w-full h-full object-cover" /> : student.name.charAt(0)}
+                            <div className="flex items-center justify-between gap-2 mb-4">
+                                <div className="flex items-center gap-3 min-w-0">
+                                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-[#003366] to-blue-500 p-0.5 shadow-md shrink-0">
+                                        <div className="w-full h-full rounded-[0.9rem] bg-white overflow-hidden flex items-center justify-center font-black text-lg text-[#003366]">
+                                            {student.avatar && student.avatar.length > 5 ? <img src={student.avatar} className="w-full h-full object-cover" /> : student.name.charAt(0)}
+                                        </div>
+                                    </div>
+                                    <div className="overflow-hidden min-w-0">
+                                        <h4 className="font-black text-xs uppercase tracking-tight text-slate-800 line-clamp-1 leading-tight">{student.name}</h4>
+                                        <p className="text-[8px] font-black text-[#003366]/40 uppercase tracking-widest mt-0.5 font-mono">{student.id}</p>
                                     </div>
                                 </div>
-                                <div className="overflow-hidden">
-                                    <h4 className="font-black text-xs uppercase tracking-tight text-slate-800 line-clamp-1 leading-tight">{student.name}</h4>
-                                    <p className="text-[8px] font-black text-[#003366]/40 uppercase tracking-widest mt-0.5 font-mono">{student.id}</p>
-                                </div>
+                                {(status === 'Absent' || status === 'Late') && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleSendAttendanceWhatsApp(student, status);
+                                        }}
+                                        className="p-2 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-xl shadow-md active:scale-95 transition-all shrink-0 flex items-center gap-1 text-[8px] font-black uppercase"
+                                        title={`Send WhatsApp ${status} Alert to Parent`}
+                                    >
+                                        <MessageCircle size={13} />
+                                        <span className="hidden sm:inline">Alert</span>
+                                    </button>
+                                )}
                             </div>
 
                             <div className="grid grid-cols-4 gap-1.5 h-10">

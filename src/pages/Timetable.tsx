@@ -13,10 +13,11 @@ export const TimetablePage = () => {
         timetables, updateTimetable, updateAllTimetables, teachers, classes,
         periodSettings, updatePeriodSettings, currentUser, settings,
         classSubjects, subjectTeachers, campuses, students,
-        wingAssignments, updateWingAssignments
+        wingAssignments, updateWingAssignments, campusSections
     } = useStore();
     const [selectedDay, setSelectedDay] = useState(DAYS[new Date().getDay() === 0 ? 0 : new Date().getDay() - 1]);
-    const [activeWing, setActiveWing] = useState<'primary' | 'boys' | 'girls'>('primary');
+    const [activeWing, setActiveWing] = useState<string>('primary');
+    const [mobileClass, setMobileClass] = useState<string>('');
     const [viewMode, setViewMode] = useState<'daily' | 'weekly' | 'teacher'>('daily');
     const [isExamMode, setIsExamMode] = useState(false);
     const [targetClass, setTargetClass] = useState<string>('');
@@ -26,6 +27,16 @@ export const TimetablePage = () => {
     const [isGenerating, setIsGenerating] = useState(false);
     const [draggedSlot, setDraggedSlot] = useState<{ cls: string, day: string, pIdx: number } | null>(null);
     const timetableRef = useRef<HTMLDivElement>(null);
+
+    const availableSections = [
+        { key: 'primary', label: '👶 Junior (PG - 5)', color: 'emerald' },
+        { key: 'boys', label: '👦 Boys (6 - 12)', color: 'blue' },
+        { key: 'girls', label: '👧 Girls (6 - 12)', color: 'purple' },
+        ...(campusSections || [])
+            .filter(s => !['sec-junior', 'sec-boys', 'sec-girls'].includes(s.id))
+            .filter(s => s.campusName === 'All' || s.campusName.toLowerCase() === selectedCampus.toLowerCase())
+            .map(s => ({ key: s.key || s.id, label: `✨ ${s.name}`, color: s.color || 'amber' }))
+    ];
 
     const campusClasses = classes.filter(c => {
         const hasStudents = students.some(s =>
@@ -97,12 +108,13 @@ export const TimetablePage = () => {
             if (wingAssignments[c]) return wingAssignments[c] === activeWing;
             const classLow = c.toLowerCase();
             const isGirls = classLow.includes('girls');
-            const isBoys = classLow.includes('boys') || ['9th', '10th', '1st year', '2nd year', 'inter', 'matric'].some(p => classLow.includes(p));
+            const isBoys = classLow.includes('boys') || ['6th', '7th', '8th', '9th', '10th', '1st year', '2nd year', '11th', '12th', 'inter', 'matric'].some(p => classLow.includes(p));
             if (activeWing === 'girls') return isGirls;
             if (activeWing === 'boys') return isBoys && !isGirls;
-            return !isBoys && !isGirls;
+            if (activeWing === 'primary') return !isBoys && !isGirls;
+            return false;
         });
-        const periods = periodSettings[activeWing] || [];
+        const periods = periodSettings[activeWing] || periodSettings['primary'] || DEFAULT_PERIODS;
 
         await new Promise(resolve => setTimeout(resolve, 2000));
 
@@ -969,10 +981,10 @@ export const TimetablePage = () => {
         const h = document.documentElement.classList.contains('dark');
 
         const { value: newAssignments } = await Swal.fire({
-            title: '<span class="font-outfit uppercase font-black text-lg">Categorize Classes into Wings</span>',
+            title: '<span class="font-outfit uppercase font-black text-lg">Categorize Classes into Wings / Sections</span>',
             background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
             color: h ? 'var(--brand-accent, #fbbf24)' : '#0f172a',
-            width: '900px',
+            width: '950px',
             customClass: {
                 popup: 'rounded-[1.5rem] border-2 border-slate-100 dark:border-white/5 shadow-2xl',
                 confirmButton: 'rounded-lg font-black uppercase tracking-widest px-6 py-2 text-[9px] bg-brand-primary h-auto',
@@ -981,22 +993,22 @@ export const TimetablePage = () => {
             html: `
                 <div class="p-4 font-outfit">
                     <p class="text-[9px] font-bold text-slate-400 uppercase mb-6 tracking-widest leading-relaxed">
-                        Manually assign classes to their respective wings. This overrides automatic placement.
+                        Manually assign classes to their respective sections / wings. This overrides automatic placement.
                     </p>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto px-2 custom-scrollbar">
                         ${classes.map((cls) => `
                             <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-100 dark:border-white/10">
                                 <span class="text-[10px] font-black uppercase text-brand-primary dark:text-white truncate pr-2">${cls}</span>
-                                <div class="flex gap-1">
-                                    ${['primary', 'boys', 'girls'].map(wing => `
+                                <div class="flex flex-wrap gap-1 justify-end">
+                                    ${availableSections.map(s => `
                                         <button 
-                                            onclick="window.setLocalWingAssignment('${cls}', '${wing}')"
-                                            id="btn-${cls}-${wing}"
-                                            class="px-2 py-1 rounded-md text-[7px] font-black uppercase tracking-tighter transition-all ${wingAssignments[cls] === wing ?
+                                            onclick="window.setLocalWingAssignment('${cls}', '${s.key}')"
+                                            id="btn-${cls.replace(/[^a-zA-Z0-9]/g, '_')}-${s.key}"
+                                            class="px-2 py-1 rounded-md text-[7.5px] font-black uppercase tracking-tighter transition-all ${wingAssignments[cls] === s.key ?
                     'bg-brand-primary text-white scale-105 shadow-md' :
                     'bg-white dark:bg-white/5 text-slate-400 hover:text-brand-primary'}"
                                         >
-                                            ${wing}
+                                            ${s.label}
                                         </button>
                                     `).join('')}
                                 </div>
@@ -1028,19 +1040,20 @@ export const TimetablePage = () => {
     (window as any).localWingAssignments = { ...wingAssignments };
     (window as any).setLocalWingAssignment = (cls: string, wing: string) => {
         (window as any).localWingAssignments[cls] = wing;
-        ['primary', 'boys', 'girls'].forEach(w => {
-            const btn = document.getElementById(`btn-${cls}-${w}`);
+        const safeCls = cls.replace(/[^a-zA-Z0-9]/g, '_');
+        availableSections.forEach(s => {
+            const btn = document.getElementById(`btn-${safeCls}-${s.key}`);
             if (btn) {
-                if (w === wing) {
-                    btn.className = 'px-2 py-1 rounded-md text-[7px] font-black uppercase tracking-tighter transition-all bg-brand-primary text-white scale-105 shadow-md';
+                if (s.key === wing) {
+                    btn.className = 'px-2 py-1 rounded-md text-[7.5px] font-black uppercase tracking-tighter transition-all bg-brand-primary text-white scale-105 shadow-md';
                 } else {
-                    btn.className = 'px-2 py-1 rounded-md text-[7px] font-black uppercase tracking-tighter transition-all bg-white dark:bg-white/5 text-slate-400 hover:text-brand-primary';
+                    btn.className = 'px-2 py-1 rounded-md text-[7.5px] font-black uppercase tracking-tighter transition-all bg-white dark:bg-white/5 text-slate-400 hover:text-brand-primary';
                 }
             }
         });
     };
 
-    const WingSection = ({ group }: { group: 'primary' | 'boys' | 'girls' }) => {
+    const WingSection = ({ group }: { group: string }) => {
         const wingClasses = campusClasses.filter(c => {
             const classLow = c.toLowerCase();
             // Priority 1: Manual Assignment
@@ -1048,33 +1061,35 @@ export const TimetablePage = () => {
 
             // Priority 2: Automatic Fallback
             const isGirls = classLow.includes('girls');
-            const isBoys = classLow.includes('boys') || ['9th', '10th', '1st year', '2nd year', 'inter', 'matric'].some(p => classLow.includes(p));
+            const isBoys = classLow.includes('boys') || ['6th', '7th', '8th', '9th', '10th', '1st year', '2nd year', '11th', '12th', 'inter', 'matric'].some(p => classLow.includes(p));
 
-            // Girls take precedence if 'Girls' is in the name (e.g. 9th Girls)
             if (group === 'girls') return isGirls;
             if (group === 'boys') return isBoys && !isGirls;
-
-            // Primary wing: No specific gender tag and not high school/college
-            return !isBoys && !isGirls;
+            if (group === 'primary') return !isBoys && !isGirls;
+            return false;
         });
-        const periods = periodSettings[group] || [];
+        const periods = periodSettings[group] || periodSettings['primary'] || DEFAULT_PERIODS;
+        const sectionMeta = availableSections.find(s => s.key === group) || { label: `${group} Section`, color: 'emerald' };
 
         if (wingClasses.length === 0) return null;
+
+        const currentMobileClass = (mobileClass && wingClasses.includes(mobileClass)) ? mobileClass : wingClasses[0];
 
         return (
             <div className="space-y-6 mb-16 animate-slide-up">
                 <div className={cn(
                     "flex items-center justify-between p-5 rounded-[var(--brand-radius,1.5rem)] border shadow-xl transition-all",
-                    group === 'boys' ? "bg-brand-primary border-white/10" :
-                        group === 'girls' ? "bg-purple-900 border-white/10" :
-                            "bg-emerald-900 border-white/10"
+                    sectionMeta.color === 'blue' ? "bg-brand-primary border-white/10" :
+                    sectionMeta.color === 'purple' ? "bg-purple-900 border-white/10" :
+                    sectionMeta.color === 'amber' ? "bg-amber-600 border-white/10" :
+                    "bg-emerald-900 border-white/10"
                 )}>
                     <div className="flex items-center gap-4">
                         <div className="w-10 h-10 rounded-[var(--brand-radius,1rem)] bg-white/10 flex items-center justify-center border border-white/20">
                             <Layout size={20} className="text-white" />
                         </div>
                         <div className="flex flex-col">
-                            <h3 className="text-lg font-black text-white uppercase tracking-widest">{isExamMode ? 'Exam Seating & Invigilation' : `${group} Section`}</h3>
+                            <h3 className="text-lg font-black text-white uppercase tracking-widest">{isExamMode ? 'Exam Seating & Invigilation' : `${sectionMeta.label} Section`}</h3>
                             <span className="text-[9px] font-black text-white/50 uppercase tracking-tighter -mt-1">{isExamMode ? 'Assessment Mode' : 'Regular Timetable'}</span>
                         </div>
                     </div>
@@ -1095,7 +1110,7 @@ export const TimetablePage = () => {
                                     onClick={() => {
                                         Swal.fire({
                                             title: 'Standardize Slots (9)?',
-                                            text: `Adjust to 9 slots: Assembly, 1-4, Break, 5-7 for ${group} section?`,
+                                            text: `Adjust to 9 slots: Assembly, 1-4, Break, 5-7 for ${sectionMeta.label}?`,
                                             icon: 'info',
                                             showCancelButton: true,
                                             confirmButtonText: 'Yes, Apply'
@@ -1115,7 +1130,7 @@ export const TimetablePage = () => {
                                     onClick={() => {
                                         Swal.fire({
                                             title: 'Purge Timetable?',
-                                            text: `This will permanently delete all entries for the ${group} section.`,
+                                            text: `This will permanently delete all entries for the ${sectionMeta.label} section.`,
                                             icon: 'warning',
                                             showCancelButton: true,
                                             confirmButtonColor: '#f43f5e',
@@ -1137,7 +1152,98 @@ export const TimetablePage = () => {
                     </div>
                 </div>
 
-                <div className="glass-card overflow-hidden border-2 border-slate-200 dark:border-brand-accent/10 shadow-2xl rounded-[var(--brand-radius,1.5rem)] bg-white dark:bg-brand-accent/[0.02]">
+                {/* Mobile View: Class Chips Selector + Vertical Period Timeline Cards */}
+                <div className="block md:hidden space-y-4">
+                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+                        {wingClasses.map(cls => (
+                            <button
+                                key={cls}
+                                onClick={() => setMobileClass(cls)}
+                                className={cn(
+                                    "px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase whitespace-nowrap transition-all shrink-0",
+                                    currentMobileClass === cls
+                                        ? "bg-brand-primary text-white shadow-md scale-105"
+                                        : "bg-white dark:bg-white/5 text-slate-500 hover:text-brand-primary border border-slate-200 dark:border-white/10"
+                                )}
+                            >
+                                {cls.replace(' (Boys)', '').replace(' (Girls)', '')}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className="space-y-2.5">
+                        {periods.map((p: any, i: number) => {
+                            const slots = timetables[getTimetableKey(currentMobileClass)]?.[selectedDay] || [];
+                            const slot = (slots[i] || { subject: 'FREE', teacherId: '' }) as any;
+                            const isBreak = p.isBreak || slot.subject === 'BREAK';
+                            const teacher = teachers.find(t => t.id === slot.teacherId);
+                            const isOnLeave = teacher?.status === 'On Leave';
+                            const primaryConflict = !isBreak && hasConflict(slot.teacherId, selectedDay, i);
+                            const secondaryConflict = !isBreak && hasConflict(slot.secondaryTeacherId || '', selectedDay, i);
+                            const anyConflict = primaryConflict || secondaryConflict;
+
+                            return (
+                                <div
+                                    key={i}
+                                    onClick={() => canEditTimetable && (isOnLeave ? handleProxySearch(currentMobileClass, selectedDay, i, slot.subject) : handleEditSlot(currentMobileClass, selectedDay, i))}
+                                    className={cn(
+                                        "p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 shadow-sm",
+                                        isBreak ? "bg-slate-50 dark:bg-white/5 border-slate-200 dark:border-white/10 opacity-70" :
+                                        slot.subject === 'FREE' ? "bg-white dark:bg-brand-primary-dark/40 border-dashed border-slate-200 dark:border-white/10" :
+                                        isOnLeave ? "bg-orange-500/10 border-orange-500/30" :
+                                        anyConflict ? "bg-rose-500/10 border-rose-500/30" :
+                                        "bg-white dark:bg-brand-primary-dark/80 border-slate-200 dark:border-white/10 hover:border-brand-accent/40",
+                                        canEditTimetable && "cursor-pointer active:scale-[0.99]"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div className="w-11 h-11 rounded-xl bg-slate-100 dark:bg-white/5 flex flex-col items-center justify-center border border-slate-200 dark:border-white/10 shrink-0">
+                                            <span className="text-[10px] font-black text-brand-primary dark:text-brand-accent">{p.label}</span>
+                                            <span className="text-[7px] font-bold text-slate-400">
+                                                {(selectedDay === 'Friday' && p.friStart) ? p.friStart : p.start}
+                                            </span>
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className={cn(
+                                                    "text-xs font-black uppercase tracking-tight truncate",
+                                                    isBreak ? "text-slate-400 italic" :
+                                                    slot.subject === 'FREE' ? "text-slate-400" :
+                                                    isOnLeave ? "text-orange-600 dark:text-orange-400" :
+                                                    anyConflict ? "text-rose-600 dark:text-rose-400" :
+                                                    "text-brand-primary dark:text-white"
+                                                )}>
+                                                    {isExamMode && !isBreak && slot.subject !== 'FREE' ? `PAPER: ${slot.subject}` : isBreak ? 'BREAK' : slot.subject}
+                                                </span>
+                                                {isOnLeave && <span className="text-[6.5px] font-black bg-orange-500 text-white px-1.5 py-0.5 rounded uppercase">Leave</span>}
+                                                {anyConflict && <span className="text-[6.5px] font-black bg-rose-500 text-white px-1.5 py-0.5 rounded uppercase animate-pulse">Conflict</span>}
+                                            </div>
+                                            {!isBreak && slot.subject !== 'ASSEMBLY' && slot.subject !== 'FREE' && (
+                                                <p className="text-[9px] font-bold text-slate-500 dark:text-white/60 mt-0.5 truncate">
+                                                    {isExamMode ? 'Invigilator: ' : 'Teacher: '}{teacher ? teacher.name : 'Not Assigned'}
+                                                </p>
+                                            )}
+                                            {slot.secondarySubject && (
+                                                <p className="text-[8px] font-bold text-blue-600 dark:text-blue-400 mt-0.5">
+                                                    Dual: {slot.secondarySubject} ({teachers.find(t => t.id === slot.secondaryTeacherId)?.name || '??'})
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {canEditTimetable && (
+                                        <div className="shrink-0 text-slate-400 hover:text-brand-primary dark:hover:text-brand-accent p-1">
+                                            <Settings size={15} />
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Desktop Full Grid Table */}
+                <div className="hidden md:block glass-card overflow-hidden border-2 border-slate-200 dark:border-brand-accent/10 shadow-2xl rounded-[var(--brand-radius,1.5rem)] bg-white dark:bg-brand-accent/[0.02]">
                     <div className="overflow-x-auto overflow-y-hidden">
                         <table className="w-full border-collapse">
                             <thead>
@@ -1423,10 +1529,24 @@ export const TimetablePage = () => {
                     })()}
                 </div>
 
-                <div className="lg:col-span-4 flex p-1 bg-slate-100 dark:bg-brand-primary-dark/50 rounded-[var(--brand-radius,1.25rem)] border border-slate-200 dark:border-brand-accent/10 h-10">
-                    <button onClick={() => setActiveWing('primary')} className={cn("flex-1 rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest transition-all", activeWing === 'primary' ? "bg-emerald-500 text-white shadow-lg" : "text-slate-400")}>Primary</button>
-                    <button onClick={() => setActiveWing('boys')} className={cn("flex-1 rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest transition-all", activeWing === 'boys' ? "bg-brand-primary text-white shadow-lg" : "text-slate-400")}>Boys</button>
-                    <button onClick={() => setActiveWing('girls')} className={cn("flex-1 rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest transition-all", activeWing === 'girls' ? "bg-purple-600 text-white shadow-lg" : "text-slate-400")}>Girls</button>
+                <div className="lg:col-span-4 flex p-1 bg-slate-100 dark:bg-brand-primary-dark/50 rounded-[var(--brand-radius,1.25rem)] border border-slate-200 dark:border-brand-accent/10 h-10 overflow-x-auto no-scrollbar gap-1">
+                    {availableSections.map(sec => (
+                        <button
+                            key={sec.key}
+                            onClick={() => setActiveWing(sec.key)}
+                            className={cn(
+                                "px-3 py-1 rounded-[var(--brand-radius,1rem)] text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap flex-1 shrink-0",
+                                activeWing === sec.key
+                                    ? (sec.color === 'emerald' ? "bg-emerald-500 text-white shadow-lg" :
+                                       sec.color === 'purple' ? "bg-purple-600 text-white shadow-lg" :
+                                       sec.color === 'blue' ? "bg-brand-primary text-white shadow-lg" :
+                                       "bg-amber-500 text-white shadow-lg")
+                                    : "text-slate-400 hover:text-slate-600 dark:hover:text-white"
+                            )}
+                        >
+                            {sec.label}
+                        </button>
+                    ))}
                 </div>
 
                 <div className="lg:col-span-8 flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
@@ -1452,11 +1572,14 @@ export const TimetablePage = () => {
                             >
                                 <option value="">Select Class for Full Week Analysis...</option>
                                 {campusClasses.filter(c => {
-                                    const isBoys = c.includes('(Boys)') || c.includes('9th') || c.includes('10th') || c.includes('1st Year') || c.includes('2nd Year');
-                                    const isGirls = c.includes('(Girls)');
-                                    if (activeWing === 'boys') return isBoys;
+                                    if (wingAssignments[c]) return wingAssignments[c] === activeWing;
+                                    const classLow = c.toLowerCase();
+                                    const isGirls = classLow.includes('girls');
+                                    const isBoys = classLow.includes('boys') || ['6th', '7th', '8th', '9th', '10th', '1st year', '2nd year', '11th', '12th', 'inter', 'matric'].some(p => classLow.includes(p));
                                     if (activeWing === 'girls') return isGirls;
-                                    return !isBoys && !isGirls;
+                                    if (activeWing === 'boys') return isBoys && !isGirls;
+                                    if (activeWing === 'primary') return !isBoys && !isGirls;
+                                    return false;
                                 }).map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                         </div>

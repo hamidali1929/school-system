@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
 import { sanitizeObject } from '../utils/security';
-import { normalizeWhatsAppNumber, MESSAGE_TEMPLATES } from '../utils/whatsapp';
+import { normalizeWhatsAppNumber, MESSAGE_TEMPLATES, getWhatsAppServerUrl } from '../utils/whatsapp';
 import { supabase } from '../lib/supabase';
-import { collection, onSnapshot } from 'firebase/firestore';
+import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
 export interface AcademicRecord {
@@ -46,7 +46,7 @@ export interface Student {
     id: string;
     name: string;
     class: string;
-    status: 'Active' | 'Warning' | 'Inactive';
+    status: 'Active' | 'Warning' | 'Inactive' | 'Passed Out' | 'Alumni' | 'Struck Off' | 'Suspended' | 'Online Applied' | 'Pending Verification';
     performance: string;
     avatar: string;
     feesPaid: number;
@@ -54,6 +54,7 @@ export interface Student {
     monthlyTuition?: number;
     // Admission Form Fields
     fatherName?: string;
+    fatherCnic?: string;
     fatherOccupation?: string;
     monthlyIncome?: string;
     address?: string;
@@ -67,7 +68,7 @@ export interface Student {
     discipline?: string;
     email?: string;
     campus?: string;
-    isOrphan?: string;
+    isOrphan?: boolean;
     whatsappNumber?: string;
     admissionDate?: string;
     admissionFees?: number;
@@ -79,6 +80,11 @@ export interface Student {
     manualId?: string;
     paymentHistory?: Payment[];
     discounts?: Discount[];
+    // Alumni & Graduation Tracking
+    graduatedYear?: string;
+    graduationRemarks?: string;
+    previousClass?: string;
+    reAdmittedDate?: string;
 }
 
 export interface Teacher {
@@ -145,6 +151,7 @@ export interface SchoolSettings {
     schoolName: string;
     subTitle: string;
     location: string;
+    contactNo?: string;
     logo1: string | null;
     logo2: string | null;
     academicSession: string;
@@ -210,6 +217,15 @@ export interface TimetableSlot {
     tertiaryTeacherId?: string;
 }
 
+export interface CampusSection {
+    id: string;
+    campusName: string;
+    name: string;
+    key: string;
+    description?: string;
+    color?: string;
+}
+
 export interface PeriodTime {
     label: string;
     start: string;
@@ -224,6 +240,19 @@ export interface WeeklyTimetable {
     [day: string]: TimetableSlot[];
 }
 
+export interface ClassTest {
+    id: string;
+    date: string;
+    className: string;
+    subject: string;
+    topic: string;
+    totalMarks: number;
+    passingPercentage?: number;
+    teacherId: string;
+    results: Record<string, number | 'A'>;
+    createdAt: string;
+}
+
 export interface Exam {
     id: string;
     name: string;
@@ -235,8 +264,9 @@ export interface Exam {
 }
 
 export interface StudentExamResult {
-    studentId: string;
+    id: string;
     examId: string;
+    studentId: string;
     className: string;
     marks: Record<string, { obtained: number; total: number }>; // subject -> { obtained, total }
     totalObtained: number;
@@ -249,6 +279,33 @@ export interface StudentExamResult {
     remarks?: string;
 }
 
+export interface SkillCourse {
+    id: string;
+    title: string;
+    category: string; // e.g., 'Web Development', 'Graphic Design'
+    duration: string; // e.g., '3 Months'
+    fee: number;
+    instructorId: string;
+    status: 'Upcoming' | 'Ongoing' | 'Completed';
+    schedule: string; // e.g., 'Sat-Sun 4PM - 6PM'
+    createdAt: string;
+}
+
+export interface CourseEnrollment {
+    id: string;
+    courseId: string;
+    studentId?: string; // If regular student
+    isOutsider: boolean;
+    outsiderDetails?: {
+        name: string;
+        phone: string;
+        cnic: string;
+    };
+    enrollmentDate: string;
+    status: 'Active' | 'Completed' | 'Dropped';
+    feeStatus: 'Paid' | 'Pending';
+}
+
 interface AppState {
     students: Student[];
     teachers: Teacher[];
@@ -256,10 +313,26 @@ interface AppState {
     attendance: Attendance[];
     feeStructure: Record<string, number>;
     classes: string[];
-    wingAssignments: Record<string, 'primary' | 'boys' | 'girls'>;
+    wingAssignments: Record<string, 'primary' | 'boys' | 'girls' | string>;
+    classPrograms: Record<string, 'School' | 'College'>;
+    campusSections: CampusSection[];
+    addCampusSection: (section: Omit<CampusSection, 'id'>) => void;
+    updateCampusSection: (id: string, updates: Partial<CampusSection>) => void;
+    deleteCampusSection: (id: string) => void;
     periodSettings: Record<string, PeriodTime[]>;
     updatePeriodSettings: (settings: Record<string, PeriodTime[]>) => void;
-    updateWingAssignments: (assignments: Record<string, 'primary' | 'boys' | 'girls'>) => void;
+    
+    // Skill Courses
+    skillCourses: SkillCourse[];
+    courseEnrollments: CourseEnrollment[];
+    addSkillCourse: (course: Omit<SkillCourse, 'id' | 'createdAt'>) => void;
+    updateSkillCourse: (id: string, updates: Partial<SkillCourse>) => void;
+    deleteSkillCourse: (id: string) => void;
+    addCourseEnrollment: (enrollment: Omit<CourseEnrollment, 'id'>) => void;
+    updateCourseEnrollment: (id: string, updates: Partial<CourseEnrollment>) => void;
+
+    updateWingAssignments: (assignments: Record<string, 'primary' | 'boys' | 'girls' | string>) => void;
+    updateClassPrograms: (programs: Record<string, 'School' | 'College'>) => void;
     addClass: (name: string, fee: number) => void;
     updateClass: (oldName: string, newName: string, fee: number) => void;
     deleteClass: (name: string) => void;
@@ -289,8 +362,14 @@ interface AppState {
     updateAllTimetables: (newTimetables: Record<string, WeeklyTimetable>) => void;
     promoteStudents: (fromClass: string, toClass: string) => void;
     bulkUpdateStudents: (studentIds: string[], updates: Partial<Student>) => void;
+    passOutClass: (className: string, passOutYear?: string, remarks?: string) => Promise<void>;
+    reAdmitStudent: (studentId: string, toClass: string, newDiscipline?: string, newMonthlyFee?: number, newAdmissionFee?: number) => Promise<void>;
     exams: Exam[];
     examResults: StudentExamResult[];
+    classTests: ClassTest[];
+    addClassTest: (test: Omit<ClassTest, 'id' | 'createdAt'>) => void;
+    updateClassTest: (id: string, updates: Partial<ClassTest>) => void;
+    deleteClassTest: (id: string) => void;
     addExam: (exam: Partial<Exam>) => void;
     updateExam: (id: string, updates: Partial<Exam>) => void;
     deleteExam: (id: string) => void;
@@ -461,6 +540,12 @@ const DEFAULT_SCHOOL_CLASSES = [
 ];
 const DEFAULT_COLLEGE_CLASSES = ['1st Year (Boys)', '1st Year (Girls)', '2nd Year (Boys)', '2nd Year (Girls)'];
 
+export const DEFAULT_CAMPUS_SECTIONS: CampusSection[] = [
+    { id: 'sec-junior', campusName: 'All', name: 'Junior Section (PG - 5)', key: 'primary', description: 'Early Childhood & Primary Grade 1-5', color: 'emerald' },
+    { id: 'sec-boys', campusName: 'All', name: 'Boys Section (6 - 12)', key: 'boys', description: 'Middle, Matric & College Boys', color: 'blue' },
+    { id: 'sec-girls', campusName: 'All', name: 'Girls Section (6 - 12)', key: 'girls', description: 'Middle, Matric & College Girls', color: 'purple' }
+];
+
 export const DEFAULT_PERIODS: PeriodTime[] = [
     { label: 'ASSEMBLY', start: '08:00', end: '08:15', duration: '15 Min', friStart: '07:20', friEnd: '07:35' },
     { label: '1', start: '08:15', end: '09:00', duration: '45 Min', friStart: '07:35', friEnd: '08:10' },
@@ -510,6 +595,9 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         let isMounted = true;
+        let unsubStudents: (() => void) | null = null;
+        let unsubTeachers: (() => void) | null = null;
+        let unsubAppData: (() => void) | null = null;
 
         // Helper to fix legacy doubled quotes ('' -> ') and merge records
         const cleanLegacy = (obj: any): any => {
@@ -523,9 +611,36 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             return obj;
         };
 
+        const isPublicAdmission = () => {
+            const p = (window.location.pathname + window.location.hash + window.location.search).toLowerCase();
+            return p.includes('apply') || p.includes('admission') || p.includes('parent');
+        };
+
         const fetchInitialData = async () => {
             try {
-                // Fetch all data from Firestore
+                // ⚡ HIGH TRAFFIC / LOAD BALANCING OPTIMIZATION:
+                // If on public admission route, fetch lightweight settings, campuses & classes to keep them in sync
+                if (isPublicAdmission()) {
+                    const [settingsDoc, campusesDoc, classesDoc] = await Promise.all([
+                        getDoc(doc(db, 'app_data', 'settings')),
+                        getDoc(doc(db, 'app_data', 'campuses')),
+                        getDoc(doc(db, 'app_data', 'classes'))
+                    ]);
+                    if (!isMounted) return;
+                    if (settingsDoc.exists() && settingsDoc.data()?.data) {
+                        setSettings(prev => ({ ...prev, ...(cleanLegacy(settingsDoc.data()?.data) || {}) }));
+                    }
+                    if (campusesDoc.exists() && campusesDoc.data()?.data) {
+                        setCampuses(cleanLegacy(campusesDoc.data()?.data) as Campus[]);
+                    }
+                    if (classesDoc.exists() && classesDoc.data()?.data) {
+                        setClasses(cleanLegacy(classesDoc.data()?.data) as string[]);
+                    }
+                    setIsInitialLoading(false);
+                    return;
+                }
+
+                // Full ERP Fetch for Admin / Dashboard
                 const [stuRes, tchRes, appDataRes] = await Promise.all([
                     supabase.from('students').select('*'),
                     supabase.from('teachers').select('*'),
@@ -534,11 +649,11 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
                 if (!isMounted) return;
 
-                if (stuRes.data && stuRes.data.length > 0) {
+                if (stuRes.data) {
                     const cloudStudents = cleanLegacy(stuRes.data as Student[]);
                     setStudents(cloudStudents);
                 }
-                if (tchRes.data && tchRes.data.length > 0) {
+                if (tchRes.data) {
                     const cloudTeachers = (tchRes.data || []).map(t => cloudToTeacher(cleanLegacy(t)));
                     setTeachers(cloudTeachers);
                 }
@@ -561,6 +676,8 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                     if (appDataMap.has('notifications')) setNotifications(appDataMap.get('notifications'));
                     if (appDataMap.has('auditLogs')) setAuditLogs(appDataMap.get('auditLogs'));
                     if (appDataMap.has('campuses')) setCampuses(appDataMap.get('campuses'));
+                    if (appDataMap.has('campusSections')) setCampusSections(appDataMap.get('campusSections'));
+                    if (appDataMap.has('wingAssignments')) setWingAssignments(appDataMap.get('wingAssignments'));
                     if (appDataMap.has('expenses')) setExpenses(appDataMap.get('expenses'));
                     if (appDataMap.has('salarySlips')) setSalarySlips(appDataMap.get('salarySlips'));
                 }
@@ -574,49 +691,53 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
         fetchInitialData();
 
-        // Attach Realtime Firestore Listeners
-        const unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
-            if (!snapshot.empty) {
-                const realtimeStudents = snapshot.docs.map(d => ({ id: d.id, ...cleanLegacy(d.data()) })) as Student[];
-                setStudents(realtimeStudents);
-            }
-        }, (err) => console.warn("Realtime students listener:", err.message));
+        // Only attach real-time listeners for dashboard users (not public admission visitors)
+        if (!isPublicAdmission()) {
+            unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
+                if (!snapshot.empty) {
+                    const realtimeStudents = snapshot.docs.map(d => ({ ...cleanLegacy(d.data()), id: d.id })) as Student[];
+                    setStudents(realtimeStudents);
+                }
+            }, (err) => console.warn("Realtime students listener:", err.message));
 
-        const unsubTeachers = onSnapshot(collection(db, 'teachers'), (snapshot) => {
-            if (!snapshot.empty) {
-                const realtimeTeachers = snapshot.docs.map(d => cloudToTeacher({ id: d.id, ...cleanLegacy(d.data()) }));
-                setTeachers(realtimeTeachers);
-            }
-        }, (err) => console.warn("Realtime teachers listener:", err.message));
+            unsubTeachers = onSnapshot(collection(db, 'teachers'), (snapshot) => {
+                if (!snapshot.empty) {
+                    const realtimeTeachers = snapshot.docs.map(d => cloudToTeacher({ ...cleanLegacy(d.data()), id: d.id }));
+                    setTeachers(realtimeTeachers);
+                }
+            }, (err) => console.warn("Realtime teachers listener:", err.message));
 
-        const unsubAppData = onSnapshot(collection(db, 'app_data'), (snapshot) => {
-            if (!snapshot.empty) {
-                const map = new Map(snapshot.docs.map(d => [d.id, cleanLegacy(d.data().data)]));
-                if (map.has('settings')) setSettings(prev => ({ ...prev, ...(map.get('settings') || {}) }));
-                if (map.has('attendance')) setAttendance(map.get('attendance'));
-                if (map.has('feeStructure')) setFeeStructure(map.get('feeStructure'));
-                if (map.has('classes')) setClasses(map.get('classes'));
-                if (map.has('periodSettings')) setPeriodSettings(map.get('periodSettings'));
-                if (map.has('classSubjects')) setClassSubjects(map.get('classSubjects'));
-                if (map.has('subjectTotalMarks')) setSubjectTotalMarks(map.get('subjectTotalMarks'));
-                if (map.has('classInCharge')) setClassInCharge(map.get('classInCharge'));
-                if (map.has('subjectTeachers')) setSubjectTeachers(map.get('subjectTeachers'));
-                if (map.has('timetables')) setTimetables(map.get('timetables'));
-                if (map.has('exams')) setExams(map.get('exams'));
-                if (map.has('examResults')) setExamResults(map.get('examResults'));
-                if (map.has('notifications')) setNotifications(map.get('notifications'));
-                if (map.has('auditLogs')) setAuditLogs(map.get('auditLogs'));
-                if (map.has('campuses')) setCampuses(map.get('campuses'));
-                if (map.has('expenses')) setExpenses(map.get('expenses'));
-                if (map.has('salarySlips')) setSalarySlips(map.get('salarySlips'));
-            }
-        }, (err) => console.warn("Realtime app_data listener:", err.message));
+            unsubAppData = onSnapshot(collection(db, 'app_data'), (snapshot) => {
+                if (!snapshot.empty) {
+                    const map = new Map(snapshot.docs.map(d => [d.id, cleanLegacy(d.data().data)]));
+                    if (map.has('settings')) setSettings(prev => ({ ...prev, ...(map.get('settings') || {}) }));
+                    if (map.has('attendance')) setAttendance(map.get('attendance'));
+                    if (map.has('feeStructure')) setFeeStructure(map.get('feeStructure'));
+                    if (map.has('classes')) setClasses(map.get('classes'));
+                    if (map.has('periodSettings')) setPeriodSettings(map.get('periodSettings'));
+                    if (map.has('classSubjects')) setClassSubjects(map.get('classSubjects'));
+                    if (map.has('subjectTotalMarks')) setSubjectTotalMarks(map.get('subjectTotalMarks'));
+                    if (map.has('classInCharge')) setClassInCharge(map.get('classInCharge'));
+                    if (map.has('subjectTeachers')) setSubjectTeachers(map.get('subjectTeachers'));
+                    if (map.has('timetables')) setTimetables(map.get('timetables'));
+                    if (map.has('exams')) setExams(map.get('exams'));
+                    if (map.has('examResults')) setExamResults(map.get('examResults'));
+                    if (map.has('notifications')) setNotifications(map.get('notifications'));
+                    if (map.has('auditLogs')) setAuditLogs(map.get('auditLogs'));
+                    if (map.has('campuses')) setCampuses(map.get('campuses'));
+                    if (map.has('campusSections')) setCampusSections(map.get('campusSections'));
+                    if (map.has('wingAssignments')) setWingAssignments(map.get('wingAssignments'));
+                    if (map.has('expenses')) setExpenses(map.get('expenses'));
+                    if (map.has('salarySlips')) setSalarySlips(map.get('salarySlips'));
+                }
+            }, (err) => console.warn("Realtime app_data listener:", err.message));
+        }
 
         return () => {
             isMounted = false;
-            unsubStudents();
-            unsubTeachers();
-            unsubAppData();
+            if (unsubStudents) unsubStudents();
+            if (unsubTeachers) unsubTeachers();
+            if (unsubAppData) unsubAppData();
         };
     }, []);
 
@@ -637,6 +758,16 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
     const [attendance, setAttendance] = useState<Attendance[]>(() => {
         const saved = localStorage.getItem('edunova_attendance');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    const [skillCourses, setSkillCourses] = useState<SkillCourse[]>(() => {
+        const saved = localStorage.getItem('edunova_skill_courses');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    const [courseEnrollments, setCourseEnrollments] = useState<CourseEnrollment[]>(() => {
+        const saved = localStorage.getItem('edunova_course_enrollments');
         return saved ? JSON.parse(saved) : [];
     });
 
@@ -743,10 +874,55 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         return [...DEFAULT_SCHOOL_CLASSES, ...DEFAULT_COLLEGE_CLASSES];
     });
 
-    const [wingAssignments, setWingAssignments] = useState<Record<string, 'primary' | 'boys' | 'girls'>>(() => {
+    const [wingAssignments, setWingAssignments] = useState<Record<string, 'primary' | 'boys' | 'girls' | string>>(() => {
         const saved = localStorage.getItem('wingAssignments');
         return saved ? JSON.parse(saved) : {};
     });
+
+    const [classPrograms, setClassPrograms] = useState<Record<string, 'School' | 'College'>>(() => {
+        const saved = localStorage.getItem('classPrograms');
+        return saved ? JSON.parse(saved) : {};
+    });
+
+    const [campusSections, setCampusSections] = useState<CampusSection[]>(() => {
+        const saved = localStorage.getItem('edunova_campus_sections');
+        return saved ? JSON.parse(saved) : DEFAULT_CAMPUS_SECTIONS;
+    });
+
+    const addCampusSection = (sec: Omit<CampusSection, 'id'>) => {
+        const newSec: CampusSection = {
+            ...sec,
+            id: `SEC-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+        };
+        setCampusSections(prev => [...prev, newSec]);
+        addAuditLog({
+            user: currentUser?.name || 'Admin',
+            action: 'New Section Added',
+            details: `Section: ${sec.name} for Campus: ${sec.campusName}`,
+            type: 'Academic'
+        });
+    };
+
+    const updateCampusSection = (id: string, updates: Partial<CampusSection>) => {
+        setCampusSections(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+        addAuditLog({
+            user: currentUser?.name || 'Admin',
+            action: 'Section Updated',
+            details: `Section ID: ${id}`,
+            type: 'Academic'
+        });
+    };
+
+    const deleteCampusSection = (id: string) => {
+        setCampusSections(prev => prev.filter(s => s.id !== id));
+        addAuditLog({
+            user: currentUser?.name || 'Admin',
+            action: 'Section Deleted',
+            details: `Section ID: ${id}`,
+            type: 'Academic'
+        });
+    };
+
     const [periodSettings, setPeriodSettings] = useState<Record<string, PeriodTime[]>>(() => {
         const saved = localStorage.getItem('edunova_period_settings_v2');
         if (saved) return JSON.parse(saved);
@@ -768,6 +944,11 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
     const [examResults, setExamResults] = useState<StudentExamResult[]>(() => {
         const saved = localStorage.getItem('edunova_exam_results_v2');
+        return saved ? JSON.parse(saved) : [];
+    });
+
+    const [classTests, setClassTests] = useState<ClassTest[]>(() => {
+        const saved = localStorage.getItem('edunova_class_tests');
         return saved ? JSON.parse(saved) : [];
     });
 
@@ -825,6 +1006,8 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 localStorage.setItem('edunova_notifications', JSON.stringify(notifications));
                 localStorage.setItem('edunova_audit_logs', JSON.stringify(auditLogs));
                 localStorage.setItem('edunova_campuses', JSON.stringify(campuses));
+                localStorage.setItem('edunova_campus_sections', JSON.stringify(campusSections));
+                localStorage.setItem('wingAssignments', JSON.stringify(wingAssignments));
                 localStorage.setItem('edunova_expenses', JSON.stringify(expenses));
                 localStorage.setItem('edunova_salary_slips', JSON.stringify(salarySlips));
             } catch (err) {
@@ -864,7 +1047,9 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                         { id: 'auditLogs', data: auditLogs },
                         { id: 'expenses', data: expenses },
                         { id: 'salarySlips', data: salarySlips },
-                        { id: 'campuses', data: campuses }
+                        { id: 'campuses', data: campuses },
+                        { id: 'campusSections', data: campusSections },
+                        { id: 'wingAssignments', data: wingAssignments }
                     ];
                     const { error } = await supabase.from('app_data').upsert(appDataPayload, { onConflict: 'id' });
                     if (error) console.error('Periodic AppData Sync Error:', error);
@@ -879,7 +1064,8 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     }, [
         isInitialLoading, students, teachers, settings, attendance, feeStructure,
         classes, periodSettings, classSubjects, subjectTotalMarks, classInCharge,
-        subjectTeachers, timetables, exams, examResults, notifications, auditLogs, campuses, expenses, salarySlips
+        subjectTeachers, timetables, exams, examResults, notifications, auditLogs, campuses,
+        campusSections, wingAssignments, expenses, salarySlips
     ]);
 
     // Apply Theme Engine
@@ -906,6 +1092,101 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         } catch (err) {
             console.error('Promotion Sync Error:', err);
         }
+    };
+
+    const passOutClass = async (className: string, passOutYear: string = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`, remarks: string = 'Graduated Batch') => {
+        const matchingStudents = students.filter(s => s.class?.trim().toLowerCase() === className.trim().toLowerCase() && s.status === 'Active');
+        if (matchingStudents.length === 0) return;
+
+        const updatedStudents: Student[] = matchingStudents.map(s => {
+            const academicHistory = s.academicRecords || [];
+            return {
+                ...s,
+                status: 'Passed Out' as const,
+                previousClass: s.class,
+                graduatedYear: passOutYear,
+                graduationRemarks: remarks,
+                academicRecords: [
+                    ...academicHistory,
+                    {
+                        degree: s.class,
+                        major: s.discipline || 'General',
+                        marksObtained: s.performance || 'N/A',
+                        totalMarks: '100%',
+                        percentage: s.performance || 'N/A',
+                        passingYear: passOutYear,
+                        board: 'Board of Intermediate and Secondary Education'
+                    }
+                ]
+            };
+        });
+
+        // Update local state
+        setStudents(prev => prev.map(s => {
+            const found = updatedStudents.find(u => u.id === s.id);
+            return found ? found : s;
+        }));
+
+        // Sync batch to Firebase Firestore
+        try {
+            await supabase.from('students').upsert(updatedStudents);
+        } catch (err) {
+            console.error('Pass-out sync error:', err);
+        }
+
+        addAuditLog({
+            user: currentUser?.name || 'Admin',
+            action: 'Class Passed Out / Graduated',
+            details: `Graduated ${matchingStudents.length} students from ${className} (Session: ${passOutYear})`,
+            type: 'Academic'
+        });
+    };
+
+    const reAdmitStudent = async (studentId: string, toClass: string, newDiscipline: string = '', newMonthlyFee?: number, newAdmissionFee?: number) => {
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+
+        const targetFee = newMonthlyFee !== undefined ? sanitizeNumber(newMonthlyFee) : (feeStructure[toClass] || student.monthlyFees || 0);
+
+        const updatedStudent: Student = {
+            ...student,
+            status: 'Active',
+            class: toClass,
+            discipline: newDiscipline || student.discipline,
+            previousClass: student.class || student.previousClass,
+            reAdmittedDate: new Date().toISOString().split('T')[0],
+            admissionFees: newAdmissionFee !== undefined ? sanitizeNumber(newAdmissionFee) : (student.admissionFees || 0),
+            monthlyFees: targetFee,
+            feesPaid: 0,
+            feesTotal: targetFee,
+            academicRecords: [
+                ...(student.academicRecords || []),
+                ...(student.status === 'Passed Out' ? [{
+                    degree: student.previousClass || student.class,
+                    major: student.discipline || 'General',
+                    marksObtained: student.performance || 'N/A',
+                    totalMarks: '100%',
+                    percentage: student.performance || 'N/A',
+                    passingYear: student.graduatedYear || new Date().getFullYear().toString(),
+                    board: 'Internal School/College'
+                }] : [])
+            ]
+        };
+
+        setStudents(prev => prev.map(s => s.id === studentId ? updatedStudent : s));
+
+        try {
+            await supabase.from('students').upsert(updatedStudent);
+        } catch (err) {
+            console.error('Re-admission sync error:', err);
+        }
+
+        addAuditLog({
+            user: currentUser?.name || 'Admin',
+            action: 'Student Re-Admitted / Promoted',
+            details: `Re-enrolled ${student.name} (${student.id}) into ${toClass} [${newDiscipline || 'General'}]`,
+            type: 'Academic'
+        });
     };
 
     const sanitizeNumber = (val: any) => {
@@ -970,7 +1251,12 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setStudents(prev => prev.map(s => s.id === oldId ? { ...s, ...updates } : s));
 
         try {
-            await supabase.from('students').update(updates).eq('id', oldId);
+            if (newId && newId !== oldId) {
+                await supabase.from('students').upsert({ ...students.find(s => s.id === oldId), ...updates, id: newId });
+                await supabase.from('students').delete().eq('id', oldId);
+            } else {
+                await supabase.from('students').update(updates).eq('id', oldId);
+            }
         } catch (err) {
             console.error('Failed to update student in Supabase:', err);
         }
@@ -1071,10 +1357,16 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
-    const updateTeacher = async (id: string, updates: Partial<Teacher>) => {
-        setTeachers(prev => prev.map(t => t.id === id ? { ...t, ...updates } : t));
+    const updateTeacher = async (oldId: string, updates: Partial<Teacher>) => {
+        const newId = updates.id;
+        setTeachers(prev => prev.map(t => t.id === oldId ? { ...t, ...updates } : t));
         try {
-            await supabase.from('teachers').update(teacherToCloud(updates)).eq('id', id);
+            if (newId && newId !== oldId) {
+                await supabase.from('teachers').upsert(teacherToCloud({ ...teachers.find(t => t.id === oldId), ...updates, id: newId }));
+                await supabase.from('teachers').delete().eq('id', oldId);
+            } else {
+                await supabase.from('teachers').update(teacherToCloud(updates)).eq('id', oldId);
+            }
         } catch (err) {
             console.error('Failed to update teacher in Supabase:', err);
         }
@@ -1221,8 +1513,9 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
             try {
                 const cleanNumber = normalizeWhatsAppNumber(targetNo);
+                const serverUrl = getWhatsAppServerUrl();
 
-                fetch('/api/wa/send-message', {
+                fetch(`${serverUrl}/send-message`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ to: cleanNumber, message, media, filename }),
@@ -1230,12 +1523,12 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 }).then(async (res) => {
                     clearTimeout(timeoutId);
                     if (res.ok) {
-                        setNotifications(prev => prev.map(n => n.id === newNotification.id ? { ...n, status: 'Queued' } : n));
+                        setNotifications(prev => prev.map(n => n.id === newNotification.id ? { ...n, status: 'Sent' } : n));
                         addAuditLog({
                             user: 'System',
                             action: 'WhatsApp Relay',
                             type: 'System',
-                            details: `${media ? 'Document' : 'Neural alert'} dispatched to ${student.name} (${cleanNumber})`
+                            details: `WhatsApp message dispatched via Render server to ${student.name} (${cleanNumber})`
                         });
                     } else {
                         const errorData = await res.json().catch(() => ({ error: 'Unknown server error' }));
@@ -1420,6 +1713,29 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         }
     };
 
+    const addClassTest = (test: Omit<ClassTest, 'id' | 'createdAt'>) => {
+        const newTest: ClassTest = {
+            ...test,
+            id: `TST-${Date.now()}`,
+            createdAt: new Date().toISOString()
+        };
+        const updated = [...classTests, newTest];
+        setClassTests(updated);
+        localStorage.setItem('edunova_class_tests', JSON.stringify(updated));
+    };
+
+    const updateClassTest = (id: string, updates: Partial<ClassTest>) => {
+        const updated = classTests.map(t => t.id === id ? { ...t, ...updates } : t);
+        setClassTests(updated);
+        localStorage.setItem('edunova_class_tests', JSON.stringify(updated));
+    };
+
+    const deleteClassTest = (id: string) => {
+        const updated = classTests.filter(t => t.id !== id);
+        setClassTests(updated);
+        localStorage.setItem('edunova_class_tests', JSON.stringify(updated));
+    };
+
     const addExam = (e: Partial<Exam>) => {
         const newExam: Exam = {
             id: `EXM-${Date.now()}`,
@@ -1474,6 +1790,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 if (isMissing) return prev; // don't create if missing
                 const newMarks = { [cleanSubject]: { obtained: numericObtained, total } };
                 return [...prev, {
+                    id: `RES-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
                     examId,
                     studentId,
                     className,
@@ -1721,7 +2038,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setSalarySlips(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
     };
 
-    const updateWingAssignments = (assignments: Record<string, 'primary' | 'boys' | 'girls'>) => {
+    const updateWingAssignments = (assignments: Record<string, 'primary' | 'boys' | 'girls' | string>) => {
         setWingAssignments(assignments);
         localStorage.setItem('wingAssignments', JSON.stringify(assignments));
         addAuditLog({
@@ -1730,6 +2047,51 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             details: 'Modified manual categorization of classes into wings',
             user: currentUser?.name || 'Academic Head'
         });
+    };
+
+    const updateClassPrograms = (programs: Record<string, 'School' | 'College'>) => {
+        setClassPrograms(programs);
+        localStorage.setItem('classPrograms', JSON.stringify(programs));
+    };
+
+    // Skill Courses Mutators
+    const addSkillCourse = (course: Omit<SkillCourse, 'id' | 'createdAt'>) => {
+        const newCourse: SkillCourse = {
+            ...course,
+            id: `CRS-${Date.now()}`,
+            createdAt: new Date().toISOString()
+        };
+        const updated = [...skillCourses, newCourse];
+        setSkillCourses(updated);
+        localStorage.setItem('edunova_skill_courses', JSON.stringify(updated));
+    };
+
+    const updateSkillCourse = (id: string, updates: Partial<SkillCourse>) => {
+        const updated = skillCourses.map(c => c.id === id ? { ...c, ...updates } : c);
+        setSkillCourses(updated);
+        localStorage.setItem('edunova_skill_courses', JSON.stringify(updated));
+    };
+
+    const deleteSkillCourse = (id: string) => {
+        const updated = skillCourses.filter(c => c.id !== id);
+        setSkillCourses(updated);
+        localStorage.setItem('edunova_skill_courses', JSON.stringify(updated));
+    };
+
+    const addCourseEnrollment = (enrollment: Omit<CourseEnrollment, 'id'>) => {
+        const newEnrollment: CourseEnrollment = {
+            ...enrollment,
+            id: `ENR-${Date.now()}`
+        };
+        const updated = [...courseEnrollments, newEnrollment];
+        setCourseEnrollments(updated);
+        localStorage.setItem('edunova_course_enrollments', JSON.stringify(updated));
+    };
+
+    const updateCourseEnrollment = (id: string, updates: Partial<CourseEnrollment>) => {
+        const updated = courseEnrollments.map(e => e.id === id ? { ...e, ...updates } : e);
+        setCourseEnrollments(updated);
+        localStorage.setItem('edunova_course_enrollments', JSON.stringify(updated));
     };
 
     const importBackup = async (data: any) => {
@@ -1900,9 +2262,11 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             feeStructure,
             classes,
             wingAssignments,
+            classPrograms,
             periodSettings,
             updatePeriodSettings,
             updateWingAssignments,
+            updateClassPrograms,
             addClass,
             updateClass,
             deleteClass,
@@ -1932,8 +2296,14 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             updateAllTimetables,
             promoteStudents,
             bulkUpdateStudents,
+            passOutClass,
+            reAdmitStudent,
             exams,
             examResults,
+            classTests,
+            addClassTest,
+            updateClassTest,
+            deleteClassTest,
             addExam,
             updateExam,
             deleteExam,
@@ -1957,7 +2327,18 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             campuses,
             addCampus,
             updateCampus,
-            deleteCampus
+            deleteCampus,
+            campusSections,
+            addCampusSection,
+            updateCampusSection,
+            deleteCampusSection,
+            skillCourses,
+            courseEnrollments,
+            addSkillCourse,
+            updateSkillCourse,
+            deleteSkillCourse,
+            addCourseEnrollment,
+            updateCourseEnrollment
         }}>
             {children}
         </StoreContext.Provider>

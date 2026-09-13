@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { X, Mail, Phone, MapPin, Calendar, CreditCard, GraduationCap, Briefcase, User, Shield, Download, FileText, CheckCircle2 } from 'lucide-react';
+import { X, Mail, Phone, MapPin, Calendar, CreditCard, GraduationCap, Briefcase, User, Shield, Download, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
 import type { Teacher } from '../context/StoreContext';
 import { useStore } from '../context/StoreContext';
 import { cn } from '../utils/cn';
@@ -14,7 +14,7 @@ interface FacultyProfileModalProps {
 }
 
 export const FacultyProfileModal = ({ teacher, onClose }: FacultyProfileModalProps) => {
-    const { settings } = useStore();
+    const { settings, campuses, migrateTeacher } = useStore();
     const [isExporting, setIsExporting] = useState(false);
     const profileRef = useRef<HTMLDivElement>(null);
 
@@ -69,68 +69,108 @@ export const FacultyProfileModal = ({ teacher, onClose }: FacultyProfileModalPro
     );
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
-            <div className="relative w-full max-w-4xl bg-white rounded-[2.5rem] shadow-3xl overflow-hidden flex flex-col animate-in zoom-in-95 fade-in duration-300">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+            <div className="relative w-full max-w-4xl bg-white rounded-2xl sm:rounded-[2.5rem] shadow-3xl overflow-hidden flex flex-col animate-in zoom-in-95 fade-in duration-300 my-auto max-h-[96vh]">
 
                 {/* Header Controls */}
-                <div className="sticky top-0 z-20 px-8 py-4 bg-white/80 backdrop-blur-md border-b border-slate-100 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white p-2">
-                            {settings.logo1 ? <img src={settings.logo1} className="w-full h-full object-contain" /> : <Shield className="w-6 h-6 text-brand-accent" />}
+                <div className="sticky top-0 z-20 px-4 sm:px-8 py-3 sm:py-4 bg-white/90 backdrop-blur-md border-b border-slate-100 flex items-center justify-between shrink-0">
+                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-brand-primary rounded-xl flex items-center justify-center text-white p-1.5 sm:p-2 shrink-0 shadow-md">
+                            {settings.logo1 ? <img src={settings.logo1} className="w-full h-full object-contain" /> : <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-brand-accent" />}
                         </div>
-                        <div>
-                            <h2 className="text-sm font-black text-brand-primary uppercase tracking-tight">Institutional Faculty Record</h2>
-                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{teacher.id}</p>
+                        <div className="min-w-0">
+                            <h2 className="text-xs sm:text-sm font-black text-brand-primary uppercase tracking-tight truncate leading-none">Faculty Record</h2>
+                            <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 truncate">{teacher.id}</p>
                         </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        <button
+                            onClick={async () => {
+                                const { value: toCampus } = await Swal.fire({
+                                    title: 'Migrate Faculty',
+                                    text: `Transfer ${teacher.name} to another campus:`,
+                                    input: 'select',
+                                    inputOptions: campuses.reduce((acc, c) => ({ ...acc, [c.name]: c.name.toUpperCase() }), {} as Record<string, string>),
+                                    inputValue: teacher.campus,
+                                    showCancelButton: true,
+                                    confirmButtonText: 'Transfer Now',
+                                    confirmButtonColor: '#003366',
+                                    cancelButtonColor: '#94a3b8',
+                                    customClass: {
+                                        popup: 'rounded-[2.5rem] border-0 shadow-2xl p-6 font-outfit',
+                                        confirmButton: 'rounded-xl px-6 py-2.5 !text-[10px] !font-black !uppercase !tracking-wider flex items-center gap-2 m-0',
+                                        cancelButton: 'rounded-xl px-6 py-2.5 !text-[10px] !font-black !uppercase !tracking-wider !bg-slate-100 !text-slate-600 hover:!bg-slate-200 transition-all !m-0 mr-2'
+                                    },
+                                    inputValidator: (value) => {
+                                        if (value === teacher.campus) return 'Already assigned to this campus';
+                                        return null;
+                                    }
+                                });
+                                if (toCampus) {
+                                    await migrateTeacher(teacher.id, toCampus);
+                                    teacher.campus = toCampus;
+                                    Swal.fire({
+                                        title: 'Transfer Successful!',
+                                        text: `${teacher.name} has been reassigned to ${toCampus}.`,
+                                        icon: 'success',
+                                        timer: 2000,
+                                        showConfirmButton: false
+                                    });
+                                }
+                            }}
+                            className="flex items-center gap-1.5 px-3 sm:px-5 py-2 sm:py-2.5 bg-amber-400 hover:bg-amber-300 text-slate-900 rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest transition-all shadow-md active:scale-95"
+                            title="Transfer Faculty to Another Campus"
+                        >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Migrate</span>
+                        </button>
                         <button
                             onClick={exportPDF}
                             disabled={isExporting}
-                            className="flex items-center gap-2 px-6 py-2.5 bg-brand-primary text-brand-accent rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-xl active:scale-95"
+                            className="flex items-center gap-1.5 px-3 sm:px-6 py-2 sm:py-2.5 bg-brand-primary text-brand-accent rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-md active:scale-95"
                         >
-                            <Download className="w-4 h-4" />
-                            {isExporting ? 'Processing...' : 'Export PDF'}
+                            <Download className="w-3.5 h-3.5" />
+                            <span>{isExporting ? 'Exporting...' : 'PDF'}</span>
                         </button>
-                        <button onClick={onClose} className="p-3 text-slate-400 hover:bg-slate-50 rounded-xl transition-all"><X className="w-6 h-6" /></button>
+                        <button onClick={onClose} className="p-2 text-slate-400 hover:bg-slate-50 hover:text-rose-500 rounded-xl transition-all"><X className="w-5 h-5" /></button>
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-8 bg-slate-50/50">
-                    <div ref={profileRef} className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-10 space-y-12">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-3 sm:p-8 bg-slate-50/50">
+                    <div ref={profileRef} className="bg-white rounded-2xl sm:rounded-[2rem] shadow-sm border border-slate-100 p-4 sm:p-10 space-y-6 sm:space-y-12">
 
                         {/* Profile Hero Section */}
                         <div className="flex flex-col md:flex-row items-center gap-10">
                             <div className="relative shrink-0">
-                                <div className="w-48 h-48 rounded-[3rem] bg-gradient-to-tr from-brand-primary to-blue-600 p-1.5 shadow-2xl overflow-hidden rotate-3">
-                                    <div className="w-full h-full rounded-[2.8rem] bg-white p-1 overflow-hidden">
+                                <div className="w-28 h-28 sm:w-48 sm:h-48 rounded-2xl sm:rounded-[3rem] bg-gradient-to-tr from-brand-primary to-blue-600 p-1 sm:p-1.5 shadow-2xl overflow-hidden rotate-2 sm:rotate-3">
+                                    <div className="w-full h-full rounded-xl sm:rounded-[2.8rem] bg-white p-1 overflow-hidden">
                                         {teacher.avatar && teacher.avatar.length > 5 ? (
-                                            <img src={teacher.avatar} className="w-full h-full object-cover rounded-[2.5rem]" />
+                                            <img src={teacher.avatar} className="w-full h-full object-cover rounded-xl sm:rounded-[2.5rem]" />
                                         ) : (
-                                            <div className="w-full h-full flex items-center justify-center text-brand-primary text-6xl font-black bg-slate-50">
+                                            <div className="w-full h-full flex items-center justify-center text-brand-primary text-4xl sm:text-6xl font-black bg-slate-50">
                                                 {teacher.name.charAt(0)}
                                             </div>
                                         )}
                                     </div>
                                 </div>
                                 <div className={cn(
-                                    "absolute -bottom-2 -right-2 px-4 py-1.5 rounded-full border-4 border-white shadow-xl flex items-center gap-2",
+                                    "absolute -bottom-2 -right-2 px-3 sm:px-4 py-1 sm:py-1.5 rounded-full border-2 sm:border-4 border-white shadow-xl flex items-center gap-1.5 sm:gap-2",
                                     teacher.status === 'Active' ? "bg-emerald-500" : "bg-amber-500"
                                 )}>
                                     <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                                    <span className="text-[9px] font-black text-white uppercase tracking-widest">{teacher.status}</span>
+                                    <span className="text-[8px] sm:text-[9px] font-black text-white uppercase tracking-widest">{teacher.status}</span>
                                 </div>
                             </div>
 
-                            <div className="flex-1 text-center md:text-left space-y-4">
-                                <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand-primary/5 rounded-full border border-brand-primary/10">
+                            <div className="flex-1 text-center md:text-left space-y-2.5 sm:space-y-4">
+                                <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1 sm:py-1.5 bg-brand-primary/5 rounded-full border border-brand-primary/10">
                                     <Shield className="w-3 h-3 text-brand-primary" />
-                                    <span className="text-[8px] font-black text-brand-primary uppercase tracking-[0.2em]">Verified Personnel Record</span>
+                                    <span className="text-[7.5px] sm:text-[8px] font-black text-brand-primary uppercase tracking-[0.2em]">Verified Personnel Record</span>
                                 </div>
-                                <h1 className="text-4xl lg:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-none">{teacher.name}</h1>
-                                <div className="flex flex-wrap items-center gap-3 justify-center md:justify-start">
-                                    <span className="px-5 py-2 bg-slate-900 text-brand-accent rounded-xl text-[10px] font-black uppercase tracking-widest">{teacher.subject || 'Staff'}</span>
-                                    <span className="px-5 py-2 bg-brand-accent text-brand-primary rounded-xl text-[10px] font-black uppercase tracking-widest border border-brand-primary/10">{teacher.campus}</span>
+                                <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-slate-900 tracking-tighter uppercase leading-tight">{teacher.name}</h1>
+                                <div className="flex flex-wrap items-center gap-2 sm:gap-3 justify-center md:justify-start">
+                                    <span className="px-3 sm:px-5 py-1.5 sm:py-2 bg-slate-900 text-brand-accent rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest">{teacher.subject || 'Staff'}</span>
+                                    <span className="px-3 sm:px-5 py-1.5 sm:py-2 bg-brand-accent text-brand-primary rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-brand-primary/10">{teacher.campus}</span>
                                 </div>
                             </div>
                         </div>

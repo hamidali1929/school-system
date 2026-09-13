@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import * as htmlToImage from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import type { Student } from '../context/StoreContext';
@@ -80,36 +81,72 @@ export const IDCardGenerator = ({ student, onClose }: IDCardGeneratorProps) => {
         } finally { setIsExporting(false); }
     };
 
+    const [activeSide, setActiveSide] = useState<'both' | 'front' | 'back'>('both');
     const parentPrefix = student.gender?.toLowerCase() === 'female' ? 'D/O' : 'S/O';
     const currentSession = "2026-27";
 
-    return (
-        <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-950/98 backdrop-blur-3xl overflow-y-auto font-serif">
+    return createPortal(
+        <div className="fixed inset-0 z-[150] bg-slate-950/98 backdrop-blur-3xl flex items-center justify-center p-0 sm:p-4 overflow-hidden font-serif">
             {flash && <div className="fixed inset-0 z-[300] bg-white animate-flash pointer-events-none" />}
 
-            <div className="relative w-full max-w-5xl bg-white rounded-2xl md:rounded-[2rem] shadow-2xl overflow-hidden mx-auto">
-                <div className="p-3 md:p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/80">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 md:w-10 md:h-10 bg-[#003366] rounded-lg md:rounded-xl flex items-center justify-center text-yellow-500 font-black text-xs md:text-base">PSS</div>
-                        <h2 className="text-lg md:text-xl font-black text-[#003366]">IDENTITY STUDIO</h2>
+            <div className="relative w-full h-full sm:h-auto max-h-full sm:max-h-[96vh] sm:max-w-5xl bg-white sm:rounded-[2rem] shadow-2xl flex flex-col overflow-hidden">
+                <div className="p-3 sm:p-4 border-b border-slate-100 flex items-center justify-between gap-2 bg-slate-50/90 shrink-0">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                        <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#003366] rounded-xl flex items-center justify-center text-yellow-500 font-black text-xs sm:text-base shrink-0 shadow-md">PSS</div>
+                        <div className="min-w-0">
+                            <h2 className="text-sm sm:text-lg font-black text-[#003366] uppercase tracking-tight truncate leading-none">Identity Studio</h2>
+                            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5 truncate">{student.name}</p>
+                        </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <button onClick={exportPDF} disabled={isExporting} className="px-3 md:px-6 py-2 bg-[#003366] text-white rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all">PDF</button>
-                        <button onClick={() => exportHighQualImage('front')} className="p-2 hover:bg-slate-100 rounded-lg group" title="Front"><ImageIcon className="w-4 h-4 md:w-5 md:h-5 text-[#003366]" /></button>
-                        <button onClick={() => exportHighQualImage('back')} className="p-2 hover:bg-slate-100 rounded-lg group" title="Back"><ImageIcon className="w-4 h-4 md:w-5 md:h-5 text-[#003366]" /></button>
-                        <button onClick={onClose} className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg"><X className="w-5 h-5 md:w-6 md:h-6" /></button>
+                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        <button onClick={exportPDF} disabled={isExporting} className="px-3 sm:px-5 py-2 bg-[#003366] text-white rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-md active:scale-95 flex items-center gap-1">
+                            PDF
+                        </button>
+                        <button onClick={() => exportHighQualImage('front')} className="p-2 bg-slate-100 hover:bg-slate-200 text-[#003366] rounded-xl transition-all active:scale-95" title="Export Front Image">
+                            <ImageIcon className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => exportHighQualImage('back')} className="p-2 bg-slate-100 hover:bg-slate-200 text-[#003366] rounded-xl transition-all active:scale-95" title="Export Back Image">
+                            <ImageIcon className="w-4 h-4 text-emerald-700" />
+                        </button>
+                        <button onClick={onClose} className="p-2 text-rose-500 hover:bg-rose-50 rounded-xl transition-all active:scale-95 shrink-0">
+                            <X className="w-4 h-4 sm:w-5 sm:h-5" />
+                        </button>
                     </div>
                 </div>
 
-                <div className="p-4 md:p-8 flex flex-col items-center gap-6 md:gap-12 bg-slate-50">
-                    <div className="flex flex-col lg:flex-row gap-6 md:gap-8 justify-center items-center py-6 px-4 md:py-10 md:px-10 bg-white rounded-2xl md:rounded-[3rem] shadow-xl border border-slate-100 w-full md:w-auto">
+                {/* Mobile View Side Switcher */}
+                <div className="md:hidden px-3 py-2 bg-slate-100 border-b border-slate-200/60 flex items-center justify-center shrink-0">
+                    <div className="flex bg-white p-0.5 rounded-xl border border-slate-200 shadow-sm w-full max-w-xs">
+                        <button
+                            onClick={() => setActiveSide('both')}
+                            className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeSide === 'both' ? 'bg-[#003366] text-white shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Both
+                        </button>
+                        <button
+                            onClick={() => setActiveSide('front')}
+                            className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeSide === 'front' ? 'bg-[#003366] text-white shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Front
+                        </button>
+                        <button
+                            onClick={() => setActiveSide('back')}
+                            className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${activeSide === 'back' ? 'bg-[#003366] text-white shadow-sm' : 'text-slate-500'}`}
+                        >
+                            Back
+                        </button>
+                    </div>
+                </div>
+
+                <div className="p-3 sm:p-8 flex flex-col items-center justify-start overflow-y-auto bg-slate-50/60 flex-1">
+                    <div className="flex flex-col lg:flex-row gap-6 md:gap-8 justify-center items-center py-4 px-2 sm:py-8 sm:px-8 bg-white rounded-2xl md:rounded-[2.5rem] shadow-xl border border-slate-100 w-full max-w-4xl shrink-0">
 
                         {/* FRONT SIDE */}
-                        <div className="flex flex-col items-center gap-4">
+                        <div className={`flex flex-col items-center gap-3 transition-all ${activeSide === 'back' ? 'hidden md:flex' : 'flex'}`}>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">FRONT VIEW</span>
                             <div
                                 ref={frontRef}
-                                className="id-card-side w-[54mm] h-[86mm] rounded-[5mm] relative overflow-hidden flex flex-col shadow-2xl border-[0.5pt] border-[#003366]"
+                                className="id-card-side w-[54mm] h-[86mm] rounded-[5mm] relative overflow-hidden flex flex-col shadow-2xl border-[0.5pt] border-[#003366] shrink-0"
                                 style={{ backgroundColor: '#003366' }}
                             >
                                 <div className="h-[20mm] bg-white shrink-0 flex items-center justify-between px-3 relative z-10 border-b-[2.5pt] border-yellow-400 rounded-b-[4mm] shadow-lg">
@@ -171,7 +208,7 @@ export const IDCardGenerator = ({ student, onClose }: IDCardGeneratorProps) => {
                         </div>
 
                         {/* BACK SIDE - REVERTED TO WHITE BACKGROUND */}
-                        <div className="flex flex-col items-center gap-4">
+                        <div className={`flex flex-col items-center gap-3 transition-all ${activeSide === 'front' ? 'hidden md:flex' : 'flex'}`}>
                             <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">BACK VIEW</span>
                             <div
                                 ref={backRef}
@@ -248,6 +285,7 @@ export const IDCardGenerator = ({ student, onClose }: IDCardGeneratorProps) => {
                 .id-card-side { font-family: 'Crimson Pro', serif !important; font-style: normal !important; -webkit-print-color-adjust: exact; }
                 .id-card-side * { font-family: 'Crimson Pro', serif !important; font-style: normal !important; }
             `}</style>
-        </div>
+        </div>,
+        document.body
     );
 };
