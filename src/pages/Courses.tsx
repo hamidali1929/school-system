@@ -4,6 +4,7 @@ import { useStore } from '../context/StoreContext';
 import { Laptop, Plus, Users, Award, Trash2, X, Search, CheckCircle2 } from 'lucide-react';
 import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
+import { CertificateGenerator } from '../components/CertificateGenerator';
 
 export const Courses = () => {
     const { skillCourses, addSkillCourse, deleteSkillCourse, courseEnrollments, addCourseEnrollment, students, teachers, settings } = useStore();
@@ -448,6 +449,14 @@ export const Courses = () => {
                     </div>
                 </div>
             )}
+            <CertificateGenerator
+                isOpen={isCertificateOpen}
+                onClose={() => setIsCertificateOpen(false)}
+                studentName={certificateData.studentName}
+                courseName={certificateData.courseName}
+                enrollmentDate={certificateData.enrollmentDate}
+                logoUrl={settings.logo1}
+            />
         </div>
     );
 };
