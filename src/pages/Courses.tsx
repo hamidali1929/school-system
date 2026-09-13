@@ -107,55 +107,12 @@ export const Courses = () => {
 
     const generateCertificate = (enrollment: any, course: any) => {
         const studentName = enrollment.isOutsider ? enrollment.outsiderDetails?.name : students.find(s => s.id === enrollment.studentId)?.name;
-        
-        const certificateHTML = `
-            <div style="font-family: 'Times New Roman', serif; padding: 40px; text-align: center; border: 15px solid #1e3a8a; background: #fff; max-width: 800px; margin: 0 auto; position: relative;">
-                <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; opacity: 0.05; background: url('${settings.logo1}') center/300px no-repeat;"></div>
-                <h1 style="color: #1e3a8a; font-size: 40px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 2px;">Certificate of Completion</h1>
-                <p style="color: #64748b; font-size: 16px; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 1px;">Proudly Presented By ${settings.schoolName}</p>
-                <img src="${settings.logo1}" style="width: 100px; height: 100px; object-fit: contain; margin-bottom: 30px;" />
-                <p style="font-size: 20px; color: #334155; margin-bottom: 10px;">This is to certify that</p>
-                <h2 style="font-size: 36px; color: #0f172a; margin-bottom: 20px; font-weight: bold; font-style: italic;">${studentName}</h2>
-                <p style="font-size: 18px; color: #334155; margin-bottom: 30px;">has successfully completed the skill course</p>
-                <h3 style="font-size: 28px; color: #1e3a8a; margin-bottom: 40px; font-weight: 900; text-transform: uppercase;">${course?.title || 'Unknown Course'}</h3>
-                <div style="display: flex; justify-content: space-between; margin-top: 60px; padding: 0 40px;">
-                    <div style="text-align: center;">
-                        <div style="border-bottom: 2px solid #cbd5e1; width: 150px; margin-bottom: 10px;">${enrollment.enrollmentDate}</div>
-                        <p style="color: #64748b; font-size: 14px; font-weight: bold; text-transform: uppercase;">Date of Issue</p>
-                    </div>
-                    <div style="text-align: center;">
-                        <div style="border-bottom: 2px solid #cbd5e1; width: 150px; margin-bottom: 10px; height: 20px;"></div>
-                        <p style="color: #64748b; font-size: 14px; font-weight: bold; text-transform: uppercase;">Director / Principal</p>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        const printWindow = window.open('', '', 'width=1000,height=800');
-        if (printWindow) {
-            printWindow.document.write(`
-                <html>
-                    <head>
-                        <title>Certificate - ${studentName}</title>
-                        <style>
-                            @page { size: landscape; margin: 0; }
-                            body { margin: 0; padding: 40px; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
-                            @media print { body { background: #fff; padding: 0; } }
-                        </style>
-                    </head>
-                    <body>
-                        ${certificateHTML}
-                        <script>
-                            setTimeout(() => {
-                                window.print();
-                                window.close();
-                            }, 500);
-                        </script>
-                    </body>
-                </html>
-            `);
-            printWindow.document.close();
-        }
+        setCertificateData({
+            studentName: studentName || 'Unknown Student',
+            courseName: course?.title || 'Unknown Course',
+            enrollmentDate: enrollment.enrollmentDate
+        });
+        setIsCertificateOpen(true);
     };
 
     return (
@@ -289,7 +246,7 @@ export const Courses = () => {
                                                 <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                                                     <div 
                                                         className={cn("h-full rounded-full", (enrolledCount / capacity) > 0.9 ? "bg-rose-500" : "bg-brand-primary")} 
-                                                        style={{ width: `${Math.min((enrolledCount / capacity) * 100, 100)}%` }}
+                                                        style={{ width: `\${Math.min((enrolledCount / capacity) * 100, 100)}%` }}
                                                     ></div>
                                                 </div>
                                             </div>
