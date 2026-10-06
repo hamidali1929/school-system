@@ -3,6 +3,7 @@ import { useStore, type Teacher } from '../context/StoreContext';
 import Swal from 'sweetalert2';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '../utils/cn';
+import { createPortal } from 'react-dom';
 import { compressImage } from '../utils/imageCompressor';
 
 interface TeacherFormProps {
@@ -258,7 +259,7 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
     const [mobileTab, setMobileTab] = useState<'personal' | 'academic' | 'access'>('personal');
 
     if (!formData.campus && !editTeacher) {
-        return (
+        return createPortal(
             <div className="fixed inset-0 z-[999] flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
                 <div className="relative w-full max-w-lg bg-white dark:bg-slate-950 rounded-3xl shadow-2xl p-6 md:p-8 border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
@@ -290,11 +291,11 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
                         <button type="button" onClick={onClose} className="px-5 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600">Cancel</button>
                     </div>
                 </div>
-            </div>
+            </div>, document.body
         );
     }
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[999] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
             <div className="absolute inset-0" onClick={onClose} />
             <div className="relative w-full max-w-6xl h-[94vh] sm:h-[88vh] max-h-[900px] bg-white dark:bg-slate-950 rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800 flex flex-col animate-in zoom-in-95 duration-200 z-10">
@@ -788,6 +789,6 @@ export const TeacherForm = ({ onClose, editTeacher }: TeacherFormProps) => {
                 </div>
                 <canvas ref={canvasRef} className="hidden" />
             </div>
-        </div>
+        </div>, document.body
     );
 };

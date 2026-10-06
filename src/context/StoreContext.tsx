@@ -148,6 +148,7 @@ export interface Expense {
 
 
 export interface SchoolSettings {
+    certificateTemplate?: string;
     schoolName: string;
     subTitle: string;
     location: string;
@@ -1277,7 +1278,8 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     const deleteStudent = async (id: string) => {
         setStudents(prev => prev.filter(s => s.id !== id));
         try {
-            await supabase.from('students').delete().eq('id', id);
+            const { error } = await supabase.from('students').delete().eq('id', id);
+            if (error) throw error;
         } catch (err) {
             console.error('Failed to delete student from Supabase:', err);
         }
@@ -1373,12 +1375,18 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     };
 
     const deleteTeacher = async (id: string) => {
+        const teacherToDelete = teachers.find(t => t.id === id);
         setTeachers(prev => prev.filter(t => t.id !== id));
         try {
-            await supabase.from('teachers').delete().eq('id', id);
+            const { error } = await supabase.from('teachers').delete().eq('id', id);
+            if (error) throw error;
         } catch (err) {
             console.error('Failed to delete teacher from Supabase:', err);
+            if (teacherToDelete) {
+                setTeachers(prev => [...prev, teacherToDelete]);
+            }
         }
+    
     };
 
     const migrateTeacher = async (id: string, toCampus: string) => {
@@ -2350,3 +2358,6 @@ export const useStore = () => {
     if (!context) throw new Error('useStore must be used within a StoreProvider');
     return context;
 };
+
+
+

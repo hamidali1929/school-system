@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore, type Student } from '../context/StoreContext';
 import { X, Printer, Layers, Phone, Download, Loader2 } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
@@ -52,133 +53,134 @@ const VoucherCopy = React.memo(({
     const formatDate = (date: Date) => `${date.getDate().toString().padStart(2, '0')}, ${date.toLocaleString('default', { month: 'long' })}, ${date.getFullYear()}`;
 
     return (
-        <div className="bg-white flex-1 pt-5 pb-3 px-2.5 border-r-2 border-dashed last:border-r-0 border-slate-300 relative h-full flex flex-col box-border font-serif" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
-            {/* Copy Indicator Tab */}
-            <div className="absolute top-0 right-4 py-1.5 px-6 bg-brand-primary text-white text-[8px] font-black uppercase tracking-[0.2em] rounded-b-xl shadow-md z-20">
-                {copyType}
-            </div>
-
-            {/* Header Section */}
-            <div className="flex items-center gap-2 border-b-2 border-brand-primary pb-2 mb-3 mt-4">
-                <div className="shrink-0 w-12 h-12">
-                    {settings.logo1 && <img src={settings.logo1} className="w-full h-full object-contain" alt="L1" crossOrigin="anonymous" loading="eager" />}
+        <div className="bulk-voucher-page bg-white min-w-[860px] md:min-w-0 w-full max-w-[297mm] h-[210mm] shadow-[0_40px_100px_rgba(0,0,0,0.5)] print:shadow-none print:m-0 flex flex-row overflow-hidden rounded-[var(--brand-radius,1.5rem)] print:rounded-none transition-transform hover:scale-[1.01] print:hover:scale-100">
+            <div className="bg-white flex-1 pt-5 pb-3 px-2.5 border-r-2 border-dashed last:border-r-0 border-slate-300 relative h-full flex flex-col box-border font-serif" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+                
+                {/* Print Banner */}
+                <div className="absolute top-0 right-4 py-1 px-3 border-2 border-t-0 border-slate-800 bg-slate-100 text-slate-900 text-[8px] font-black uppercase tracking-[0.2em] rounded-b-xl shadow-sm z-20">
+                    {copyType}
                 </div>
-                <div className="text-center flex-1 min-w-0">
-                    <h1 className="text-[19px] font-black uppercase tracking-tighter text-brand-primary leading-none mb-1">{settings.schoolName}</h1>
-                    <p className="text-[8.5px] font-black text-slate-800 uppercase leading-none mb-1.5">{settings.subTitle}</p>
-                    <div className="flex items-center justify-center gap-1.5 mt-1">
-                        <div className="bg-brand-primary text-white text-[9px] font-black px-4 py-1 rounded-full uppercase tracking-widest italic leading-none whitespace-nowrap">
-                            FEE FOR: {monthName} {year}
-                        </div>
-                        <div className="h-[1px] flex-1 bg-slate-200"></div>
+
+                {/* Header Section */}
+                <div className="flex items-center gap-2 border-b-2 border-slate-800 pb-2 mb-3 mt-4">
+                    <div className="shrink-0 w-12 h-12">
+                        {settings.logo1 && <img src={settings.logo1} className="w-full h-full object-contain" alt="L1" crossOrigin="anonymous" loading="eager" />}
                     </div>
-                </div>
-                <div className="shrink-0 w-12 h-12">
-                    {settings.logo2 && <img src={settings.logo2} className="w-full h-full object-contain" alt="L2" crossOrigin="anonymous" loading="eager" />}
-                </div>
-            </div>
-
-            {/* Student Info Box */}
-            <div className="grid grid-cols-1 mb-3 uppercase font-black text-[10px] border-2 border-brand-primary rounded-sm overflow-hidden">
-                {[
-                    { label: 'STUDENT NAME', value: student.name },
-                    { label: 'STUDENT ID', value: student.id },
-                    { label: 'FATHER NAME', value: student.fatherName || 'N/A' },
-                    { label: 'CLASS / GRADE', value: student.class },
-                    { label: 'ISSUE DATE', value: formatDate(issueDate) },
-                    { label: 'DUE DATE', value: formatDate(dueDate) },
-                ].map((row, i) => (
-                    <div key={i} className="grid grid-cols-12 border-b-2 border-brand-primary last:border-0 h-[26px]">
-                        <div className="col-span-5 px-2 bg-slate-50 border-r-2 border-brand-primary flex items-center">
-                            <span className="truncate">{row.label}</span>
-                        </div>
-                        <div className="col-span-7 px-2 text-center font-black text-brand-primary flex items-center justify-center truncate">
-                            {row.value}
-                        </div>
-                    </div>
-                ))}
-            </div>
-
-            {/* Particulars Table */}
-            <div className="mb-3 border-2 border-brand-primary rounded-sm overflow-hidden flex-1 flex flex-col min-h-0">
-                <div className="grid grid-cols-12 bg-slate-100 border-b-2 border-brand-primary font-black text-[10px] uppercase h-7 shrink-0">
-                    <div className="col-span-8 p-1.5 border-r-2 border-brand-primary flex items-center uppercase">Particulars / Details</div>
-                    <div className="col-span-4 p-1.5 text-right flex items-center justify-end uppercase">Amount (RS)</div>
-                </div>
-
-                <div className="text-[10px] font-black flex-1 overflow-hidden flex flex-col justify-around bg-white">
-                    {[
-                        { label: 'Admission Fee', val: admission },
-                        { label: 'Security Fee', val: security },
-                        { label: 'Misc. / Other Charges', val: misc },
-                        { label: 'Tuition Fee:', val: tuitionFee },
-                        { label: `Absent Fine (${absentDays})`, val: fine },
-                        { label: 'Arrears / Old Balance', val: oldBalance },
-                    ].map((row, i) => (
-                        <div key={i} className="grid grid-cols-12 border-b border-slate-100 last:border-0 grow flex items-center">
-                            <div className="col-span-8 px-2 flex items-center h-full">
-                                {row.label}
+                    <div className="text-center flex-1 min-w-0">
+                        <h1 className="text-[19px] font-black uppercase tracking-tighter text-slate-900 leading-none mb-1">{settings.schoolName}</h1>
+                        <p className="text-[8.5px] font-black text-slate-800 uppercase leading-none mb-1.5">{settings.subTitle}</p>
+                        <div className="flex items-center justify-center gap-1.5 mt-1">
+                            <div className="bg-slate-100 border border-slate-800 text-slate-900 text-[9px] font-black px-4 py-1 rounded-full uppercase tracking-widest italic leading-none whitespace-nowrap">
+                                FEE FOR: {monthName} {year}
                             </div>
-                            <div className="col-span-4 px-2 text-right font-black flex items-center justify-end h-full">
-                                {row.val > 0 ? row.val.toLocaleString() : '-'}
+                            <div className="h-[1px] flex-1 bg-slate-300"></div>
+                        </div>
+                    </div>
+                    <div className="shrink-0 w-12 h-12">
+                        {settings.logo2 && <img src={settings.logo2} className="w-full h-full object-contain" alt="L2" crossOrigin="anonymous" loading="eager" />}
+                    </div>
+                </div>
+
+                {/* Student Info Box */}
+                <div className="grid grid-cols-1 mb-3 uppercase font-black text-[10px] border-2 border-slate-800 rounded-sm overflow-hidden">
+                    {[
+                        { label: 'STUDENT NAME', value: student.name },
+                        { label: 'STUDENT ID', value: student.id },
+                        { label: 'FATHER NAME', value: student.fatherName || 'N/A' },
+                        { label: 'CLASS / GRADE', value: student.class },
+                        { label: 'ISSUE DATE', value: formatDate(issueDate) },
+                        { label: 'DUE DATE', value: formatDate(dueDate) },
+                    ].map((row, i) => (
+                        <div key={i} className="grid grid-cols-12 border-b-2 border-slate-800 last:border-0 h-[26px]">
+                            <div className="col-span-5 px-2 bg-slate-100 border-r-2 border-slate-800 flex items-center text-slate-800">
+                                <span className="truncate">{row.label}</span>
+                            </div>
+                            <div className="col-span-7 px-2 text-center font-black text-slate-900 flex items-center justify-center truncate">
+                                {row.value}
                             </div>
                         </div>
                     ))}
                 </div>
 
-                {/* Arrears Summary Section */}
-                <div className="bg-slate-50 border-t-2 border-brand-primary shrink-0">
-                    <div className="grid grid-cols-12 font-black text-[10px] border-b border-slate-300">
-                        <div className="col-span-8 p-1.5 border-r border-slate-300 uppercase text-slate-500">Gross Total Payable</div>
-                        <div className="col-span-4 p-1.5 text-right text-slate-900">{grossTotal.toLocaleString()}</div>
+                {/* Particulars Table */}
+                <div className="mb-3 border-2 border-slate-800 rounded-sm overflow-hidden flex-1 flex flex-col min-h-0">
+                    <div className="grid grid-cols-12 bg-slate-200 border-b-2 border-slate-800 font-black text-[10px] uppercase h-7 shrink-0 text-slate-900">
+                        <div className="col-span-8 p-1.5 border-r-2 border-slate-800 flex items-center uppercase">Particulars / Details</div>
+                        <div className="col-span-4 p-1.5 text-right flex items-center justify-end uppercase">Amount (RS)</div>
                     </div>
-                    <div className="grid grid-cols-12 font-black text-[10px] border-b border-slate-300 bg-emerald-50/50">
-                        <div className="col-span-8 p-1.5 border-r border-slate-300 uppercase text-emerald-600">Amount Received / Paid</div>
-                        <div className="col-span-4 p-1.5 text-right text-emerald-600">-{Number(student.feesPaid || 0).toLocaleString()}</div>
+
+                    <div className="text-[10px] font-black flex-1 overflow-hidden flex flex-col justify-around bg-white text-slate-800">
+                        {[
+                            { label: 'Admission Fee', val: admission },
+                            { label: 'Security Fee', val: security },
+                            { label: 'Misc. / Other Charges', val: misc },
+                            { label: 'Tuition Fee:', val: tuitionFee },
+                            { label: "Absent Fine (" + absentDays + ")" , val: fine },
+                            { label: 'Arrears / Old Balance', val: oldBalance },
+                        ].map((row, i) => (
+                            <div key={i} className="grid grid-cols-12 border-b border-slate-300 last:border-0 grow flex items-center">
+                                <div className="col-span-8 px-2 flex items-center h-full border-r border-slate-300">
+                                    {row.label}
+                                </div>
+                                <div className="col-span-4 px-2 text-right font-black flex items-center justify-end h-full">
+                                    {row.val > 0 ? row.val.toLocaleString() : '-'}
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                    <div className="grid grid-cols-12 bg-brand-primary text-white font-black text-[13px]">
-                        <div className="col-span-8 p-2 border-r border-white/20 uppercase whitespace-nowrap">Net Balance Arrears</div>
-                        <div className="col-span-4 p-2 text-right">{amountToPay.toLocaleString()}</div>
-                    </div>
-                </div>
-            </div>
 
-            {/* Total in Words */}
-            <div className="mb-3 shrink-0">
-                <p className="text-[8px] font-black uppercase text-slate-400 mb-0.5 leading-none">TOTAL IN WORDS</p>
-                <div className="flex justify-between items-end border-b-2 border-slate-200 pb-1">
-                    <p className="text-[11px] font-black italic leading-tight text-brand-primary truncate max-w-[200px]">{numberToWords(amountToPay)}</p>
-                </div>
-            </div>
-
-            {/* Fine Strip */}
-            <div className="bg-brand-primary p-1.5 text-[9px] font-black uppercase text-center text-white tracking-widest mb-2 rounded-md shrink-0 shadow-sm">
-                20 RS/DAY FINE AFTER DUE DATE
-            </div>
-
-            {/* Footer Section */}
-            <div className="mt-auto shrink-0 pb-1">
-                <div className="font-urdu text-[11.5px] font-bold leading-tight text-right mb-2" dir="rtl">
-                    نوٹ: بغیر فیس چالان کے کوئی فیس جمع نہیں کی جائے گی اور ڈپلیکیٹ چالان چارجز -/50 روپے ہو گا۔
-                </div>
-                <div className="flex justify-between items-end">
-                    <div className="flex-1 flex flex-col gap-1">
-                        <div className="flex items-center gap-1 text-[8.5px] font-black text-slate-500 uppercase">
-                            <Phone className="w-2.5 h-2.5 text-brand-primary" strokeWidth={3} />
-                            +92-57-234418 | 0334-5930217 | 0333-2333139
+                    {/* Arrears Summary Section */}
+                    <div className="bg-slate-50 border-t-2 border-slate-800 shrink-0">
+                        <div className="grid grid-cols-12 font-black text-[10px] border-b border-slate-300">
+                            <div className="col-span-8 p-1.5 border-r border-slate-300 uppercase text-slate-700">Gross Total Payable</div>
+                            <div className="col-span-4 p-1.5 text-right text-slate-900">{grossTotal.toLocaleString()}</div>
+                        </div>
+                        <div className="grid grid-cols-12 font-black text-[10px] border-b border-slate-300 bg-slate-100">
+                            <div className="col-span-8 p-1.5 border-r border-slate-300 uppercase text-slate-700">Amount Received / Paid</div>
+                            <div className="col-span-4 p-1.5 text-right text-slate-900">-{Number(student.feesPaid || 0).toLocaleString()}</div>
+                        </div>
+                        <div className="grid grid-cols-12 bg-slate-200 text-slate-900 border-t-2 border-slate-800 font-black text-[13px] print:bg-slate-200 print:text-black print:border-t-2 print:border-slate-800">
+                            <div className="col-span-8 p-2 border-r border-slate-800 print:border-slate-800 uppercase whitespace-nowrap">Net Balance Arrears</div>
+                            <div className="col-span-4 p-2 text-right">{amountToPay.toLocaleString()}</div>
                         </div>
                     </div>
-                    <div className="shrink-0 flex flex-col items-center">
-                        <div className="w-16 h-6 border-b-2 border-brand-primary mb-0.5"></div>
-                        <p className="text-[6px] font-black uppercase tracking-widest text-brand-primary">ACCOUNTANT</p>
+                </div>
+
+                {/* Total in Words */}
+                <div className="mb-3 shrink-0">
+                    <p className="text-[8px] font-black uppercase text-slate-500 mb-0.5 leading-none">TOTAL IN WORDS</p>
+                    <div className="flex justify-between items-end border-b-2 border-slate-400 pb-1">
+                        <p className="text-[11px] font-black italic leading-tight text-slate-900 truncate max-w-[200px]">{numberToWords(amountToPay)}</p>
+                    </div>
+                </div>
+
+                {/* Fine Strip */}
+                <div className="bg-slate-100 border-2 border-slate-800 p-1.5 text-[9px] font-black uppercase text-center text-slate-900 tracking-widest mb-2 rounded-md shrink-0 shadow-sm">
+                    20 RS/DAY LATE FEE | 50 RS/DAY ABSENT FINE
+                </div>
+
+                {/* Footer Section */}
+                <div className="mt-auto shrink-0 pb-1">
+                    <div className="font-urdu text-[11.5px] font-bold leading-tight text-right mb-2 text-slate-900" dir="rtl">
+                        نوٹ: مقررہ تاریخ کے بعد فیس جمع کروانے پر 20 روپے اور غیر حاضری پر 50 روپے یومیہ جرمانہ ہوگا۔
+                    </div>
+                    <div className="flex justify-between items-end">
+                        <div className="flex-1 flex flex-col gap-1">
+                            <div className="flex items-center gap-1 text-[8.5px] font-black text-slate-600 uppercase">
+                                <Phone className="w-2.5 h-2.5 text-slate-800" strokeWidth={3} />
+                                +92-57-234418 | 0334-5930217 | 0333-2333139
+                            </div>
+                        </div>
+                        <div className="shrink-0 flex flex-col items-center">
+                            <div className="w-16 h-6 border-b-2 border-slate-800 mb-0.5"></div>
+                            <p className="text-[6px] font-black uppercase tracking-widest text-slate-800">ACCOUNTANT</p>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     );
 });
-
-VoucherCopy.displayName = 'VoucherCopy';
 
 export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
     const { settings, feeStructure, attendance } = useStore();
@@ -326,7 +328,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
     const currentYear = new Date().getFullYear();
     const currentMonthName = monthNames[currentMonth];
 
-    return (
+    const modalContent = (
         <div className="bulk-voucher-studio fixed inset-0 z-[1000] bg-[#020617] flex flex-col font-serif print:relative print:z-0 print:bg-white print:block print:inset-auto">
             {/* TOOLBAR */}
             <div className="p-3 sm:p-4 border-b border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-4 bg-slate-900/90 backdrop-blur-md print:hidden shrink-0">
@@ -377,7 +379,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
 
             {/* PREVIEW CONTAINER */}
             <div className="flex-1 overflow-x-auto overflow-y-auto p-2 sm:p-8 md:p-16 bg-slate-950/50 print:bg-white print:p-0 print:overflow-visible print:block custom-scrollbar">
-                <div className="flex flex-col gap-6 sm:gap-16 items-start md:items-center print:gap-0 print:block">
+                <div className="voucher-preview-scale flex flex-col gap-6 sm:gap-16 items-start md:items-center print:gap-0 print:block">
                     {students.map((student) => {
                         const tuition = Number(student.monthlyFees) || Number(student.monthlyTuition) || Number(feeStructure[student.class]) || Number(feeStructure['General']) || 4000;
                         const studentAbsents = absentMap[student.id] || 0;
@@ -396,9 +398,10 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
             <style>{`
                 @media print {
                     @page { size: A4 landscape; margin: 0 !important; }
-                    body > *:not(.bulk-voucher-studio) { display: none !important; }
-                    body, html { height: auto !important; overflow: visible !important; background: white !important; margin: 0 !important; padding: 0 !important; }
-                    .bulk-voucher-studio { position: static !important; display: block !important; background: white !important; width: 100% !important; height: auto !important; padding: 0 !important; margin: 0 !important; }
+                    body, html { height: auto !important; overflow: visible !important; background: white !important; margin: 0 !important; padding: 0 !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                    body * { visibility: hidden; }
+                    .bulk-voucher-studio, .bulk-voucher-studio * { visibility: visible; }
+                    .bulk-voucher-studio { position: absolute !important; left: 0 !important; top: 0 !important; display: block !important; background: white !important; width: 100% !important; height: auto !important; padding: 0 !important; margin: 0 !important; }
                     .bulk-voucher-page { 
                         display: flex !important; 
                         flex-direction: row !important; 
@@ -411,8 +414,9 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                         padding: 0 !important; 
                         border: none !important; 
                         box-shadow: none !important; 
+                        transform: none !important;
                     }
-                    .bulk-voucher-page:last-child { page-break-after: auto !important; }
+                    .bulk-voucher-page:last-child { page-break-after: auto !important; break-after: auto !important; }
                     .print-hidden, button { display: none !important; }
                 }
                 .custom-scrollbar::-webkit-scrollbar { width: 10px; }
@@ -422,4 +426,8 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
             `}</style>
         </div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
+
+

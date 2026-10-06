@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Mail, Phone, MapPin, Calendar, CreditCard, GraduationCap, Briefcase, User, Shield, Download, FileText, CheckCircle2, RotateCcw } from 'lucide-react';
 import type { Teacher } from '../context/StoreContext';
 import { useStore } from '../context/StoreContext';
@@ -68,7 +69,7 @@ export const FacultyProfileModal = ({ teacher, onClose }: FacultyProfileModalPro
         </div>
     );
 
-    return (
+    return createPortal(
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
             <div className="relative w-full max-w-4xl bg-white rounded-2xl sm:rounded-[2.5rem] shadow-3xl overflow-hidden flex flex-col animate-in zoom-in-95 fade-in duration-300 my-auto max-h-[96vh]">
 
@@ -292,6 +293,6 @@ export const FacultyProfileModal = ({ teacher, onClose }: FacultyProfileModalPro
                     </div>
                 </div>
             </div>
-        </div>
+        </div>, document.body
     );
 };

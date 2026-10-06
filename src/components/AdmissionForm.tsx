@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -355,7 +356,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
         return <FeeVoucher student={submittedStudent} onClose={onClose} />;
     }
 
-    return (
+    const modalContent = (
         <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -662,6 +663,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                                             <FormField label="CNIC / B-Form" icon={Hash} name="cnic" value={formData.cnic} onChange={handleInputChange} placeholder="00000-0000000-0" type="text" />
                                             <FormField label="Religion" icon={ShieldCheck} name="religion" value={formData.religion} onChange={handleInputChange} type="text" required />
                                             <FormField label="Nationality" icon={ShieldCheck} name="nationality" value={formData.nationality} onChange={handleInputChange} type="text" />
+                                            <FormField label="Status" icon={CheckCircle} name="status" value={formData.status} onChange={handleInputChange} type="select" options={['Active', 'Inactive', 'Passed Out', 'Alumni', 'Online Applied', 'Pending Verification']} required />
                                             <FormField label="Email Address" icon={Upload} name="email" value={formData.email} onChange={handleInputChange} placeholder="student@example.com" type="email" />
                                             <FormField label="Guardian Phone" icon={Phone} name="contactSelf" value={formData.contactSelf} onChange={handleInputChange} placeholder="03XXXXXXXXX" type="tel" />
                                             <div className="col-span-full">
@@ -972,6 +974,8 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
             />
         </motion.div>
     );
+
+    return typeof document !== 'undefined' ? createPortal(modalContent, document.body) : modalContent;
 };
 
 const LiveCameraModal = ({ isOpen, onClose, onCapture }: { isOpen: boolean, onClose: () => void, onCapture: (img: string) => void }) => {
@@ -1106,3 +1110,5 @@ const FormField = ({ label, icon: Icon, textarea, type = "text", options = [], r
         </div>
     );
 };
+
+
