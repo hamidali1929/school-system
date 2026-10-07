@@ -213,3 +213,7 @@ html.dark body {
 } 
 .no-scrollbar::-webkit-scrollbar { display: none; }  
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; } 
+
+@media print { html, body, #root { height: auto !important; min-height: auto !important; overflow: visible !important; } }
+
+@media screen { .voucher-preview-scale { zoom: 0.9; } @media (max-width: 1400px) { .voucher-preview-scale { zoom: 0.8; } } @media (max-height: 800px) { .voucher-preview-scale { zoom: 0.75; } } @media (max-height: 700px) { .voucher-preview-scale { zoom: 0.65; } } @media (max-width: 768px) { .voucher-preview-scale { zoom: 1; } } }

@@ -44,6 +44,10 @@ const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tui
             <div className="absolute top-0 right-4 py-1 px-3 border-2 border-t-0 border-slate-800 bg-slate-100 text-slate-900 text-[8px] font-black uppercase tracking-[0.2em] rounded-b-xl z-20 print:translate-y-0 shadow-sm">
                 {copyType}
             </div>
+            
+            <div className="absolute top-0 left-4 py-1 px-3 border-2 border-t-0 border-slate-800 bg-slate-100 text-slate-900 text-[8px] font-black uppercase tracking-[0.2em] rounded-b-xl z-20 print:translate-y-0 shadow-sm">
+                {student?.campus ? student.campus.toUpperCase() : 'PIONEER\'S SUPERIOR'}
+            </div>
 
             <div className="flex items-center gap-2 border-b-2 border-slate-800 pb-2 mb-3 mt-4">
                 <div className="shrink-0 w-12 h-12">
@@ -155,7 +159,13 @@ const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tui
 };
 
 export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOnly = false }) => {
-    const { settings, attendance, feeStructure, updateStudent, sendNotification } = useStore();
+    const { settings, attendance, feeStructure, updateStudent, sendNotification, campuses, classPrograms } = useStore();
+
+    
+    const isCollegeClass = student?.class ? ['11th', '12th', '1st year', '2nd year', 'fsc', 'ics', 'icom', 'fa'].some(kw => student.class.toLowerCase().includes(kw)) : false;
+    const isCollegeCampus = campuses?.find(c => c.name === student?.campus)?.type === 'College';
+    const isCollegeProgram = classPrograms?.[student?.class] === 'College';
+    const collegeCopyName = (isCollegeClass || isCollegeCampus || isCollegeProgram) ? 'COLLEGE COPY' : 'SCHOOL COPY';
 
     const [editableTuition, setEditableTuition] = useState(0);
     const [editableAbsentFine, setEditableAbsentFine] = useState(0);
@@ -167,8 +177,8 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
     const [mobileTab, setMobileTab] = useState<'preview' | 'edit'>('preview');
 
     useEffect(() => { document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = 'auto'; }; }, []);
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
+    const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+    const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
 
     const absentDays = attendance.filter(a => {
         const date = new Date(a.date);
@@ -478,7 +488,21 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                                 </div>
                             </div>
                             <div>
-                                <label className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 mb-1 block tracking-widest">Tuition Fee</label>
+                                
+                            <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 mb-1 block tracking-widest">Month</label>
+                                    <select value={currentMonth} onChange={(e) => setCurrentMonth(Number(e.target.value))} className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-black text-xs outline-none focus:ring-2 ring-brand-primary/20">
+                                        {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 mb-1 block tracking-widest">Year</label>
+                                    <input type="number" value={currentYear} onChange={(e) => setCurrentYear(Number(e.target.value))} className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-black text-xs outline-none focus:ring-2 ring-brand-primary/20" />
+                                </div>
+                            </div>
+
+                                  <label className="text-[8px] md:text-[10px] font-black uppercase text-slate-400 mb-1 block tracking-widest">Tuition Fee</label>
                                 <input type="number" value={editableTuition} onChange={(e) => { setEditableTuition(Number(e.target.value)); setIsModified(true); }} className="w-full p-2.5 md:p-3.5 bg-white rounded-xl border border-slate-200 font-black text-xs outline-none focus:ring-2 ring-brand-primary/20" />
                             </div>
                             <div>
@@ -608,7 +632,7 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                                 miscCharges={editableMisc} monthName={currentMonthName} year={currentYear}
                             />
                             <VoucherCopy
-                                copyType="SCHOOL COPY" student={student} settings={settings} totalAmount={totalAmount}
+                                copyType={collegeCopyName} student={student} settings={settings} totalAmount={totalAmount}
                                 absentDays={absentDays} tuitionFee={editableTuition} absentFine={editableAbsentFine}
                                 finalArrear={editableArrear} admissionFee={editableAdmission} securityFee={editableSecurity}
                                 miscCharges={editableMisc} monthName={currentMonthName} year={currentYear}

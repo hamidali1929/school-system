@@ -192,10 +192,11 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
         return () => { document.body.style.overflow = 'auto'; };
     }, []);
 
+    const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+    const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const absentMap = useMemo(() => {
         const map: Record<string, number> = {};
-        const currentMonth = new Date().getMonth();
-        const currentYear = new Date().getFullYear();
+        
         attendance.forEach(day => {
             const date = new Date(day.date);
             if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
@@ -205,7 +206,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
             }
         });
         return map;
-    }, [attendance]);
+    }, [attendance, currentMonth, currentYear]);
 
     const handlePrint = () => {
         const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth < 768;
@@ -324,8 +325,6 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
 
 
     const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
-    const currentMonth = new Date().getMonth();
-    const currentYear = new Date().getFullYear();
     const currentMonthName = monthNames[currentMonth];
 
     const modalContent = (
@@ -358,8 +357,15 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                         {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />}
                         {isExporting ? 'Generating...' : 'Export PDF'}
                     </button>
-                    <button
-                        onClick={handlePrint}
+                    
+                    <div className="flex items-center gap-2">
+                        <select value={currentMonth} onChange={(e) => setCurrentMonth(Number(e.target.value))} className="px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-xl font-bold text-xs outline-none focus:ring-2 ring-brand-primary/50">
+                            {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
+                        </select>
+                        <input type="number" value={currentYear} onChange={(e) => setCurrentYear(Number(e.target.value))} className="w-20 px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-xl font-bold text-xs outline-none focus:ring-2 ring-brand-primary/50" />
+                    </div>
+
+                      <button onClick={handlePrint}
                         className="flex-1 sm:flex-none px-3.5 sm:px-8 py-2.5 sm:py-4 bg-white text-brand-primary border-2 border-brand-primary rounded-xl sm:rounded-[var(--brand-radius,1rem)] font-black text-[10px] sm:text-[12px] uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-slate-50 transform transition-all active:scale-95 group"
                     >
                         <Printer className="w-4 h-4 group-hover:scale-110 transition-transform" /> Print
@@ -387,7 +393,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                         return (
                             <div key={student.id} className="bulk-voucher-page bg-white min-w-[860px] md:min-w-0 w-full max-w-[297mm] h-[210mm] shadow-[0_40px_100px_rgba(0,0,0,0.5)] print:shadow-none print:m-0 flex flex-row overflow-hidden rounded-[var(--brand-radius,1.5rem)] print:rounded-none transition-transform hover:scale-[1.01] print:hover:scale-100">
                                 <VoucherCopy copyType="STUDENT COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
-                                <VoucherCopy copyType="SCHOOL COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
+                                <VoucherCopy copyType={collegeCopyName} student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
                                 <VoucherCopy copyType="BANK COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
                             </div>
                         );

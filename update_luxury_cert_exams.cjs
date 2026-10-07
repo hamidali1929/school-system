@@ -1,0 +1,209 @@
+const fs = require('fs');
+
+let code = fs.readFileSync('src/pages/Exams.tsx', 'utf-8');
+
+const printFuncRegex = /const handlePrintCertificate = \([\s\S]*?WindowPrt\.document\.close\(\);\s*\}\s*\};/;
+
+const newPrintLogic = `const handlePrintCertificate = (certData: any) => {
+        const WindowPrt = window.open('', '', 'left=0,top=0,width=1123,height=794,toolbar=0,scrollbars=0,status=0');
+        if (WindowPrt) {
+            const serialNumber = \`CERT-\${Math.random().toString(36).substr(2, 9).toUpperCase()}\`;
+            WindowPrt.document.write(\`
+                <html>
+                    <head>
+                        <title>Official Certificate</title>
+                        <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Playfair+Display:ital,wght@0,400;0,700;0,900;1,400;1,700&family=Montserrat:wght@300;400;600;700&family=Great+Vibes&family=Pinyon+Script&display=swap" rel="stylesheet">
+                        <style>
+                            @page { size: A4 landscape; margin: 0; }
+                            body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: 'Montserrat', sans-serif; }
+                            .cert-page { 
+                                width: 1123px; height: 794px; position: relative; 
+                                background: linear-gradient(135deg, #ffffff 0%, #f9f9f9 100%); 
+                                overflow: hidden; page-break-after: always; box-sizing: border-box; 
+                            }
+                            
+                            /* Luxury Borders */
+                            .border-outer { position: absolute; top: 20px; left: 20px; right: 20px; bottom: 20px; border: 1px solid #1a233a; }
+                            .border-inner { position: absolute; top: 30px; left: 30px; right: 30px; bottom: 30px; border: 4px solid #c5a059; border-radius: 4px; box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3px #c5a059; background: #fff; }
+                            .border-inner-2 { position: absolute; top: 45px; left: 45px; right: 45px; bottom: 45px; border: 1px solid rgba(197, 160, 89, 0.4); }
+
+                            /* Corner Ornaments */
+                            .corner { position: absolute; width: 60px; height: 60px; z-index: 5; }
+                            .corner-tl { top: 25px; left: 25px; border-top: 5px solid #1a233a; border-left: 5px solid #1a233a; }
+                            .corner-tr { top: 25px; right: 25px; border-top: 5px solid #1a233a; border-right: 5px solid #1a233a; }
+                            .corner-bl { bottom: 25px; left: 25px; border-bottom: 5px solid #1a233a; border-left: 5px solid #1a233a; }
+                            .corner-br { bottom: 25px; right: 25px; border-bottom: 5px solid #1a233a; border-right: 5px solid #1a233a; }
+
+                            .watermark { 
+                                position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                                opacity: 0.04; width: 600px; height: 600px; 
+                                background-image: url('\${settings.logo1 || 'https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/React-icon.svg/512px-React-icon.svg.png'}'); 
+                                background-size: contain; background-repeat: no-repeat; background-position: center; filter: grayscale(100%); z-index: 1; 
+                            }
+
+                            .content-wrapper { position: absolute; top: 60px; left: 60px; right: 60px; bottom: 60px; z-index: 10; display: flex; flex-direction: column; justify-content: space-between; text-align: center; }
+                            
+                            .header { display: flex; justify-content: space-between; align-items: flex-start; padding: 0 40px; }
+                            .logo-box { width: 100px; height: 100px; display: flex; justify-content: center; align-items: center; }
+                            .logo-img { max-width: 100%; max-height: 100%; object-fit: contain; }
+                            
+                            .school-info { flex: 1; margin: 0 20px; padding-top: 15px; }
+                            .school-name { font-family: 'Cinzel', serif; font-size: 36px; font-weight: 900; color: #1a233a; letter-spacing: 5px; text-transform: uppercase; margin: 0; line-height: 1.2; text-shadow: 1px 1px 0px rgba(0,0,0,0.1); }
+                            .subtitle { font-family: 'Montserrat', sans-serif; font-size: 12px; font-weight: 600; color: #c5a059; letter-spacing: 6px; text-transform: uppercase; margin-top: 8px; }
+
+                            .cert-title-container { margin-top: 20px; }
+                            .cert-title { font-family: 'Cinzel', serif; font-size: 54px; font-weight: 900; color: #c5a059; letter-spacing: 12px; margin: 0; text-transform: uppercase; }
+                            .cert-subtitle { font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 600; color: #1a233a; letter-spacing: 8px; text-transform: uppercase; margin-top: 5px; }
+
+                            .body-content { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; margin-top: -20px; }
+                            .presented-to { font-family: 'Montserrat', sans-serif; font-size: 14px; font-weight: 600; color: #777; letter-spacing: 4px; text-transform: uppercase; margin-bottom: 25px; }
+                            
+                            .student-name { 
+                                font-family: 'Pinyon Script', cursive; 
+                                font-size: 85px; 
+                                color: #1a233a; 
+                                margin: 0; 
+                                line-height: 1; 
+                                text-shadow: 2px 2px 4px rgba(0,0,0,0.05);
+                                text-transform: capitalize;
+                            }
+                            
+                            .name-underline { width: 500px; height: 2px; background: linear-gradient(90deg, transparent, #c5a059, transparent); margin: 10px auto 35px auto; }
+                            
+                            .narrative { font-size: 20px; color: #333; line-height: 1.8; max-width: 800px; margin: 0 auto; font-family: 'Playfair Display', serif; }
+                            .narrative strong, .narrative b { font-family: 'Cinzel', serif; font-size: 22px; color: #1a233a; font-weight: 900; letter-spacing: 1px; }
+                            
+                            .footer { display: flex; justify-content: space-between; align-items: flex-end; padding: 0 60px; margin-bottom: 20px; }
+                            
+                            .signature-box { text-align: center; width: 220px; }
+                            .signature-img { height: 60px; margin-bottom: -10px; opacity: 0.8; }
+                            .signature-line { width: 100%; height: 1px; background: #1a233a; margin-bottom: 10px; position: relative; }
+                            .signature-title { font-family: 'Montserrat', sans-serif; font-size: 13px; font-weight: 700; color: #1a233a; letter-spacing: 3px; text-transform: uppercase; }
+                            .signature-subtitle { font-family: 'Montserrat', sans-serif; font-size: 10px; font-weight: 400; color: #777; letter-spacing: 1px; margin-top: 4px; }
+
+                            .seal-container { position: relative; width: 160px; height: 160px; display: flex; justify-content: center; align-items: center; margin-bottom: -20px; }
+                            .seal-outer { position: absolute; width: 140px; height: 140px; border-radius: 50%; border: 2px solid #c5a059; }
+                            .seal-ribbon-left { position: absolute; bottom: 0px; left: 15px; width: 40px; height: 60px; background: #960018; transform: rotate(30deg); z-index: 1; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; box-shadow: 2px 4px 8px rgba(0,0,0,0.2); }
+                            .seal-ribbon-left::after { content: ''; position: absolute; bottom: -15px; left: 0; border-left: 20px solid #960018; border-right: 20px solid #960018; border-bottom: 20px solid transparent; }
+                            .seal-ribbon-right { position: absolute; bottom: 0px; right: 15px; width: 40px; height: 60px; background: #960018; transform: rotate(-30deg); z-index: 1; border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; box-shadow: -2px 4px 8px rgba(0,0,0,0.2); }
+                            .seal-ribbon-right::after { content: ''; position: absolute; bottom: -15px; left: 0; border-left: 20px solid #960018; border-right: 20px solid #960018; border-bottom: 20px solid transparent; }
+                            
+                            .seal-inner { position: relative; width: 130px; height: 130px; background: radial-gradient(circle, #e2c179 0%, #b8860b 100%); border-radius: 50%; display: flex; justify-content: center; align-items: center; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.3), inset 0 2px 5px rgba(255,255,255,0.6); z-index: 5; border: 3px solid #ffdf00; }
+                            .seal-inner::before { content: ''; position: absolute; width: 116px; height: 116px; border-radius: 50%; border: 1px dashed rgba(255,255,255,0.7); }
+                            .seal-text-top { font-family: 'Cinzel', serif; font-size: 11px; font-weight: 900; color: #fff; letter-spacing: 2px; position: absolute; top: 18px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); }
+                            .seal-star { color: #fff; font-size: 24px; margin: 15px 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); }
+                            .seal-text-bottom { font-family: 'Montserrat', sans-serif; font-size: 9px; font-weight: 700; color: #fff; letter-spacing: 1px; position: absolute; bottom: 20px; text-shadow: 1px 1px 2px rgba(0,0,0,0.4); }
+
+                            .meta-container { position: absolute; bottom: 25px; left: 50%; transform: translateX(-50%); text-align: center; font-family: 'Montserrat', sans-serif; font-size: 10px; color: #888; letter-spacing: 2px; }
+                            .meta-serial { font-weight: 700; color: #1a233a; }
+
+                        </style>
+                    </head>
+                    <body>
+                        <div class="cert-page">
+                            <!-- Borders -->
+                            <div class="border-outer"></div>
+                            <div class="border-inner"></div>
+                            <div class="border-inner-2"></div>
+                            
+                            <!-- Corners -->
+                            <div class="corner corner-tl"></div>
+                            <div class="corner corner-tr"></div>
+                            <div class="corner corner-bl"></div>
+                            <div class="corner corner-br"></div>
+                            
+                            <!-- Watermark -->
+                            <div class="watermark"></div>
+
+                            <div class="content-wrapper">
+                                <!-- Header -->
+                                <div class="header">
+                                    <div class="logo-box">
+                                        \${settings.logo1 ? \`<img src="\${settings.logo1}" class="logo-img" />\` : ''}
+                                    </div>
+                                    <div class="school-info">
+                                        <h1 class="school-name">\${settings.schoolName || 'Education Institute'}</h1>
+                                        <div class="subtitle">\${settings.subTitle || 'Excellence in Professional Education'}</div>
+                                        
+                                        <div class="cert-title-container">
+                                            <h2 class="cert-title">Certificate</h2>
+                                            <div class="cert-subtitle">\${certData?.isCustom ? (certData.category || 'Special Award').toUpperCase() : 'Academic Merit Award'}</div>
+                                        </div>
+                                    </div>
+                                    <div class="logo-box">
+                                        \${settings.logo2 ? \`<img src="\${settings.logo2}" class="logo-img" />\` : (settings.logo1 ? \`<img src="\${settings.logo1}" class="logo-img" />\` : '')}
+                                    </div>
+                                </div>
+
+                                <!-- Body -->
+                                <div class="body-content">
+                                    <div class="presented-to">This is proudly presented to</div>
+                                    <h3 class="student-name">\${(certData?.student?.name || '---').toLowerCase()}</h3>
+                                    <div class="name-underline"></div>
+                                    <div class="narrative">
+                                        \${certData?.isCustom ? \`
+                                            Has demonstrated exceptional prowess and dedication by achieving
+                                            <strong>\${certData.position || 'Outstanding Success'}</strong> in the 
+                                            <strong>\${certData.event || 'Institutional Category'}</strong> event. 
+                                            Your pursuit of excellence serves as an inspiration to the entire academic community.
+                                        \` : \`
+                                            For securing the <strong>\${certData?.result?.position || '1'}\${certData?.result?.position === 1 ? 'st' : certData?.result?.position === 2 ? 'nd' : certData?.result?.position === 3 ? 'rd' : 'th'} Position</strong> 
+                                            in the <strong>\${certData?.exam?.name || 'Official Examination'}</strong> 
+                                            with a commendable aggregate of <strong>\${certData?.result?.percentage?.toFixed(1) || '0.0'}%</strong>.
+                                            This certificate recognizes your hard work, intelligence, and academic dedication.
+                                        \`}
+                                    </div>
+                                </div>
+
+                                <!-- Footer -->
+                                <div class="footer">
+                                    <div class="signature-box">
+                                        <div style="height: 60px;"></div>
+                                        <div class="signature-line"></div>
+                                        <div class="signature-title">Administrator</div>
+                                        <div class="signature-subtitle">\${settings.schoolName || 'Education Institute'}</div>
+                                    </div>
+                                    
+                                    <div class="seal-container">
+                                        <div class="seal-outer"></div>
+                                        <div class="seal-ribbon-left"></div>
+                                        <div class="seal-ribbon-right"></div>
+                                        <div class="seal-inner">
+                                            <div class="seal-text-top">OFFICIAL</div>
+                                            <div class="seal-star">
+                                                \${certData?.isCustom ? (certData.position?.includes('1') ? '1st' : certData.position?.includes('2') ? '2nd' : '★') : (certData?.result?.position === 1 ? '1st' : certData?.result?.position === 2 ? '2nd' : certData?.result?.position === 3 ? '3rd' : '★')}
+                                            </div>
+                                            <div class="seal-text-bottom">\${certData?.isCustom ? 'AWARD' : 'MERIT'}</div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="signature-box">
+                                        <div style="height: 60px;"></div>
+                                        <div class="signature-line"></div>
+                                        <div class="signature-title">Principal</div>
+                                        <div class="signature-subtitle">\${settings.schoolName || 'Education Institute'}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Meta -->
+                            <div class="meta-container">
+                                <span class="meta-serial">ID: \${serialNumber}</span> &nbsp;|&nbsp; Date: \${new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
+                        </div>
+                        <script>
+                            setTimeout(() => {
+                                window.print();
+                                window.close();
+                            }, 1000);
+                        </script>
+                    </body>
+                </html>
+            \`);
+            WindowPrt.document.close();
+        }
+    };`;
+
+code = code.replace(printFuncRegex, newPrintLogic);
+fs.writeFileSync('src/pages/Exams.tsx', code);
+console.log('Exams.tsx template replaced with luxury version!');

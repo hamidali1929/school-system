@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Download, Plus, X, FileText, Contact, Edit, Trash2, Camera, CheckCircle2, Users, DollarSign, Layers, ArrowRightLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Globe } from 'lucide-react';
 import { useStore, type Student } from '../context/StoreContext';
@@ -1696,6 +1697,7 @@ export const Students = () => {
                 )}
             </div>
 
+            {typeof document !== 'undefined' && createPortal(
             <AnimatePresence>
                 {showSelectionModal && (
                     <div className="fixed inset-0 z-[150] bg-brand-primary/95 backdrop-blur-2xl flex items-center justify-center p-4">
@@ -1821,7 +1823,9 @@ export const Students = () => {
                         </motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence>,
+            document.body
+        )}
 
             {(showAdmissionForm || editingStudent) && (
                 <AdmissionForm
@@ -1871,6 +1875,7 @@ export const Students = () => {
             )}
 
             {/* Executive Re-Admission & College Promotion Modal */}
+            {typeof document !== 'undefined' && createPortal(
             <AnimatePresence>
                 {reAdmittingStudent && (
                     <div className="fixed inset-0 z-[200] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-2 sm:p-6 overflow-hidden">
@@ -2059,7 +2064,11 @@ export const Students = () => {
                         </motion.div>
                     </div>
                 )}
-            </AnimatePresence>
+            </AnimatePresence>,
+            document.body
+        )}
         </div>
     );
 };
+
+
