@@ -183,7 +183,7 @@ const VoucherCopy = React.memo(({
 });
 
 export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
-    const { settings, feeStructure, attendance } = useStore();
+    const { settings, feeStructure, attendance, campuses, classPrograms } = useStore();
     const [isExporting, setIsExporting] = useState(false);
 
     useEffect(() => {
@@ -388,7 +388,13 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                 <div className="voucher-preview-scale flex flex-col gap-6 sm:gap-16 items-start md:items-center print:gap-0 print:block">
                     {students.map((student) => {
                         const tuition = Number(student.monthlyFees) || Number(student.monthlyTuition) || Number(feeStructure[student.class]) || Number(feeStructure['General']) || 4000;
-                        const studentAbsents = absentMap[student.id] || 0;
+                        
+                            const isCollegeClass = student?.class ? ['11th', '12th', '1st year', '2nd year', 'fsc', 'ics', 'icom', 'fa'].some(kw => student.class.toLowerCase().includes(kw)) : false;
+                            const isCollegeCampus = campuses?.find(c => c.name === student?.campus)?.type === 'College';
+                            const isCollegeProgram = classPrograms?.[student?.class] === 'College';
+                            const collegeCopyName = (isCollegeClass || isCollegeCampus || isCollegeProgram) ? 'COLLEGE COPY' : 'SCHOOL COPY';
+
+                          const studentAbsents = absentMap[student.id] || 0;
 
                         return (
                             <div key={student.id} className="bulk-voucher-page bg-white min-w-[860px] md:min-w-0 w-full max-w-[297mm] h-[210mm] shadow-[0_40px_100px_rgba(0,0,0,0.5)] print:shadow-none print:m-0 flex flex-row overflow-hidden rounded-[var(--brand-radius,1.5rem)] print:rounded-none transition-transform hover:scale-[1.01] print:hover:scale-100">
