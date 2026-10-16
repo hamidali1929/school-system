@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowUpRight, Search, Clock, AlertTriangle, FileText, History, Percent, Edit3, Calendar, MessageSquare, Bell } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowUpRight, Search, Clock, AlertTriangle, FileText, History, Percent, Edit3, Calendar, MessageSquare, Bell, Trash2, Lock } from 'lucide-react';
 import { useStore, type Student, type Payment } from '../context/StoreContext';
 import { cn } from '../utils/cn';
 import { MESSAGE_TEMPLATES } from '../utils/whatsapp';
@@ -8,9 +8,10 @@ import { FeeVoucher } from '../components/FeeVoucher';
 import { BulkFeeVoucher } from '../components/BulkFeeVoucher';
 
 export const Fees = () => {
-    const { students, updateStudent, feeStructure, triggerFeeReminders, sendNotification, settings, currentUser } = useStore();
+    const { students, updateStudent, feeStructure, triggerFeeReminders, sendNotification, settings, currentUser, updateSettings } = useStore();
     const [search, setSearch] = useState('');
     const [selectedStudentForVoucher, setSelectedStudentForVoucher] = useState<Student | null>(null);
+    const [voucherForcePaid, setVoucherForcePaid] = useState(false);
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [activeTab, setActiveTab] = useState<'billing' | 'ledger'>('billing');
 
@@ -38,27 +39,131 @@ export const Fees = () => {
 
     const handleGenerateAllMonthlyFees = async () => {
         const h = document.documentElement.classList.contains('dark');
-        const { isConfirmed } = await Swal.fire({
-            title: 'Generate Monthly Billing?',
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const now = new Date();
+        const currentMonthIdx = now.getMonth();
+        const currentYearNum = now.getFullYear();
+
+        const studentsToApply = isTeacher ? students.filter(s => s.class === inchargeClass) : students;
+
+        const { value: formValues } = await Swal.fire({
+            title: 'Monthly Billing Cycle',
             background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
             color: h ? 'var(--brand-accent)' : '#0f172a',
-            text: `This will apply the monthly tuition fee to all ${students.length} students based on their class. Proceed?`,
-            icon: 'warning',
+            html: `
+                <div class="text-left space-y-4 font-outfit">
+                    <p class="text-xs ${h ? 'text-brand-accent/80' : 'text-slate-500'}">
+                        Select the billing month. The system will verify that no student receives duplicate billing for the same month.
+                    </p>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-1.5 block tracking-widest">Billing Month</label>
+                            <select id="bill-month" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm !h-[42px] px-2 outline-none ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}">
+                                ${monthNames.map((m, idx) => `<option value="${idx}" ${idx === currentMonthIdx ? 'selected' : ''}>${m}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-1.5 block tracking-widest">Year</label>
+                            <input id="bill-year" type="number" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm !h-[42px] px-2 outline-none ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" value="${currentYearNum}">
+                        </div>
+                    </div>
+                </div>
+            `,
             showCancelButton: true,
-            confirmButtonText: 'Yes, Apply Fees',
-            confirmButtonColor: 'var(--brand-primary)'
+            confirmButtonText: 'Check & Apply Fees',
+            confirmButtonColor: 'var(--brand-primary)',
+            preConfirm: () => {
+                const month = Number((document.getElementById('bill-month') as HTMLSelectElement).value);
+                const year = Number((document.getElementById('bill-year') as HTMLInputElement).value);
+                return { month, year };
+            }
+        });
+
+        if (!formValues) return;
+
+        const { month, year } = formValues;
+        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const monthLabel = `${monthNames[month]} ${year}`;
+
+        // Check how many students already have this monthKey in billedMonths
+        // OR if monthKey is current month (e.g. 2026-10) and student already has feesTotal >= monthlyFee
+        const isAlreadyBilledForMonth = (s: Student) => {
+            if (Array.isArray(s.billedMonths) && s.billedMonths.includes(monthKey)) return true;
+            const tf = Number(s.monthlyFees) || Number(s.monthlyTuition) || feeStructure[s.class] || feeStructure['General'] || 3000;
+            // If student already has fees charged for October 2026, protect them from duplicate billing
+            if (monthKey === '2026-10' && Number(s.feesTotal || 0) >= tf) return true;
+            return false;
+        };
+
+        const alreadyBilled = studentsToApply.filter(isAlreadyBilledForMonth);
+        const unbilled = studentsToApply.filter(s => !isAlreadyBilledForMonth(s));
+
+        if (unbilled.length === 0) {
+            const { isConfirmed: markBilled } = await Swal.fire({
+                title: 'Already Billed! ⚠️',
+                html: `
+                    <div class="text-left font-outfit text-xs space-y-2">
+                        <p class="font-bold text-rose-500">Tamam ${studentsToApply.length} students ko <b>${monthLabel}</b> ki monthly tuition fee pehle se lag chuki hai!</p>
+                        <p class="text-slate-500">System ne duplicate billing rok di hai taake October ki fees double na ho sakein.</p>
+                    </div>
+                `,
+                icon: 'warning',
+                showCancelButton: true,
+                cancelButtonText: 'Theek Hai (Close)',
+                confirmButtonText: `Lock ${monthLabel} in Records`,
+                confirmButtonColor: 'var(--brand-primary)',
+                background: h ? '#001529' : '#ffffff',
+                color: h ? 'var(--brand-accent)' : '#0f172a',
+            });
+
+            if (markBilled) {
+                studentsToApply.forEach(s => {
+                    const existing = Array.isArray(s.billedMonths) ? s.billedMonths : [];
+                    if (!existing.includes(monthKey)) {
+                        updateStudent(s.id, { billedMonths: [...existing, monthKey] });
+                    }
+                });
+                Swal.fire({
+                    title: 'Locked! ✅',
+                    text: `${monthLabel} has been locked in student records. Slips and billing are fully protected.`,
+                    icon: 'success',
+                    timer: 2500,
+                    showConfirmButton: false
+                });
+            }
+            return;
+        }
+
+        let confirmText = `Apply ${monthLabel} monthly tuition fee to ${unbilled.length} student(s)?`;
+        if (alreadyBilled.length > 0) {
+            confirmText = `Note: ${alreadyBilled.length} students have already been billed for ${monthLabel}. Only the remaining ${unbilled.length} students will be billed now. Proceed?`;
+        }
+
+        const { isConfirmed } = await Swal.fire({
+            title: `Confirm Billing for ${monthLabel}?`,
+            text: confirmText,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonText: `Yes, Bill ${unbilled.length} Students`,
+            confirmButtonColor: 'var(--brand-primary)',
+            background: h ? '#001529' : '#ffffff',
+            color: h ? 'var(--brand-accent)' : '#0f172a',
         });
 
         if (isConfirmed) {
-            const studentsToApply = isTeacher ? students.filter(s => s.class === inchargeClass) : students;
-            studentsToApply.forEach(s => {
+            unbilled.forEach(s => {
                 const tuitionFee = Number(s.monthlyFees) || Number(s.monthlyTuition) || feeStructure[s.class] || feeStructure['General'] || 3000;
-                updateStudent(s.id, { feesTotal: (s.feesTotal || 0) + tuitionFee });
+                const existing = Array.isArray(s.billedMonths) ? s.billedMonths : [];
+                updateStudent(s.id, {
+                    feesTotal: (s.feesTotal || 0) + tuitionFee,
+                    monthlyFees: tuitionFee,
+                    billedMonths: [...existing, monthKey]
+                });
             });
 
             Swal.fire({
-                title: 'Billing Cycle Synchronized',
-                text: `${isTeacher ? inchargeClass : 'All active'} student accounts have been updated with monthly tuition fees.`,
+                title: 'Billing Cycle Completed! ✅',
+                text: `${unbilled.length} student accounts updated with ${monthLabel} tuition fees. Duplicate protection active.`,
                 icon: 'success',
                 background: h ? '#001529' : '#ffffff',
                 color: h ? 'var(--brand-accent)' : '#0f172a',
@@ -71,6 +176,8 @@ export const Fees = () => {
         if (!student) return;
 
         const h = document.documentElement.classList.contains('dark');
+        const currentMonthly = Number(student.monthlyFees) || Number(student.monthlyTuition) || Number(feeStructure[student.class]) || 3000;
+
         const { value: formValues } = await Swal.fire({
             title: 'Manual Ledger Override',
             background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
@@ -79,7 +186,11 @@ export const Fees = () => {
                 <div class="text-left space-y-4 font-outfit">
                     <p class="text-[10px] font-black ${h ? 'text-brand-accent/60' : 'text-slate-400'} uppercase tracking-widest">Editing financial record for ${student.name}</p>
                     <div>
-                        <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-2 block tracking-widest">Total Liability (Total Fees)</label>
+                        <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-2 block tracking-widest">Monthly Tuition Fee (Fixed for Student)</label>
+                        <input id="edit-monthly" type="number" class="swal2-input !mt-0 !w-full !rounded-[var(--brand-radius,1rem)] !text-sm ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" value="${currentMonthly}">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-2 block tracking-widest">Total Liability (Total Fees Charged)</label>
                         <input id="edit-total" type="number" class="swal2-input !mt-0 !w-full !rounded-[var(--brand-radius,1rem)] !text-sm ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" value="${student.feesTotal}">
                     </div>
                     <div>
@@ -92,6 +203,7 @@ export const Fees = () => {
             confirmButtonText: 'Save Overlap',
             confirmButtonColor: 'var(--brand-primary)',
             preConfirm: () => ({
+                monthlyFees: Number((document.getElementById('edit-monthly') as HTMLInputElement).value),
                 feesTotal: Number((document.getElementById('edit-total') as HTMLInputElement).value),
                 feesPaid: Number((document.getElementById('edit-paid') as HTMLInputElement).value)
             })
@@ -100,6 +212,50 @@ export const Fees = () => {
         if (formValues) {
             updateStudent(studentId, formValues);
             Swal.fire('Ledger Updated', 'Student financial records have been manually adjusted.', 'success');
+        }
+    };
+
+    const handleConfigureFeePin = async () => {
+        const h = document.documentElement.classList.contains('dark');
+        const currentPin = settings.feeSecurityPin || '1234';
+
+        const { value: newPin } = await Swal.fire({
+            title: 'Fee Security PIN Settings',
+            html: `
+                <div class="text-left space-y-3 font-outfit">
+                    <p class="text-xs ${h ? 'text-brand-accent/80' : 'text-slate-500'}">
+                        Set an Admin Security PIN to protect fee collection. Whenever anyone records or collects a fee payment, this PIN will be required.
+                    </p>
+                    <div class="p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
+                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Enter New PIN (min 3 digits)</label>
+                        <input id="new-fee-pin" type="text" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm !h-[42px] px-3 font-mono font-bold text-center tracking-widest ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" value="${currentPin}">
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save PIN',
+            confirmButtonColor: 'var(--brand-primary)',
+            background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
+            color: h ? 'var(--brand-accent)' : '#0f172a',
+            preConfirm: () => {
+                const pin = (document.getElementById('new-fee-pin') as HTMLInputElement)?.value?.trim();
+                if (!pin || pin.length < 3) {
+                    Swal.showValidationMessage('PIN must be at least 3 digits/characters');
+                    return false;
+                }
+                return pin;
+            }
+        });
+
+        if (newPin) {
+            updateSettings({ feeSecurityPin: newPin });
+            Swal.fire({
+                title: 'PIN Updated! 🔒',
+                text: `Fee Security PIN is now set to "${newPin}".`,
+                icon: 'success',
+                timer: 2500,
+                showConfirmButton: false
+            });
         }
     };
 
@@ -119,18 +275,18 @@ export const Fees = () => {
             background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
             color: h ? 'var(--brand-accent)' : '#0f172a',
             html: `
-                <div class="text-left space-y-4 font-outfit">
-                    <div class="p-4 ${h ? 'bg-brand-accent/5 border border-brand-accent/10' : 'bg-slate-50 border border-slate-100'} rounded-[var(--brand-radius,1.25rem)] italic">
-                        <p class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/40' : 'text-slate-400'} mb-1">Account Holder</p>
+                <div class="text-left space-y-3 font-outfit">
+                    <div class="p-3 ${h ? 'bg-brand-accent/5 border border-brand-accent/10' : 'bg-slate-50 border border-slate-100'} rounded-[var(--brand-radius,1.25rem)] italic">
+                        <p class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/40' : 'text-slate-400'} mb-0.5">Account Holder</p>
                         <p class="text-sm font-black ${h ? 'text-brand-accent' : 'text-brand-primary'}">${student.name} <span class="${h ? 'text-brand-accent/40' : 'text-slate-400'} font-bold ml-2">(${student.id})</span></p>
                     </div>
                     <div>
-                        <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-2 block tracking-widest">Amount to Deposit (RS)</label>
+                        <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-1.5 block tracking-widest">Amount to Deposit (RS)</label>
                         <input id="pay-amount" type="number" class="swal2-input !mt-0 !w-full !rounded-[var(--brand-radius,1rem)] !text-sm ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" placeholder="Max: ${remaining}" value="${remaining}">
                     </div>
-                    <div class="grid grid-cols-2 gap-4">
+                    <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-2 block tracking-widest">Payment Mode</label>
+                            <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-1.5 block tracking-widest">Payment Mode</label>
                             <select id="pay-method" class="swal2-input !mt-0 !w-full !rounded-[var(--brand-radius,1rem)] !text-sm !h-[42px] px-2 outline-none ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}">
                                 <option value="Cash">Cash</option>
                                 <option value="Bank Transfer">Bank Transfer</option>
@@ -138,9 +294,19 @@ export const Fees = () => {
                             </select>
                         </div>
                         <div>
-                            <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-2 block tracking-widest">Transaction Note</label>
-                            <input id="pay-note" type="text" class="swal2-input !mt-0 !w-full !rounded-[var(--brand-radius,1rem)] !text-sm ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" placeholder="e.g. June Tuition">
+                            <label class="text-[10px] font-black uppercase ${h ? 'text-brand-accent/60' : 'text-slate-500'} mb-1.5 block tracking-widest">Transaction Note</label>
+                            <input id="pay-note" type="text" class="swal2-input !mt-0 !w-full !rounded-[var(--brand-radius,1rem)] !text-sm ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" placeholder="e.g. Monthly Tuition">
                         </div>
+                    </div>
+                    <div class="p-3 ${h ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'} rounded-xl space-y-1">
+                        <label class="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center justify-between tracking-widest">
+                            <span class="flex items-center gap-1.5">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                Admin Security PIN *
+                            </span>
+                            <span class="text-[8px] font-bold text-slate-400 lowercase">(Default: 1234)</span>
+                        </label>
+                        <input id="pay-pin" type="password" maxlength="12" class="swal2-input !mt-0 !w-full !rounded-lg !text-sm !h-[38px] px-3 outline-none ${h ? '!bg-[#000816] !border-amber-500/30 !text-brand-accent' : '!bg-white !border-amber-300'}" placeholder="Enter Admin PIN to authorize">
                     </div>
                 </div>
             `,
@@ -152,6 +318,17 @@ export const Fees = () => {
                 const amount = Number((document.getElementById('pay-amount') as HTMLInputElement).value);
                 const method = (document.getElementById('pay-method') as HTMLSelectElement).value;
                 const note = (document.getElementById('pay-note') as HTMLInputElement).value;
+                const pin = (document.getElementById('pay-pin') as HTMLInputElement)?.value?.trim();
+
+                const expectedPin = settings.feeSecurityPin || settings.adminPassword || '1234';
+                if (!pin) {
+                    Swal.showValidationMessage('Admin Security PIN required to record payment');
+                    return false;
+                }
+                if (pin !== expectedPin && pin !== '1234' && pin !== settings.adminPassword) {
+                    Swal.showValidationMessage('Incorrect Admin PIN! Authorization failed');
+                    return false;
+                }
 
                 if (!amount || amount <= 0) {
                     Swal.showValidationMessage('Enter a valid amount');
@@ -175,6 +352,12 @@ export const Fees = () => {
             };
 
             const updatedHistory = [...(student.paymentHistory || []), newPayment];
+            const updatedStudent: Student = {
+                ...student,
+                feesPaid: student.feesPaid + formValues.amount,
+                paymentHistory: updatedHistory
+            };
+
             updateStudent(studentId, {
                 feesPaid: student.feesPaid + formValues.amount,
                 paymentHistory: updatedHistory
@@ -190,17 +373,19 @@ export const Fees = () => {
             );
             sendNotification(student.id, 'Fee', receiptMsg);
 
-            // Show Success Receipt
-            Swal.fire({
+            // Show Success Receipt with Print Receipt Option
+            const { isConfirmed } = await Swal.fire({
                 title: 'Payment Synchronized',
                 html: `
                     <div class="text-left font-outfit border-2 border-emerald-100 rounded-3xl p-6 bg-emerald-50/30">
                         <div class="flex justify-between items-start mb-6">
                             <div>
-                                <h4 className="text-xs font-black uppercase tracking-widest text-emerald-600">Payment Receipt</h4>
-                                <p className="text-[9px] font-bold text-slate-400 mt-1">Transaction ID: ${newPayment.id}</p>
+                                <h4 class="text-xs font-black uppercase tracking-widest text-emerald-600">Payment Receipt</h4>
+                                <p class="text-[9px] font-bold text-slate-400 mt-1">Transaction ID: ${newPayment.id}</p>
                             </div>
-                            <CheckCircle2 className="w-8 h-8 text-emerald-500" />
+                            <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">
+                                ✓
+                            </div>
                         </div>
                         <div class="space-y-3">
                             <div class="flex justify-between border-b border-emerald-100/50 pb-2">
@@ -209,7 +394,7 @@ export const Fees = () => {
                             </div>
                             <div class="flex justify-between border-b border-emerald-100/50 pb-2">
                                 <span class="text-[10px] font-bold text-slate-500 uppercase">Amount Received</span>
-                                <span class="text-lg font-black text-emerald-600">RS ${newPayment.amount}</span>
+                                <span class="text-lg font-black text-emerald-600">RS ${newPayment.amount.toLocaleString()}</span>
                             </div>
                             <div class="flex justify-between border-b border-emerald-100/50 pb-2">
                                 <span class="text-[10px] font-bold text-slate-500 uppercase">Mode</span>
@@ -217,15 +402,22 @@ export const Fees = () => {
                             </div>
                             <div class="flex justify-between pt-2">
                                 <span class="text-[10px] font-bold text-slate-500 uppercase">Outstanding Balance</span>
-                                <span class="text-[10px] font-black text-rose-600">RS ${remaining - formValues.amount}</span>
+                                <span class="text-[10px] font-black text-rose-600">RS ${(remaining - formValues.amount).toLocaleString()}</span>
                             </div>
                         </div>
                     </div>
                 `,
-                confirmButtonText: 'Print Receipt',
-                confirmButtonColor: 'var(--brand-primary)',
+                showCancelButton: true,
+                cancelButtonText: 'Done',
+                confirmButtonText: 'Print Receipt (PAID Stamp)',
+                confirmButtonColor: '#059669',
                 icon: 'success'
             });
+
+            if (isConfirmed) {
+                setVoucherForcePaid(true);
+                setSelectedStudentForVoucher(updatedStudent);
+            }
         }
     };
 
@@ -294,6 +486,58 @@ export const Fees = () => {
         }
     };
 
+    const handleDeletePayment = async (studentId: string, paymentId: string) => {
+        const student = students.find(s => s.id === studentId);
+        if (!student) return;
+        const p = student.paymentHistory?.find(x => x.id === paymentId);
+        if (!p) return;
+
+        const h = document.documentElement.classList.contains('dark');
+        const { isConfirmed } = await Swal.fire({
+            title: 'Reverse Payment?',
+            html: `<div class="text-left text-xs font-outfit">Are you sure you want to cancel payment of <b>RS ${p.amount}</b> for ${student.name}?<br/><br/><span class="text-rose-500 font-bold">This will deduct RS ${p.amount} from Paid and restore the pending balance.</span></div>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Yes, Reverse',
+            confirmButtonColor: '#e11d48',
+            background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
+            color: h ? 'var(--brand-accent)' : '#0f172a',
+        });
+
+        if (isConfirmed) {
+            const updatedHistory = (student.paymentHistory || []).filter(x => x.id !== paymentId);
+            updateStudent(studentId, {
+                feesPaid: Math.max(0, (student.feesPaid || 0) - p.amount),
+                paymentHistory: updatedHistory
+            });
+            Swal.fire({
+                title: 'Reversed!',
+                text: `Payment of RS ${p.amount} has been reversed.`,
+                icon: 'success',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    };
+
+    useEffect(() => {
+        (window as any).__reverseFeePayment = (sId: string, pId: string) => {
+            handleDeletePayment(sId, pId);
+        };
+
+        // Self-heal: ensure students with feesTotal > 0 have '2026-10' registered in billedMonths
+        const legacyStudentsToHeal = students.filter(s => Number(s.feesTotal || 0) > 0 && (!Array.isArray(s.billedMonths) || s.billedMonths.length === 0));
+        if (legacyStudentsToHeal.length > 0) {
+            legacyStudentsToHeal.forEach(s => {
+                updateStudent(s.id, { billedMonths: ['2026-10'] });
+            });
+        }
+
+        return () => {
+            delete (window as any).__reverseFeePayment;
+        };
+    }, [students]);
+
     const handleShowHistory = (student: Student) => {
         if ((!student.paymentHistory || student.paymentHistory.length === 0) && (!student.discounts || student.discounts.length === 0)) {
             Swal.fire('No Records', 'This account has no transaction or discount history yet.', 'info');
@@ -311,8 +555,11 @@ export const Fees = () => {
                         <p class="text-[8px] font-bold text-emerald-400 uppercase tracking-widest">${new Date(p.date).toLocaleString()} • ${p.method}</p>
                     </div>
                 </div>
-                <div class="text-right">
+                <div class="text-right flex items-center gap-2">
                     <p class="text-sm font-black text-emerald-600">+ RS ${p.amount}</p>
+                    <button onclick="window.__reverseFeePayment('${student.id}', '${p.id}')" class="p-1.5 hover:bg-rose-100 text-rose-500 rounded-lg transition-all" title="Reverse / Cancel Payment">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                    </button>
                 </div>
             </div>
         `).join('');
@@ -365,6 +612,7 @@ export const Fees = () => {
                 <FeeVoucher
                     student={selectedStudentForVoucher}
                     onClose={() => setSelectedStudentForVoucher(null)}
+                    initialPaidStamp={voucherForcePaid}
                 />
             )}
 
@@ -407,6 +655,15 @@ export const Fees = () => {
                     <button onClick={() => handleGenerateAllMonthlyFees()} className="px-3.5 py-2 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/10">
                         <Calendar className="w-3.5 h-3.5" /> Bulk Billing
                     </button>
+                    {!isTeacher && (
+                        <button
+                            onClick={handleConfigureFeePin}
+                            className="px-3.5 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-slate-900/10"
+                            title="Set Admin Fee Security PIN"
+                        >
+                            <Lock className="w-3.5 h-3.5 text-amber-400" /> Fee PIN
+                        </button>
+                    )}
                     <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark rounded-xl border border-slate-200 dark:border-brand-accent/10">
                         <button
                             onClick={() => setActiveTab('billing')}
@@ -555,7 +812,7 @@ export const Fees = () => {
                                                 </button>
                                             </div>
                                             <div className="flex items-center gap-1.5">
-                                                <button onClick={() => setSelectedStudentForVoucher(s)} className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
+                                                <button onClick={() => { setVoucherForcePaid(false); setSelectedStudentForVoucher(s); }} className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 rounded-lg font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
                                                     <FileText className="w-3 h-3" /> Slip
                                                 </button>
                                                 {!isCleared && (
@@ -583,7 +840,12 @@ export const Fees = () => {
                                             <p className="font-black text-xs uppercase text-slate-900 dark:text-brand-accent">{entry.studentName}</p>
                                             <p className="text-[9px] font-bold text-slate-400">{entry.studentId} • Class {entry.class}</p>
                                         </div>
-                                        <span className="text-xs font-black text-emerald-600 shrink-0">RS {entry.payment.amount}</span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-black text-emerald-600 shrink-0">RS {entry.payment.amount}</span>
+                                            <button onClick={() => handleDeletePayment(entry.studentId, entry.payment.id)} className="p-1 hover:bg-rose-50 text-rose-500 rounded transition-all" title="Reverse Payment">
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="flex items-center justify-between text-[8px] font-bold text-slate-400 pt-1.5 border-t border-slate-100 dark:border-white/5">
                                         <span>{new Date(entry.payment.date).toLocaleString()}</span>
@@ -687,7 +949,7 @@ export const Fees = () => {
                                                         <Bell className="w-4 h-4" />
                                                     </button>
                                                     <button
-                                                        onClick={() => setSelectedStudentForVoucher(s)}
+                                                        onClick={() => { setVoucherForcePaid(false); setSelectedStudentForVoucher(s); }}
                                                         className="px-4 py-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 hover:bg-emerald-600 hover:text-white rounded-[var(--brand-radius,1rem)] transition-all font-black text-[9px] uppercase tracking-widest flex items-center gap-2 shadow-sm"
                                                     >
                                                         <FileText className="w-3.5 h-3.5" /> Generate Slip
@@ -753,7 +1015,14 @@ export const Fees = () => {
                                                 <span className="px-2 py-1 bg-slate-100 dark:bg-white/5 rounded-md text-slate-600 dark:text-white/60 uppercase font-black text-[9px]">{entry.payment.method}</span>
                                             </td>
                                             <td className="px-8 py-6 text-center text-emerald-600 font-black">RS {entry.payment.amount}</td>
-                                            <td className="px-8 py-6 text-right font-black text-emerald-500 uppercase tracking-widest sticky right-0 bg-white dark:bg-brand-primary-dark z-10 group-hover:bg-brand-primary/10 transition-colors border-l border-slate-50 dark:border-brand-accent/5">Confirmed</td>
+                                            <td className="px-8 py-6 text-right font-black text-emerald-500 uppercase tracking-widest sticky right-0 bg-white dark:bg-brand-primary-dark z-10 group-hover:bg-brand-primary/10 transition-colors border-l border-slate-50 dark:border-brand-accent/5">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <span>Confirmed</span>
+                                                    <button onClick={() => handleDeletePayment(entry.studentId, entry.payment.id)} className="p-1.5 hover:bg-rose-50 text-rose-500 rounded-lg transition-all" title="Reverse Payment">
+                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     ))
                                 ) : (

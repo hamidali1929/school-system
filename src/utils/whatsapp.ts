@@ -134,36 +134,66 @@ export const openWhatsApp = (phoneNumber: string, message: string) => {
     return true;
 };
 
+
+const getCustomTemplate = (key: string, defaultTpl: string) => {
+    try {
+        const stored = typeof window !== 'undefined' ? localStorage.getItem('edunova_settings') : null;
+        if (stored) {
+            const settings = JSON.parse(stored);
+            if (settings && settings.messageTemplates && settings.messageTemplates[key]) {
+                return settings.messageTemplates[key];
+            }
+        }
+    } catch {}
+    return defaultTpl;
+};
+
+const replaceVars = (tpl: string, vars: Record<string, any>) => {
+    let res = tpl;
+    for (const [k, v] of Object.entries(vars)) {
+        res = res.replace(new RegExp('{{' + k + '}}', 'g'), String(v));
+    }
+    return res;
+};
+
 export const MESSAGE_TEMPLATES = {
-    ADMISSION_WELCOME: (studentName: string, studentId: string, schoolName: string) =>
-        `✨ *ADMISSION CONFIRMED* ✨\n\nDear Parent,\n\nWe are pleased to inform you that *${studentName}* has been successfully admitted to *${schoolName}*.\n\n*Student ID:* ${studentId}\n\nThank you for choosing us for your child's education.\n\nRegards,\n*Administration*`,
+    ADMISSION_WELCOME: (studentName: string, studentId: string, schoolName: string) => {
+        const tpl = getCustomTemplate('ADMISSION_WELCOME', '🎓 *ADMISSION CONFIRMED* 🎓\n\nDear Parent,\n\nWe are pleased to inform you that *{{studentName}}* has been successfully admitted to *{{schoolName}}*.\n\n*Student ID:* {{studentId}}\n\nThank you for choosing us for your child\'s education.\n\nRegards,\n*Administration*');
+        return replaceVars(tpl, { studentName, studentId, schoolName });
+    },
 
-    FEE_REMINDER: (studentName: string, amount: number, schoolName: string) =>
-        `🔔 *FEE REMINDER* 🔔\n\nDear Parent,\nThis is a friendly reminder regarding the pending dues for *${studentName}* of *Rs. ${amount.toLocaleString()}*.\n\nPlease clear the dues at your earliest convenience to avoid any inconvenience.\n\nThank you,\n*${schoolName}*`,
+    FEE_REMINDER: (studentName: string, amount: number, schoolName: string) => {
+        const tpl = getCustomTemplate('FEE_REMINDER', '⚠️ *FEE REMINDER* ⚠️\n\nDear Parent,\nThis is a friendly reminder regarding the pending dues for *{{studentName}}* of *Rs. {{amount}}*.\n\nPlease clear the dues at your earliest convenience to avoid any inconvenience.\n\nThank you,\n*{{schoolName}}*');
+        return replaceVars(tpl, { studentName, amount: amount.toLocaleString(), schoolName });
+    },
 
-    FEE_VOUCHER_ISSUED: (
-        studentName: string,
-        studentId: string,
-        monthName: string,
-        year: number | string,
-        totalAmount: number,
-        dueDate: string,
-        schoolName: string
-    ) =>
-        `🧾 *FEE CHALAN / VOUCHER ISSUED* 🧾\n\nDear Parent,\nFee voucher for *${studentName}* (ID: ${studentId}) for *${monthName} ${year}* has been generated.\n\n💰 *Total Payable:* *Rs. ${totalAmount.toLocaleString()}*\n📅 *Due Date:* ${dueDate}\n\nPlease deposit the fee before the due date to avoid fine.\n\nThank you,\n*${schoolName}*`,
+    FEE_VOUCHER_ISSUED: (studentName: string, studentId: string, monthName: string, year: number | string, totalAmount: number, dueDate: string, schoolName: string) => {
+        const tpl = getCustomTemplate('FEE_VOUCHER_ISSUED', '🧾 *FEE CHALAN / VOUCHER ISSUED* 🧾\n\nDear Parent,\nFee voucher for *{{studentName}}* (ID: {{studentId}}) for *{{monthName}} {{year}}* has been generated.\n\n💰 *Total Payable:* *Rs. {{totalAmount}}*\n⏰ *Due Date:* {{dueDate}}\n\nPlease deposit the fee before the due date to avoid fine.\n\nThank you,\n*{{schoolName}}*');
+        return replaceVars(tpl, { studentName, studentId, monthName, year, totalAmount: totalAmount.toLocaleString(), dueDate, schoolName });
+    },
 
-    ATTENDANCE_ABSENT: (studentName: string, date: string, schoolName: string) =>
-        `📍 *ABSENT ALERT* 📍\n\nDear Parent,\nYour child *${studentName}* is marked *ABSENT* today (${date}). If you are unaware of this, please contact the school office immediately.\n\nRegards,\n*${schoolName}*`,
+    ATTENDANCE_ABSENT: (studentName: string, date: string, schoolName: string) => {
+        const tpl = getCustomTemplate('ATTENDANCE_ABSENT', '❌ *ABSENT ALERT* ❌\n\nDear Parent,\nYour child *{{studentName}}* is marked *ABSENT* today ({{date}}). If you are unaware of this, please contact the school office immediately.\n\nRegards,\n*{{schoolName}}*');
+        return replaceVars(tpl, { studentName, date, schoolName });
+    },
 
-    ATTENDANCE_LATE: (studentName: string, date: string, schoolName: string) =>
-        `⏰ *LATE ARRIVAL ALERT* ⏰\n\nDear Parent,\nYour child *${studentName}* arrived *LATE* today (${date}). Please ensure timely arrival so they don't miss important class lessons.\n\nRegards,\n*${schoolName}*`,
+    ATTENDANCE_LATE: (studentName: string, date: string, schoolName: string) => {
+        const tpl = getCustomTemplate('ATTENDANCE_LATE', '🕒 *LATE ARRIVAL ALERT* 🕒\n\nDear Parent,\nYour child *{{studentName}}* arrived *LATE* today ({{date}}). Please ensure timely arrival so they don\'t miss important class lessons.\n\nRegards,\n*{{schoolName}}*');
+        return replaceVars(tpl, { studentName, date, schoolName });
+    },
 
-    PAYMENT_RECEIPT: (studentName: string, amount: number, trxId: string, balance: number, schoolName: string) =>
-        `✅ *PAYMENT RECEIVED* ✅\n\nDear Parent,\nWe have received your payment of *Rs. ${amount.toLocaleString()}* for *${studentName}*.\n\n*Transaction ID:* ${trxId}\n*Current Balance:* Rs. ${balance.toLocaleString()}\n\nThank you for your timely payment.\n\nRegards,\n*${schoolName}*`,
+    PAYMENT_RECEIPT: (studentName: string, amount: number, trxId: string, balance: number, schoolName: string) => {
+        const tpl = getCustomTemplate('PAYMENT_RECEIPT', '✅ *PAYMENT RECEIVED* ✅\n\nDear Parent,\nWe have received your payment of *Rs. {{amount}}* for *{{studentName}}*.\n\n*Transaction ID:* {{trxId}}\n*Current Balance:* Rs. {{balance}}\n\nThank you for your timely payment.\n\nRegards,\n*{{schoolName}}*');
+        return replaceVars(tpl, { studentName, amount: amount.toLocaleString(), trxId, balance: balance.toLocaleString(), schoolName });
+    },
 
-    EXAM_RESULT_SUMMARY: (studentName: string, examName: string, percentage: string, grade: string, position: string, schoolName: string) =>
-        `🏆 *EXAM RESULT DECLARED* 🏆\n\nDear Parent,\nThe results for *${examName}* have been finalized for *${studentName}*.\n\n📊 *Performance Summary:*\n- *Percentage:* ${percentage}%\n- *Grade:* ${grade}\n- *Position:* ${position}\n\nCongratulations on the hard work!\n\nRegards,\n*${schoolName}*`,
+    EXAM_RESULT_SUMMARY: (studentName: string, examName: string, percentage: string, grade: string, position: string, schoolName: string) => {
+        const tpl = getCustomTemplate('EXAM_RESULT_SUMMARY', '🏆 *EXAM RESULT DECLARED* 🏆\n\nDear Parent,\nThe results for *{{examName}}* have been finalized for *{{studentName}}*.\n\n📊 *Performance Summary:*\n- *Percentage:* {{percentage}}%\n- *Grade:* {{grade}}\n- *Position:* {{position}}\n\nCongratulations on the hard work!\n\nRegards,\n*{{schoolName}}*');
+        return replaceVars(tpl, { studentName, examName, percentage, grade, position, schoolName });
+    },
 
-    MARKS_UPDATE: (studentName: string, examName: string, subject: string, obtained: number, total: number, schoolName: string) =>
-        `📝 *MARKS UPDATE* 📝\n\nDear Parent,\nMarks for *${subject}* in *${examName}* have been uploaded for *${studentName}*.\n\n*Score:* ${obtained} / ${total}\n\nRegards,\n*${schoolName}*`
+    MARKS_UPDATE: (studentName: string, examName: string, subject: string, obtained: number, total: number, schoolName: string) => {
+        const tpl = getCustomTemplate('MARKS_UPDATE', '📝 *MARKS UPDATE* 📝\n\nDear Parent,\nMarks for *{{subject}}* in *{{examName}}* have been uploaded for *{{studentName}}*.\n\n*Score:* {{obtained}} / {{total}}\n\nRegards,\n*{{schoolName}}*');
+        return replaceVars(tpl, { studentName, examName, subject, obtained, total, schoolName });
+    }
 };

@@ -80,6 +80,7 @@ export interface Student {
     manualId?: string;
     paymentHistory?: Payment[];
     discounts?: Discount[];
+    billedMonths?: string[];
     // Alumni & Graduation Tracking
     graduatedYear?: string;
     graduationRemarks?: string;
@@ -148,6 +149,7 @@ export interface Expense {
 
 
 export interface SchoolSettings {
+    messageTemplates?: Record<string, string>;
     certificateTemplate?: string;
     schoolName: string;
     subTitle: string;
@@ -170,6 +172,7 @@ export interface SchoolSettings {
     };
     adminUsername?: string;
     adminPassword?: string;
+    feeSecurityPin?: string;
 }
 
 export interface Campus {
@@ -475,7 +478,8 @@ const INITIAL_SETTINGS: SchoolSettings = {
         accent: '#fbbf24',
         borderRadius: '2.5rem',
         glassIntensity: '0.98'
-    }
+    },
+    feeSecurityPin: '1234'
 };
 
 const INITIAL_CAMPUSES: Campus[] = [
@@ -584,9 +588,20 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
     };
 
 
+    const normalizeStudent = (s: any): Student => {
+        if (!s) return s;
+        const student = { ...s };
+        // If student has fee liability (feesTotal > 0) but billedMonths is not set, initialize with October 2026 ('2026-10')
+        // so that October fee is never double-added on slips or bulk billing
+        if (Number(student.feesTotal || 0) > 0 && (!Array.isArray(student.billedMonths) || student.billedMonths.length === 0)) {
+            student.billedMonths = ['2026-10'];
+        }
+        return student as Student;
+    };
+
     const [students, setStudents] = useState<Student[]>(() => {
         const saved = localStorage.getItem('edunova_students');
-        return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+        return saved ? JSON.parse(saved).map(normalizeStudent) : INITIAL_STUDENTS.map(normalizeStudent);
     });
 
     const [teachers, setTeachers] = useState<Teacher[]>(() => {
@@ -651,7 +666,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 if (!isMounted) return;
 
                 if (stuRes.data) {
-                    const cloudStudents = cleanLegacy(stuRes.data as Student[]);
+                    const cloudStudents = cleanLegacy(stuRes.data as Student[]).map(normalizeStudent);
                     setStudents(cloudStudents);
                 }
                 if (tchRes.data) {
@@ -696,7 +711,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         if (!isPublicAdmission()) {
             unsubStudents = onSnapshot(collection(db, 'students'), (snapshot) => {
                 if (!snapshot.empty) {
-                    const realtimeStudents = snapshot.docs.map(d => ({ ...cleanLegacy(d.data()), id: d.id })) as Student[];
+                    const realtimeStudents = snapshot.docs.map(d => normalizeStudent({ ...cleanLegacy(d.data()), id: d.id })) as Student[];
                     setStudents(realtimeStudents);
                 }
             }, (err) => console.warn("Realtime students listener:", err.message));
@@ -1613,11 +1628,13 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             targets = targets.filter(s => s.class === className);
         }
 
-        targets.forEach(student => {
-            const pending = student.feesTotal - student.feesPaid;
-            const msg = MESSAGE_TEMPLATES.FEE_REMINDER(student.name, pending, settings.schoolName);
-            // Send through built-in Baileys Relay
-            sendNotification(student.id, 'Fee', msg);
+        targets.forEach((student, idx) => {
+            setTimeout(() => {
+                const pending = student.feesTotal - student.feesPaid;
+                const msg = MESSAGE_TEMPLATES.FEE_REMINDER(student.name, pending, settings.schoolName);
+                // Send through built-in Baileys Relay with safe gap
+                sendNotification(student.id, 'Fee', msg);
+            }, idx * 2500);
         });
     };
 
@@ -2152,7 +2169,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             // Sanitize and update each state if present in the backup
             if (data.students) {
                 const cleaned = sanitizeObject(data.students);
-                const allowedStudentKeys = ["id", "name", "class", "status", "performance", "avatar", "feesPaid", "feesTotal", "monthlyTuition", "fatherName", "fatherOccupation", "monthlyIncome", "address", "dob", "contactSelf", "contactFather", "gender", "religion", "nationality", "cnic", "discipline", "email", "campus", "isOrphan", "whatsappNumber", "admissionDate", "admissionFees", "monthlyFees", "securityFees", "miscellaneousCharges", "academicRecords", "documents", "manualId", "paymentHistory", "discounts"];
+                const allowedStudentKeys = ["id", "name", "class", "status", "performance", "avatar", "feesPaid", "feesTotal", "monthlyTuition", "fatherName", "fatherOccupation", "monthlyIncome", "address", "dob", "contactSelf", "contactFather", "gender", "religion", "nationality", "cnic", "discipline", "email", "campus", "isOrphan", "whatsappNumber", "admissionDate", "admissionFees", "monthlyFees", "securityFees", "miscellaneousCharges", "academicRecords", "documents", "manualId", "paymentHistory", "discounts", "billedMonths"];
                 const dbReadyStudents = Array.from(new Map(cleaned.map((s: any) => {
                     const obj: any = {};
                     allowedStudentKeys.forEach(k => {
@@ -2162,7 +2179,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                         if (obj[k] === "" || obj[k] === null || obj[k] === undefined) obj[k] = 0;
                         else obj[k] = Number(obj[k]);
                     });
-                    ['academicRecords', 'paymentHistory', 'discounts'].forEach(k => {
+                    ['academicRecords', 'paymentHistory', 'discounts', 'billedMonths'].forEach(k => {
                         if (!Array.isArray(obj[k])) obj[k] = [];
                     });
                     if (typeof obj.documents !== 'object' || Array.isArray(obj.documents)) obj.documents = {};

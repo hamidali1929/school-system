@@ -29,19 +29,28 @@ const numberToWords = (num: number): string => {
 };
 
 const VoucherCopy = React.memo(({
-    copyType, student, settings, tuitionFee, absentDays, monthName, year
-}: { copyType: string, student: Student, settings: any, tuitionFee: number, absentDays: number, monthName: string, year: number }) => {
+    copyType, student, settings, tuitionFee, absentDays, monthName, year, includeAbsentFine
+}: { copyType: string, student: Student, settings: any, tuitionFee: number, absentDays: number, monthName: string, year: number, includeAbsentFine?: boolean }) => {
 
-    const admission = Number(student.admissionFees || 0);
-    const security = Number(student.securityFees || 0);
+    // Admission & Security should NOT appear automatically on recurring monthly vouchers!
+    const admission = 0;
+    const security = 0;
     const misc = Number(student.miscellaneousCharges || 0);
-    const fine = Number(absentDays) * 50;
+    const fine = includeAbsentFine ? (Number(absentDays) * 50) : 0;
 
-    const currentBalance = Number(student.feesTotal || 0) - Number(student.feesPaid || 0);
-    const currentVoucherTotal = tuitionFee + admission + security + misc + fine;
-    const oldBalance = currentBalance > currentVoucherTotal ? (currentBalance - currentVoucherTotal) : 0;
+    const monthNamesList = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+    const monthIndex = monthNamesList.indexOf(monthName.toUpperCase());
+    const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+    const isMonthBilled = (Array.isArray(student.billedMonths) && student.billedMonths.includes(monthKey)) || (Number(student.feesTotal || 0) >= tuitionFee);
+
+    const currentOutstanding = Math.max(0, Number(student.feesTotal || 0) - Number(student.feesPaid || 0));
+    // If current month is already billed in student.feesTotal, previous arrears is currentOutstanding - tuitionFee
+    // If current month is not yet billed, previous arrears is the full currentOutstanding
+    const oldBalance = isMonthBilled ? Math.max(0, currentOutstanding - tuitionFee) : currentOutstanding;
     const grossTotal = tuitionFee + admission + security + misc + fine + oldBalance;
-    const amountToPay = Math.max(0, grossTotal - Number(student.feesPaid || 0));
+    const paidTowardsThis = isMonthBilled && currentOutstanding < grossTotal ? (grossTotal - currentOutstanding) : (Number(student.feesPaid || 0) > 0 && currentOutstanding < grossTotal ? (grossTotal - currentOutstanding) : 0);
+    const amountToPay = Math.max(0, grossTotal - paidTowardsThis);
+    const isPaid = amountToPay === 0 || (Number(student.feesPaid || 0) >= Number(student.feesTotal || 0) && Number(student.feesTotal || 0) > 0);
 
     const issueDate = useMemo(() => new Date(), []);
     const dueDate = useMemo(() => {
@@ -53,8 +62,7 @@ const VoucherCopy = React.memo(({
     const formatDate = (date: Date) => `${date.getDate().toString().padStart(2, '0')}, ${date.toLocaleString('default', { month: 'long' })}, ${date.getFullYear()}`;
 
     return (
-        <div className="bulk-voucher-page bg-white min-w-[860px] md:min-w-0 w-full max-w-[297mm] h-[210mm] shadow-[0_40px_100px_rgba(0,0,0,0.5)] print:shadow-none print:m-0 flex flex-row overflow-hidden rounded-[var(--brand-radius,1.5rem)] print:rounded-none transition-transform hover:scale-[1.01] print:hover:scale-100">
-            <div className="bg-white flex-1 pt-5 pb-3 px-2.5 border-r-2 border-dashed last:border-r-0 border-slate-300 relative h-full flex flex-col box-border font-serif" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
+        <div className="bg-white flex-1 pt-5 pb-3 px-2.5 border-r-2 border-dashed last:border-r-0 border-slate-300 relative h-full flex flex-col box-border font-serif" style={{ fontFamily: '"Times New Roman", Times, serif' }}>
                 
                 {/* Print Banner */}
                 <div className="absolute top-0 right-4 py-1 px-3 border-2 border-t-0 border-slate-800 bg-slate-100 text-slate-900 text-[8px] font-black uppercase tracking-[0.2em] rounded-b-xl shadow-sm z-20">
@@ -137,7 +145,7 @@ const VoucherCopy = React.memo(({
                         </div>
                         <div className="grid grid-cols-12 font-black text-[10px] border-b border-slate-300 bg-slate-100">
                             <div className="col-span-8 p-1.5 border-r border-slate-300 uppercase text-slate-700">Amount Received / Paid</div>
-                            <div className="col-span-4 p-1.5 text-right text-slate-900">-{Number(student.feesPaid || 0).toLocaleString()}</div>
+                            <div className="col-span-4 p-1.5 text-right text-slate-900">-{paidTowardsThis > 0 ? paidTowardsThis.toLocaleString() : '0'}</div>
                         </div>
                         <div className="grid grid-cols-12 bg-slate-200 text-slate-900 border-t-2 border-slate-800 font-black text-[13px] print:bg-slate-200 print:text-black print:border-t-2 print:border-slate-800">
                             <div className="col-span-8 p-2 border-r border-slate-800 print:border-slate-800 uppercase whitespace-nowrap">Net Balance Arrears</div>
@@ -177,8 +185,23 @@ const VoucherCopy = React.memo(({
                         </div>
                     </div>
                 </div>
+
+                {/* EasyPaisa / Banking Style Official PAID Stamp */}
+                {isPaid && (
+                    <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none select-none z-30 opacity-95">
+                        <div className="border-[3.5px] border-emerald-600 rounded-2xl px-5 py-2 text-center bg-emerald-50/85 backdrop-blur-[0.5px] shadow-lg flex flex-col items-center justify-center min-w-[170px]">
+                            <div className="flex items-center gap-1.5 border-b border-emerald-600/50 pb-0.5 w-full justify-center">
+                                <span className="text-[7px] font-black uppercase tracking-[0.2em] text-emerald-800">★ OFFICIAL RECEIPT ★</span>
+                            </div>
+                            <h2 className="text-3xl font-black uppercase tracking-[0.25em] text-emerald-600 leading-tight my-0.5 font-sans drop-shadow-sm">PAID</h2>
+                            <div className="flex items-center justify-center gap-1.5 border-t border-emerald-600/50 pt-0.5 w-full">
+                                <span className="text-[7px] font-black text-emerald-800 uppercase tracking-widest">{formatDate(issueDate)}</span>
+                                <span className="text-[7px] font-black text-emerald-700 uppercase tracking-wider">• VERIFIED</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
-        </div>
     );
 });
 
@@ -192,6 +215,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
         return () => { document.body.style.overflow = 'auto'; };
     }, []);
 
+    const [includeAbsentFine, setIncludeAbsentFine] = useState(false);
     const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
     const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
     const absentMap = useMemo(() => {
@@ -358,6 +382,17 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                         {isExporting ? 'Generating...' : 'Export PDF'}
                     </button>
                     
+                    <label className="flex items-center gap-1.5 px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-xl font-bold text-xs cursor-pointer hover:bg-slate-700/50">
+                        <input
+                            type="checkbox"
+                            checked={includeAbsentFine}
+                            onChange={(e) => setIncludeAbsentFine(e.target.checked)}
+                            className="w-4 h-4 rounded text-brand-primary cursor-pointer"
+                        />
+                        <span className="hidden sm:inline">Add Absent Fine (RS 50/day)</span>
+                        <span className="sm:hidden">Absent Fine</span>
+                    </label>
+
                     <div className="flex items-center gap-2">
                         <select value={currentMonth} onChange={(e) => setCurrentMonth(Number(e.target.value))} className="px-3 py-2 bg-slate-800 border border-slate-700 text-white rounded-xl font-bold text-xs outline-none focus:ring-2 ring-brand-primary/50">
                             {monthNames.map((m, i) => <option key={i} value={i}>{m}</option>)}
@@ -398,9 +433,9 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
 
                         return (
                             <div key={student.id} className="bulk-voucher-page bg-white min-w-[860px] md:min-w-0 w-full max-w-[297mm] h-[210mm] shadow-[0_40px_100px_rgba(0,0,0,0.5)] print:shadow-none print:m-0 flex flex-row overflow-hidden rounded-[var(--brand-radius,1.5rem)] print:rounded-none transition-transform hover:scale-[1.01] print:hover:scale-100">
-                                <VoucherCopy copyType="STUDENT COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
-                                <VoucherCopy copyType={collegeCopyName} student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
-                                <VoucherCopy copyType="BANK COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} />
+                                <VoucherCopy copyType="STUDENT COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} includeAbsentFine={includeAbsentFine} />
+                                <VoucherCopy copyType={collegeCopyName} student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} includeAbsentFine={includeAbsentFine} />
+                                <VoucherCopy copyType="BANK COPY" student={student} settings={settings} tuitionFee={tuition} absentDays={studentAbsents} monthName={currentMonthName} year={currentYear} includeAbsentFine={includeAbsentFine} />
                             </div>
                         );
                     })}

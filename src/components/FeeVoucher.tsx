@@ -14,6 +14,7 @@ interface FeeVoucherProps {
     student: Student;
     onClose: () => void;
     readOnly?: boolean;
+    initialPaidStamp?: boolean;
 }
 
 const numberToWords = (num: number): string => {
@@ -33,7 +34,7 @@ const numberToWords = (num: number): string => {
     return makeWords(num) + ' Only';
 };
 
-const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tuitionFee, absentFine, finalArrear, admissionFee, securityFee, miscCharges, monthName, year }: any) => {
+const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tuitionFee, absentFine, finalArrear, admissionFee, securityFee, miscCharges, monthName, year, amountPaidOnBill, netPayable, isPaid }: any) => {
     const issueDate = new Date();
     const dueDate = new Date();
     dueDate.setDate(issueDate.getDate() + 10);
@@ -121,18 +122,18 @@ const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tui
                     </div>
                     <div className="grid grid-cols-12 font-black text-[10px] border-b border-slate-300 bg-slate-100">
                         <div className="col-span-8 p-1.5 border-r border-slate-300 uppercase text-slate-700">Amount Received / Paid</div>
-                        <div className="col-span-4 p-1.5 text-right text-slate-900">-{Number(student.feesPaid || 0).toLocaleString()}</div>
+                        <div className="col-span-4 p-1.5 text-right text-slate-900">-{amountPaidOnBill > 0 ? amountPaidOnBill.toLocaleString() : '0'}</div>
                     </div>
                     <div className="grid grid-cols-12 bg-slate-200 text-slate-900 border-t-2 border-slate-800 font-black text-[12px] print:bg-slate-200 print:text-black print:border-t-2 print:border-slate-800">
                         <div className="col-span-8 p-2 border-r border-slate-800 print:border-slate-800 uppercase">Net Balance Arrears</div>
-                        <div className="col-span-4 p-2 text-right whitespace-nowrap">{(totalAmount - Number(student.feesPaid || 0)).toLocaleString()}</div>
+                        <div className="col-span-4 p-2 text-right whitespace-nowrap">{netPayable.toLocaleString()}</div>
                     </div>
                 </div>
             </div>
 
             <div className="mb-3">
                 <p className="text-[8px] font-black uppercase text-slate-500 mb-0.5">Total in Words</p>
-                <p className="text-[11px] font-black italic border-b border-slate-400 pb-1 leading-tight text-slate-900">{numberToWords(totalAmount)}</p>
+                <p className="text-[11px] font-black italic border-b border-slate-400 pb-1 leading-tight text-slate-900">{numberToWords(netPayable)}</p>
             </div>
 
             <div className="border-2 border-slate-800 bg-slate-100 p-1 text-[9px] font-black uppercase text-center text-slate-900 tracking-widest mb-2 rounded-md shadow-sm">
@@ -154,11 +155,27 @@ const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tui
                     <p className="text-[5px] font-black uppercase tracking-widest text-slate-600">Accountant</p>
                 </div>
             </div>
+
+            {/* EasyPaisa / Banking Style Official PAID Stamp */}
+            {isPaid && (
+                <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none select-none z-30 opacity-95">
+                    <div className="border-[3.5px] border-emerald-600 rounded-2xl px-5 py-2 text-center bg-emerald-50/85 backdrop-blur-[0.5px] shadow-lg flex flex-col items-center justify-center min-w-[170px]">
+                        <div className="flex items-center gap-1.5 border-b border-emerald-600/50 pb-0.5 w-full justify-center">
+                            <span className="text-[7px] font-black uppercase tracking-[0.2em] text-emerald-800">★ OFFICIAL RECEIPT ★</span>
+                        </div>
+                        <h2 className="text-3xl font-black uppercase tracking-[0.25em] text-emerald-600 leading-tight my-0.5 font-sans drop-shadow-sm">PAID</h2>
+                        <div className="flex items-center justify-center gap-1.5 border-t border-emerald-600/50 pt-0.5 w-full">
+                            <span className="text-[7px] font-black text-emerald-800 uppercase tracking-widest">{formatDate(issueDate)}</span>
+                            <span className="text-[7px] font-black text-emerald-700 uppercase tracking-wider">• VERIFIED</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
-export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOnly = false }) => {
+export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOnly = false, initialPaidStamp = false }) => {
     const { settings, attendance, feeStructure, updateStudent, sendNotification, campuses, classPrograms } = useStore();
 
     
@@ -167,6 +184,8 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
     const isCollegeProgram = classPrograms?.[student?.class] === 'College';
     const collegeCopyName = (isCollegeClass || isCollegeCampus || isCollegeProgram) ? 'COLLEGE COPY' : 'SCHOOL COPY';
 
+    const [includeAbsentFine, setIncludeAbsentFine] = useState(false);
+    const [forcePaidStamp, setForcePaidStamp] = useState(initialPaidStamp);
     const [editableTuition, setEditableTuition] = useState(0);
     const [editableAbsentFine, setEditableAbsentFine] = useState(0);
     const [editableArrear, setEditableArrear] = useState(0);
@@ -187,39 +206,55 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
             a.records.some(r => r.studentId === student.id && r.status === 'Absent');
     }).length;
 
+    const potentialFine = absentDays * 50;
+
     useEffect(() => {
-        const tuition = Number(student.monthlyFees) || Number(student.monthlyTuition) || Number(feeStructure[student.class]) || Number(feeStructure['General']) || 4000;
-        const fine = Number(absentDays) * 50;
-        const admission = Number(student.admissionFees || 0);
-        const security = Number(student.securityFees || 0);
+        const tuition = Number(student.monthlyFees) || Number(student.monthlyTuition) || Number(feeStructure[student.class]) || Number(feeStructure['General']) || 3500;
+        // Admission & Security should NOT appear automatically on recurring monthly vouchers!
+        const admission = 0;
+        const security = 0;
         const misc = Number(student.miscellaneousCharges || 0);
-        const currentBalance = Number(student.feesTotal || 0) - Number(student.feesPaid || 0);
-        const currentVoucherTotal = tuition + admission + security + misc + fine;
-        const initialArrear = currentBalance > currentVoucherTotal ? (currentBalance - currentVoucherTotal) : 0;
+
+        const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+        const isMonthBilled = (Array.isArray(student.billedMonths) && student.billedMonths.includes(monthKey)) || (Number(student.feesTotal || 0) >= tuition);
+        const currentOutstanding = Math.max(0, Number(student.feesTotal || 0) - Number(student.feesPaid || 0));
+
+        // If current month is already billed in student.feesTotal, previous arrears is currentOutstanding - tuition
+        // If current month is not yet billed, previous arrears is the full currentOutstanding
+        const initialArrear = isMonthBilled ? Math.max(0, currentOutstanding - tuition) : currentOutstanding;
 
         setEditableTuition(tuition);
-        setEditableAbsentFine(fine);
+        setEditableAbsentFine(includeAbsentFine ? potentialFine : 0);
         setEditableAdmission(admission);
         setEditableSecurity(security);
         setEditableMisc(misc);
-        setEditableArrear(initialArrear > 0 ? initialArrear : 0);
-    }, [student, feeStructure, absentDays]);
+        setEditableArrear(initialArrear);
+    }, [student, feeStructure, absentDays, currentMonth, currentYear, includeAbsentFine]);
 
-    const totalAmount = Number(editableTuition) + Number(editableAbsentFine) + Number(editableArrear) +
+    const totalAmount = Number(editableTuition) + (includeAbsentFine ? Number(editableAbsentFine) : 0) + Number(editableArrear) +
         Number(editableAdmission) + Number(editableSecurity) + Number(editableMisc);
 
+    const monthKey = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}`;
+    const isMonthBilled = (Array.isArray(student.billedMonths) && student.billedMonths.includes(monthKey)) || (Number(student.feesTotal || 0) >= Number(editableTuition));
+    const currentOutstanding = Math.max(0, Number(student.feesTotal || 0) - Number(student.feesPaid || 0));
+    const amountPaidOnBill = isMonthBilled && currentOutstanding < totalAmount ? (totalAmount - currentOutstanding) : (Number(student.feesPaid || 0) > 0 && currentOutstanding < totalAmount ? (totalAmount - currentOutstanding) : 0);
+    const netPayable = Math.max(0, totalAmount - amountPaidOnBill);
+    const isPaid = forcePaidStamp || netPayable === 0 || (Number(student.feesPaid || 0) >= Number(student.feesTotal || 0) && Number(student.feesTotal || 0) > 0);
+
     const handleSyncToStore = () => {
+        const existingBilled = Array.isArray(student.billedMonths) ? student.billedMonths : [];
+        const updatedBilled = existingBilled.includes(monthKey) ? existingBilled : [...existingBilled, monthKey];
+
         updateStudent(student.id, {
             monthlyFees: editableTuition,
-            admissionFees: editableAdmission,
-            securityFees: editableSecurity,
             miscellaneousCharges: editableMisc,
-            feesTotal: (student.feesPaid || 0) + totalAmount
+            feesTotal: (student.feesPaid || 0) + netPayable,
+            billedMonths: updatedBilled
         });
         setIsModified(false);
         Swal.fire({
             title: 'Record Updated',
-            text: 'Fee components and total balance have been synced to student record.',
+            text: 'Tuition fee and student balance have been synchronized to student record.',
             icon: 'success',
             toast: true,
             position: 'top-end',
@@ -487,6 +522,18 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                                     <p className="text-xs md:text-sm font-black text-slate-600">RS {((student.feesTotal || 0) - (student.feesPaid || 0)).toLocaleString()}</p>
                                 </div>
                             </div>
+
+                            <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30 rounded-xl flex items-center justify-between">
+                                <div>
+                                    <p className="text-[8px] font-black uppercase text-emerald-800 dark:text-emerald-400 tracking-wider">Duplicate Lock</p>
+                                    <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                                        {isMonthBilled ? `${currentMonthName} Fee Included in Ledger` : `${currentMonthName} Not Billed in Ledger`}
+                                    </p>
+                                </div>
+                                <span className="text-[8px] font-black px-2 py-0.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-400/20 dark:text-emerald-300 rounded-full uppercase">
+                                    {isMonthBilled ? 'Active' : 'New'}
+                                </span>
+                            </div>
                             <div>
                                 
                             <div className="grid grid-cols-2 gap-2">
@@ -523,10 +570,59 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                                 <label className="text-[8px] font-black uppercase text-slate-400 mb-1 block tracking-widest">Misc Charges</label>
                                 <input type="number" value={editableMisc} onChange={(e) => { setEditableMisc(Number(e.target.value)); setIsModified(true); }} className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-black text-xs outline-none" />
                             </div>
-                            <div>
-                                <label className="text-[8px] font-black uppercase text-slate-400 mb-1 block tracking-widest">Absent Fines</label>
-                                <input type="number" value={editableAbsentFine} onChange={(e) => { setEditableAbsentFine(Number(e.target.value)); setIsModified(true); }} className="w-full p-2.5 bg-white rounded-xl border border-slate-200 font-black text-xs outline-none" />
+                            <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800/30 space-y-2">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={includeAbsentFine}
+                                        onChange={(e) => {
+                                            setIncludeAbsentFine(e.target.checked);
+                                            if (e.target.checked && editableAbsentFine === 0) {
+                                                setEditableAbsentFine(potentialFine);
+                                            }
+                                            setIsModified(true);
+                                        }}
+                                        className="w-4 h-4 rounded text-brand-primary cursor-pointer"
+                                    />
+                                    <span className="text-[10px] font-black uppercase text-amber-900 dark:text-amber-300">
+                                        Include Absent Fine
+                                    </span>
+                                </label>
+                                <p className="text-[9px] font-bold text-amber-700 dark:text-amber-400 pl-6">
+                                    Calculated: {absentDays} din ghair-hazir = RS {potentialFine}
+                                </p>
+                                {includeAbsentFine && (
+                                    <div className="pt-1">
+                                        <label className="text-[8px] font-black uppercase text-slate-400 mb-1 block tracking-widest">Fine Amount (RS)</label>
+                                        <input
+                                            type="number"
+                                            value={editableAbsentFine}
+                                            onChange={(e) => { setEditableAbsentFine(Number(e.target.value)); setIsModified(true); }}
+                                            className="w-full p-2 bg-white rounded-xl border border-amber-300 font-black text-xs outline-none"
+                                        />
+                                    </div>
+                                )}
                             </div>
+
+                            <label className="flex items-center gap-2.5 cursor-pointer p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30 rounded-xl transition-all hover:bg-emerald-100/50">
+                                <input
+                                    type="checkbox"
+                                    checked={forcePaidStamp || isPaid}
+                                    onChange={(e) => {
+                                        setForcePaidStamp(e.target.checked);
+                                        setIsModified(true);
+                                    }}
+                                    className="w-4 h-4 rounded text-emerald-600 cursor-pointer shrink-0"
+                                />
+                                <div className="flex-1 min-w-0">
+                                    <span className="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300 block leading-tight">
+                                        EasyPaisa "PAID" Stamp
+                                    </span>
+                                    <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 block mt-0.5">
+                                        Official Verified Receipt Seal
+                                    </span>
+                                </div>
+                            </label>
                         </div>
 
                         <div className="mt-auto pt-4 md:pt-6 border-t border-slate-200">
@@ -625,24 +721,21 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                     {/* Scrollable Voucher Preview */}
                     <div className="flex-1 overflow-x-auto overflow-y-auto p-2 sm:p-4 md:p-6 print:p-0 bg-slate-200/50 print:bg-white custom-scrollbar flex items-start justify-start md:justify-center">
                         <div className={`flex flex-row min-w-[860px] md:min-w-0 w-full ${readOnly ? 'max-w-[1000px]' : 'max-w-[1200px]'} min-h-[580px] bg-white print:h-[210mm] print:w-[297mm] shadow-xl md:shadow-2xl print:shadow-none mx-auto rounded-2xl md:rounded-3xl print:rounded-none overflow-hidden origin-top scale-100 md:scale-95 print:scale-100 transition-transform duration-500`} id="voucher-to-print">
-                            <VoucherCopy
-                                copyType="STUDENT COPY" student={student} settings={settings} totalAmount={totalAmount}
+                            <VoucherCopy copyType="STUDENT COPY" student={student} settings={settings} totalAmount={totalAmount}
                                 absentDays={absentDays} tuitionFee={editableTuition} absentFine={editableAbsentFine}
                                 finalArrear={editableArrear} admissionFee={editableAdmission} securityFee={editableSecurity}
                                 miscCharges={editableMisc} monthName={currentMonthName} year={currentYear}
-                            />
-                            <VoucherCopy
-                                copyType={collegeCopyName} student={student} settings={settings} totalAmount={totalAmount}
+                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} />
+                            <VoucherCopy copyType={collegeCopyName} student={student} settings={settings} totalAmount={totalAmount}
                                 absentDays={absentDays} tuitionFee={editableTuition} absentFine={editableAbsentFine}
                                 finalArrear={editableArrear} admissionFee={editableAdmission} securityFee={editableSecurity}
                                 miscCharges={editableMisc} monthName={currentMonthName} year={currentYear}
-                            />
-                            <VoucherCopy
-                                copyType="BANK COPY" student={student} settings={settings} totalAmount={totalAmount}
+                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} />
+                            <VoucherCopy copyType="BANK COPY" student={student} settings={settings} totalAmount={totalAmount}
                                 absentDays={absentDays} tuitionFee={editableTuition} absentFine={editableAbsentFine}
                                 finalArrear={editableArrear} admissionFee={editableAdmission} securityFee={editableSecurity}
                                 miscCharges={editableMisc} monthName={currentMonthName} year={currentYear}
-                            />
+                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} />
                         </div>
                     </div>
                 </div>

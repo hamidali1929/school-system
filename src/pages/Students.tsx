@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Building2, GraduationCap } from 'lucide-react';
 
 export const Students = () => {
-    const { students, deleteStudent, addStudent, settings, campuses, currentUser, bulkUpdateStudents, classes: systemClasses, reAdmitStudent, sendNotification } = useStore();
+    const { students, deleteStudent, addStudent, settings, campuses, currentUser, bulkUpdateStudents, classes: systemClasses, reAdmitStudent, sendNotification, attendance } = useStore();
     const canAddStudent = currentUser?.role === 'admin' || currentUser?.permissions?.includes('students_add');
     const isAdmin = currentUser?.role === 'admin';
     const canViewStudents = isAdmin || currentUser?.permissions?.includes('students_view') || currentUser?.permissions?.includes('students_add');
@@ -180,6 +180,14 @@ export const Students = () => {
         const hasAvatar = student.avatar && student.avatar.length > 5;
         const h = document.documentElement.classList.contains('dark');
 
+        const studentAttendance = attendance.flatMap(a => a.records).filter(r => r.studentId === student.id);
+        const totalDays = studentAttendance.length;
+        const totalPresent = studentAttendance.filter(r => r.status === 'Present').length;
+        const totalAbsent = studentAttendance.filter(r => r.status === 'Absent').length;
+        const totalLate = studentAttendance.filter(r => r.status === 'Late').length;
+        const totalLeave = studentAttendance.filter(r => r.status === 'Leave').length;
+        const attendancePercentage = totalDays > 0 ? Math.round((totalPresent / totalDays) * 100) : 0;
+
         Swal.fire({
             padding: '0',
             background: h ? '#0b1120' : '#ffffff',
@@ -332,6 +340,38 @@ export const Students = () => {
                                 <p class="text-xs font-bold text-slate-800 dark:text-white leading-relaxed">
                                     ${student.address || 'No registered address on file.'}
                                 </p>
+                            </div>
+                        </div>
+
+                        <!-- Full Width Attendance -->
+                        <div class="col-span-full">
+                            <div class="p-4 sm:p-6 bg-white dark:bg-white/5 rounded-2xl sm:rounded-[2rem] border border-slate-100 dark:border-white/5 shadow-sm">
+                                <h4 class="text-[10px] font-black text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-purple-600"></div>
+                                    Attendance Summary
+                                </h4>
+                                <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                    <div class="bg-slate-50 dark:bg-[#000d1a] p-3 rounded-xl border border-slate-100 dark:border-white/5 text-center">
+                                        <p class="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Days</p>
+                                        <p class="text-lg font-black text-slate-700 dark:text-white">${totalDays}</p>
+                                    </div>
+                                    <div class="bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-100 dark:border-emerald-500/10 text-center">
+                                        <p class="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1">Present</p>
+                                        <p class="text-lg font-black text-emerald-600">${totalPresent}</p>
+                                    </div>
+                                    <div class="bg-rose-50 dark:bg-rose-900/10 p-3 rounded-xl border border-rose-100 dark:border-rose-500/10 text-center">
+                                        <p class="text-[9px] font-black text-rose-600 uppercase tracking-widest mb-1">Absent</p>
+                                        <p class="text-lg font-black text-rose-600">${totalAbsent}</p>
+                                    </div>
+                                    <div class="bg-amber-50 dark:bg-amber-900/10 p-3 rounded-xl border border-amber-100 dark:border-amber-500/10 text-center">
+                                        <p class="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1">Late / Leave</p>
+                                        <p class="text-lg font-black text-amber-600">${totalLate + totalLeave}</p>
+                                    </div>
+                                    <div class="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-blue-500/10 text-center col-span-2 md:col-span-1">
+                                        <p class="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-1">Percentage</p>
+                                        <p class="text-lg font-black text-blue-600">${attendancePercentage}%</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

@@ -341,6 +341,10 @@ export const AdminPanel = () => {
                         <label class="text-[10px] font-black uppercase text-slate-500 mb-2 block tracking-widest">Admin Password</label>
                         <input id="swal-admin-pass" type="password" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm" placeholder="Leave empty for no password" value="${settings.adminPassword || ''}">
                     </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-500 mb-2 block tracking-widest">Fee Security PIN (for collecting fee)</label>
+                        <input id="swal-fee-pin" type="password" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm" placeholder="Default: 1234" value="${settings.feeSecurityPin || '1234'}">
+                    </div>
                 </div>`,
             showCancelButton: true,
             confirmButtonText: 'Save Credentials',
@@ -348,7 +352,8 @@ export const AdminPanel = () => {
             preConfirm: () => {
                 return {
                     adminUsername: (document.getElementById('swal-admin-user') as HTMLInputElement).value,
-                    adminPassword: (document.getElementById('swal-admin-pass') as HTMLInputElement).value
+                    adminPassword: (document.getElementById('swal-admin-pass') as HTMLInputElement).value,
+                    feeSecurityPin: (document.getElementById('swal-fee-pin') as HTMLInputElement).value || '1234'
                 }
             }
         });
