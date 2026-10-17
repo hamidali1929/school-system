@@ -29,8 +29,8 @@ const numberToWords = (num: number): string => {
 };
 
 const VoucherCopy = React.memo(({
-    copyType, student, settings, tuitionFee, absentDays, monthName, year, includeAbsentFine
-}: { copyType: string, student: Student, settings: any, tuitionFee: number, absentDays: number, monthName: string, year: number, includeAbsentFine?: boolean }) => {
+    copyType, student, settings, tuitionFee, absentDays, monthName, year, includeAbsentFine, stampColor = 'emerald'
+}: { copyType: string, student: Student, settings: any, tuitionFee: number, absentDays: number, monthName: string, year: number, includeAbsentFine?: boolean, stampColor?: 'emerald' | 'red' }) => {
 
     // Admission & Security should NOT appear automatically on recurring monthly vouchers!
     const admission = 0;
@@ -186,17 +186,73 @@ const VoucherCopy = React.memo(({
                     </div>
                 </div>
 
-                {/* EasyPaisa / Banking Style Official PAID Stamp */}
+                {/* Authentic Institutional Cashier / Bank "PAID" Ink Stamp */}
                 {isPaid && (
-                    <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none select-none z-30 opacity-95">
-                        <div className="border-[3.5px] border-emerald-600 rounded-2xl px-5 py-2 text-center bg-emerald-50/85 backdrop-blur-[0.5px] shadow-lg flex flex-col items-center justify-center min-w-[170px]">
-                            <div className="flex items-center gap-1.5 border-b border-emerald-600/50 pb-0.5 w-full justify-center">
-                                <span className="text-[7px] font-black uppercase tracking-[0.2em] text-emerald-800">★ OFFICIAL RECEIPT ★</span>
+                    <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none select-none z-30 mix-blend-multiply opacity-95">
+                        <div 
+                            className="relative px-5 py-2 rounded-2xl flex flex-col items-center justify-center text-center transition-all"
+                            style={{
+                                backgroundColor: stampColor === 'red' ? 'rgba(239, 68, 68, 0.04)' : 'rgba(5, 150, 105, 0.04)',
+                                border: `3px solid ${stampColor === 'red' ? '#dc2626' : '#047857'}`,
+                                boxShadow: stampColor === 'red'
+                                    ? 'inset 0 0 0 2px white, inset 0 0 0 4px #dc2626'
+                                    : 'inset 0 0 0 2px white, inset 0 0 0 4px #047857',
+                                minWidth: '195px'
+                            }}
+                        >
+                            {/* Header */}
+                            <div 
+                                className="flex items-center justify-center gap-1.5 w-full pb-0.5 border-b border-dashed"
+                                style={{ borderColor: stampColor === 'red' ? '#dc262680' : '#04785780' }}
+                            >
+                                <span 
+                                    className="text-[7.5px] font-black uppercase tracking-[0.24em]"
+                                    style={{ color: stampColor === 'red' ? '#991b1b' : '#064e3b' }}
+                                >
+                                    ★ OFFICIAL RECEIPT ★
+                                </span>
                             </div>
-                            <h2 className="text-3xl font-black uppercase tracking-[0.25em] text-emerald-600 leading-tight my-0.5 font-sans drop-shadow-sm">PAID</h2>
-                            <div className="flex items-center justify-center gap-1.5 border-t border-emerald-600/50 pt-0.5 w-full">
-                                <span className="text-[7px] font-black text-emerald-800 uppercase tracking-widest">{formatDate(issueDate)}</span>
-                                <span className="text-[7px] font-black text-emerald-700 uppercase tracking-wider">• VERIFIED</span>
+
+                            {/* Stamped Center */}
+                            <div className="my-0.5 flex items-center justify-center gap-2">
+                                <span 
+                                    className="text-[34px] font-black uppercase tracking-[0.3em] font-sans leading-none pl-1"
+                                    style={{
+                                        color: stampColor === 'red' ? '#dc2626' : '#047857',
+                                        textShadow: stampColor === 'red' ? '0 0 0.5px #dc2626' : '0 0 0.5px #047857'
+                                    }}
+                                >
+                                    PAID
+                                </span>
+                                <div 
+                                    className="w-5 h-5 rounded-full flex items-center justify-center border-2 shrink-0"
+                                    style={{ borderColor: stampColor === 'red' ? '#dc2626' : '#047857', color: stampColor === 'red' ? '#dc2626' : '#047857' }}
+                                >
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="20 6 9 17 4 12"></polyline>
+                                    </svg>
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div 
+                                className="flex flex-col items-center justify-center w-full pt-0.5 border-t border-dashed"
+                                style={{ borderColor: stampColor === 'red' ? '#dc262680' : '#04785780' }}
+                            >
+                                <div 
+                                    className="flex items-center justify-center gap-1.5 text-[7px] font-black uppercase tracking-wider font-mono"
+                                    style={{ color: stampColor === 'red' ? '#991b1b' : '#064e3b' }}
+                                >
+                                    <span>{formatDate(issueDate)}</span>
+                                    <span>•</span>
+                                    <span>VERIFIED & CLEARED</span>
+                                </div>
+                                <span 
+                                    className="text-[5.5px] font-black uppercase tracking-[0.25em] opacity-80 mt-0.5"
+                                    style={{ color: stampColor === 'red' ? '#991b1b' : '#064e3b' }}
+                                >
+                                    {student?.campus ? student.campus.toUpperCase() : "PIONEER'S SUPERIOR"} ACCOUNTS
+                                </span>
                             </div>
                         </div>
                     </div>

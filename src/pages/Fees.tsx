@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowUpRight, Search, Clock, AlertTriangle, FileText, History, Percent, Edit3, Calendar, MessageSquare, Bell, Trash2, Lock } from 'lucide-react';
+import { ArrowUpRight, Search, Clock, AlertTriangle, FileText, History, Percent, Edit3, Calendar, MessageSquare, Bell, Trash2 } from 'lucide-react';
 import { useStore, type Student, type Payment } from '../context/StoreContext';
 import { cn } from '../utils/cn';
 import { MESSAGE_TEMPLATES } from '../utils/whatsapp';
@@ -8,7 +8,7 @@ import { FeeVoucher } from '../components/FeeVoucher';
 import { BulkFeeVoucher } from '../components/BulkFeeVoucher';
 
 export const Fees = () => {
-    const { students, updateStudent, feeStructure, triggerFeeReminders, sendNotification, settings, currentUser, updateSettings } = useStore();
+    const { students, updateStudent, feeStructure, triggerFeeReminders, sendNotification, settings, currentUser } = useStore();
     const [search, setSearch] = useState('');
     const [selectedStudentForVoucher, setSelectedStudentForVoucher] = useState<Student | null>(null);
     const [voucherForcePaid, setVoucherForcePaid] = useState(false);
@@ -215,50 +215,6 @@ export const Fees = () => {
         }
     };
 
-    const handleConfigureFeePin = async () => {
-        const h = document.documentElement.classList.contains('dark');
-        const currentPin = settings.feeSecurityPin || '1234';
-
-        const { value: newPin } = await Swal.fire({
-            title: 'Fee Security PIN Settings',
-            html: `
-                <div class="text-left space-y-3 font-outfit">
-                    <p class="text-xs ${h ? 'text-brand-accent/80' : 'text-slate-500'}">
-                        Set an Admin Security PIN to protect fee collection. Whenever anyone records or collects a fee payment, this PIN will be required.
-                    </p>
-                    <div class="p-3 bg-slate-50 dark:bg-white/5 rounded-xl border border-slate-200 dark:border-white/10">
-                        <label class="text-[10px] font-black uppercase tracking-widest text-slate-500 block mb-1">Enter New PIN (min 3 digits)</label>
-                        <input id="new-fee-pin" type="text" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm !h-[42px] px-3 font-mono font-bold text-center tracking-widest ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" value="${currentPin}">
-                    </div>
-                </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: 'Save PIN',
-            confirmButtonColor: 'var(--brand-primary)',
-            background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
-            color: h ? 'var(--brand-accent)' : '#0f172a',
-            preConfirm: () => {
-                const pin = (document.getElementById('new-fee-pin') as HTMLInputElement)?.value?.trim();
-                if (!pin || pin.length < 3) {
-                    Swal.showValidationMessage('PIN must be at least 3 digits/characters');
-                    return false;
-                }
-                return pin;
-            }
-        });
-
-        if (newPin) {
-            updateSettings({ feeSecurityPin: newPin });
-            Swal.fire({
-                title: 'PIN Updated! 🔒',
-                text: `Fee Security PIN is now set to "${newPin}".`,
-                icon: 'success',
-                timer: 2500,
-                showConfirmButton: false
-            });
-        }
-    };
-
     const handlePayFee = async (studentId: string) => {
         const student = students.find(s => s.id === studentId);
         if (!student) return;
@@ -298,15 +254,15 @@ export const Fees = () => {
                             <input id="pay-note" type="text" class="swal2-input !mt-0 !w-full !rounded-[var(--brand-radius,1rem)] !text-sm ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" placeholder="e.g. Monthly Tuition">
                         </div>
                     </div>
-                    <div class="p-3 ${h ? 'bg-amber-500/10 border border-amber-500/20' : 'bg-amber-50 border border-amber-200'} rounded-xl space-y-1">
-                        <label class="text-[10px] font-black uppercase text-amber-600 dark:text-amber-400 flex items-center justify-between tracking-widest">
+                    <div class="p-3 ${h ? 'bg-slate-800/80 border border-slate-700/60' : 'bg-slate-50 border border-slate-200'} rounded-xl space-y-1">
+                        <label class="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 flex items-center justify-between tracking-widest">
                             <span class="flex items-center gap-1.5">
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                                Admin Security PIN *
+                                Security Authorization PIN *
                             </span>
-                            <span class="text-[8px] font-bold text-slate-400 lowercase">(Default: 1234)</span>
+                            <span class="text-[8px] font-bold text-rose-500 uppercase tracking-wider">Required</span>
                         </label>
-                        <input id="pay-pin" type="password" maxlength="12" class="swal2-input !mt-0 !w-full !rounded-lg !text-sm !h-[38px] px-3 outline-none ${h ? '!bg-[#000816] !border-amber-500/30 !text-brand-accent' : '!bg-white !border-amber-300'}" placeholder="Enter Admin PIN to authorize">
+                        <input id="pay-pin" type="password" maxlength="12" autocomplete="new-password" class="swal2-input !mt-0 !w-full !rounded-lg !text-sm !h-[38px] px-3 outline-none ${h ? '!bg-[#000816] !border-slate-700 !text-brand-accent' : '!bg-white !border-slate-300'}" placeholder="••••">
                     </div>
                 </div>
             `,
@@ -320,13 +276,13 @@ export const Fees = () => {
                 const note = (document.getElementById('pay-note') as HTMLInputElement).value;
                 const pin = (document.getElementById('pay-pin') as HTMLInputElement)?.value?.trim();
 
-                const expectedPin = settings.feeSecurityPin || settings.adminPassword || '1234';
+                const expectedPin = settings.feeSecurityPin || '1234';
                 if (!pin) {
-                    Swal.showValidationMessage('Admin Security PIN required to record payment');
+                    Swal.showValidationMessage('Security PIN is required to record payment');
                     return false;
                 }
-                if (pin !== expectedPin && pin !== '1234' && pin !== settings.adminPassword) {
-                    Swal.showValidationMessage('Incorrect Admin PIN! Authorization failed');
+                if (pin !== expectedPin && pin !== settings.adminPassword) {
+                    Swal.showValidationMessage('Incorrect Security PIN! Authorization failed');
                     return false;
                 }
 
@@ -655,15 +611,6 @@ export const Fees = () => {
                     <button onClick={() => handleGenerateAllMonthlyFees()} className="px-3.5 py-2 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/10">
                         <Calendar className="w-3.5 h-3.5" /> Bulk Billing
                     </button>
-                    {!isTeacher && (
-                        <button
-                            onClick={handleConfigureFeePin}
-                            className="px-3.5 py-2 bg-slate-800 text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-slate-900/10"
-                            title="Set Admin Fee Security PIN"
-                        >
-                            <Lock className="w-3.5 h-3.5 text-amber-400" /> Fee PIN
-                        </button>
-                    )}
                     <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark rounded-xl border border-slate-200 dark:border-brand-accent/10">
                         <button
                             onClick={() => setActiveTab('billing')}

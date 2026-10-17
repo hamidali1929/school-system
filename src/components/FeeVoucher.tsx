@@ -34,7 +34,7 @@ const numberToWords = (num: number): string => {
     return makeWords(num) + ' Only';
 };
 
-const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tuitionFee, absentFine, finalArrear, admissionFee, securityFee, miscCharges, monthName, year, amountPaidOnBill, netPayable, isPaid }: any) => {
+const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tuitionFee, absentFine, finalArrear, admissionFee, securityFee, miscCharges, monthName, year, amountPaidOnBill, netPayable, isPaid, stampColor = 'emerald' }: any) => {
     const issueDate = new Date();
     const dueDate = new Date();
     dueDate.setDate(issueDate.getDate() + 10);
@@ -156,17 +156,73 @@ const VoucherCopy = ({ copyType, student, settings, totalAmount, absentDays, tui
                 </div>
             </div>
 
-            {/* EasyPaisa / Banking Style Official PAID Stamp */}
+            {/* Authentic Institutional Cashier / Bank "PAID" Ink Stamp */}
             {isPaid && (
-                <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none select-none z-30 opacity-95">
-                    <div className="border-[3.5px] border-emerald-600 rounded-2xl px-5 py-2 text-center bg-emerald-50/85 backdrop-blur-[0.5px] shadow-lg flex flex-col items-center justify-center min-w-[170px]">
-                        <div className="flex items-center gap-1.5 border-b border-emerald-600/50 pb-0.5 w-full justify-center">
-                            <span className="text-[7px] font-black uppercase tracking-[0.2em] text-emerald-800">★ OFFICIAL RECEIPT ★</span>
+                <div className="absolute top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none select-none z-30 mix-blend-multiply opacity-95">
+                    <div 
+                        className="relative px-5 py-2 rounded-2xl flex flex-col items-center justify-center text-center transition-all"
+                        style={{
+                            backgroundColor: stampColor === 'red' ? 'rgba(239, 68, 68, 0.04)' : 'rgba(5, 150, 105, 0.04)',
+                            border: `3px solid ${stampColor === 'red' ? '#dc2626' : '#047857'}`,
+                            boxShadow: stampColor === 'red'
+                                ? 'inset 0 0 0 2px white, inset 0 0 0 4px #dc2626'
+                                : 'inset 0 0 0 2px white, inset 0 0 0 4px #047857',
+                            minWidth: '195px'
+                        }}
+                    >
+                        {/* Header */}
+                        <div 
+                            className="flex items-center justify-center gap-1.5 w-full pb-0.5 border-b border-dashed"
+                            style={{ borderColor: stampColor === 'red' ? '#dc262680' : '#04785780' }}
+                        >
+                            <span 
+                                className="text-[7.5px] font-black uppercase tracking-[0.24em]"
+                                style={{ color: stampColor === 'red' ? '#991b1b' : '#064e3b' }}
+                            >
+                                ★ OFFICIAL RECEIPT ★
+                            </span>
                         </div>
-                        <h2 className="text-3xl font-black uppercase tracking-[0.25em] text-emerald-600 leading-tight my-0.5 font-sans drop-shadow-sm">PAID</h2>
-                        <div className="flex items-center justify-center gap-1.5 border-t border-emerald-600/50 pt-0.5 w-full">
-                            <span className="text-[7px] font-black text-emerald-800 uppercase tracking-widest">{formatDate(issueDate)}</span>
-                            <span className="text-[7px] font-black text-emerald-700 uppercase tracking-wider">• VERIFIED</span>
+
+                        {/* Stamped Center */}
+                        <div className="my-0.5 flex items-center justify-center gap-2">
+                            <span 
+                                className="text-[34px] font-black uppercase tracking-[0.3em] font-sans leading-none pl-1"
+                                style={{
+                                    color: stampColor === 'red' ? '#dc2626' : '#047857',
+                                    textShadow: stampColor === 'red' ? '0 0 0.5px #dc2626' : '0 0 0.5px #047857'
+                                }}
+                            >
+                                PAID
+                            </span>
+                            <div 
+                                className="w-5 h-5 rounded-full flex items-center justify-center border-2 shrink-0"
+                                style={{ borderColor: stampColor === 'red' ? '#dc2626' : '#047857', color: stampColor === 'red' ? '#dc2626' : '#047857' }}
+                            >
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                </svg>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div 
+                            className="flex flex-col items-center justify-center w-full pt-0.5 border-t border-dashed"
+                            style={{ borderColor: stampColor === 'red' ? '#dc262680' : '#04785780' }}
+                        >
+                            <div 
+                                className="flex items-center justify-center gap-1.5 text-[7px] font-black uppercase tracking-wider font-mono"
+                                style={{ color: stampColor === 'red' ? '#991b1b' : '#064e3b' }}
+                            >
+                                <span>{formatDate(issueDate)}</span>
+                                <span>•</span>
+                                <span>VERIFIED & CLEARED</span>
+                            </div>
+                            <span 
+                                className="text-[5.5px] font-black uppercase tracking-[0.25em] opacity-80 mt-0.5"
+                                style={{ color: stampColor === 'red' ? '#991b1b' : '#064e3b' }}
+                            >
+                                {student?.campus ? student.campus.toUpperCase() : "PIONEER'S SUPERIOR"} ACCOUNTS
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -186,6 +242,7 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
 
     const [includeAbsentFine, setIncludeAbsentFine] = useState(false);
     const [forcePaidStamp, setForcePaidStamp] = useState(initialPaidStamp);
+    const [stampColor, setStampColor] = useState<'emerald' | 'red'>('emerald');
     const [editableTuition, setEditableTuition] = useState(0);
     const [editableAbsentFine, setEditableAbsentFine] = useState(0);
     const [editableArrear, setEditableArrear] = useState(0);
@@ -604,25 +661,57 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                                 )}
                             </div>
 
-                            <label className="flex items-center gap-2.5 cursor-pointer p-3 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/30 rounded-xl transition-all hover:bg-emerald-100/50">
-                                <input
-                                    type="checkbox"
-                                    checked={forcePaidStamp || isPaid}
-                                    onChange={(e) => {
-                                        setForcePaidStamp(e.target.checked);
-                                        setIsModified(true);
-                                    }}
-                                    className="w-4 h-4 rounded text-emerald-600 cursor-pointer shrink-0"
-                                />
-                                <div className="flex-1 min-w-0">
-                                    <span className="text-[10px] font-black uppercase text-emerald-800 dark:text-emerald-300 block leading-tight">
-                                        EasyPaisa "PAID" Stamp
-                                    </span>
-                                    <span className="text-[8px] font-bold text-emerald-600 dark:text-emerald-400 block mt-0.5">
-                                        Official Verified Receipt Seal
-                                    </span>
-                                </div>
-                            </label>
+                            <div className="p-3 bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-2xl space-y-2.5">
+                                <label className="flex items-center gap-2.5 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={forcePaidStamp || isPaid}
+                                        onChange={(e) => {
+                                            setForcePaidStamp(e.target.checked);
+                                            setIsModified(true);
+                                        }}
+                                        className="w-4 h-4 rounded text-emerald-600 cursor-pointer shrink-0"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                        <span className="text-[10px] font-black uppercase text-slate-800 dark:text-slate-200 block leading-tight">
+                                            Official "PAID" Stamp
+                                        </span>
+                                        <span className="text-[8px] font-bold text-slate-500 dark:text-slate-400 block mt-0.5">
+                                            Cashier Bank Rubber Ink Seal
+                                        </span>
+                                    </div>
+                                </label>
+
+                                {(forcePaidStamp || isPaid) && (
+                                    <div className="pt-2 border-t border-slate-200/60 dark:border-white/10 flex items-center justify-between gap-2">
+                                        <span className="text-[8px] font-black uppercase tracking-wider text-slate-400">Stamp Ink Color</span>
+                                        <div className="flex items-center gap-1.5 bg-white dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                                            <button
+                                                type="button"
+                                                onClick={() => setStampColor('emerald')}
+                                                className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${
+                                                    stampColor === 'emerald'
+                                                        ? 'bg-emerald-600 text-white shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-800'
+                                                }`}
+                                            >
+                                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-300"></span> Emerald Green
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setStampColor('red')}
+                                                className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-wider transition-all flex items-center gap-1 ${
+                                                    stampColor === 'red'
+                                                        ? 'bg-red-600 text-white shadow-sm'
+                                                        : 'text-slate-500 hover:text-slate-800'
+                                                }`}
+                                            >
+                                                <span className="w-1.5 h-1.5 rounded-full bg-red-300"></span> Crimson Red
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="mt-auto pt-4 md:pt-6 border-t border-slate-200">
@@ -725,17 +814,17 @@ export const FeeVoucher: React.FC<FeeVoucherProps> = ({ student, onClose, readOn
                                 absentDays={absentDays} tuitionFee={editableTuition} absentFine={editableAbsentFine}
                                 finalArrear={editableArrear} admissionFee={editableAdmission} securityFee={editableSecurity}
                                 miscCharges={editableMisc} monthName={currentMonthName} year={currentYear}
-                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} />
+                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} stampColor={stampColor} />
                             <VoucherCopy copyType={collegeCopyName} student={student} settings={settings} totalAmount={totalAmount}
                                 absentDays={absentDays} tuitionFee={editableTuition} absentFine={editableAbsentFine}
                                 finalArrear={editableArrear} admissionFee={editableAdmission} securityFee={editableSecurity}
                                 miscCharges={editableMisc} monthName={currentMonthName} year={currentYear}
-                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} />
+                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} stampColor={stampColor} />
                             <VoucherCopy copyType="BANK COPY" student={student} settings={settings} totalAmount={totalAmount}
                                 absentDays={absentDays} tuitionFee={editableTuition} absentFine={editableAbsentFine}
                                 finalArrear={editableArrear} admissionFee={editableAdmission} securityFee={editableSecurity}
                                 miscCharges={editableMisc} monthName={currentMonthName} year={currentYear}
-                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} />
+                             amountPaidOnBill={amountPaidOnBill} netPayable={netPayable} isPaid={isPaid} stampColor={stampColor} />
                         </div>
                     </div>
                 </div>

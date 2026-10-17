@@ -2,7 +2,7 @@ import {
     Globe, Bell, Lock, Server, Palette,
     Banknote as Bank, MessageSquare, Sparkles,
     Terminal, Activity, Download, Layout, Target,
-    Users, GraduationCap, MapPin, Trash2, Edit2, Plus, ArrowRight, Shield,
+    Users, GraduationCap, MapPin, Trash2, Edit2, Plus, ArrowRight, Shield, ShieldCheck,
     Database
 } from 'lucide-react';
 import { WhatsAppMatrix } from '../components/WhatsAppMatrix';
@@ -341,10 +341,6 @@ export const AdminPanel = () => {
                         <label class="text-[10px] font-black uppercase text-slate-500 mb-2 block tracking-widest">Admin Password</label>
                         <input id="swal-admin-pass" type="password" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm" placeholder="Leave empty for no password" value="${settings.adminPassword || ''}">
                     </div>
-                    <div>
-                        <label class="text-[10px] font-black uppercase text-slate-500 mb-2 block tracking-widest">Fee Security PIN (for collecting fee)</label>
-                        <input id="swal-fee-pin" type="password" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm" placeholder="Default: 1234" value="${settings.feeSecurityPin || '1234'}">
-                    </div>
                 </div>`,
             showCancelButton: true,
             confirmButtonText: 'Save Credentials',
@@ -352,8 +348,7 @@ export const AdminPanel = () => {
             preConfirm: () => {
                 return {
                     adminUsername: (document.getElementById('swal-admin-user') as HTMLInputElement).value,
-                    adminPassword: (document.getElementById('swal-admin-pass') as HTMLInputElement).value,
-                    feeSecurityPin: (document.getElementById('swal-fee-pin') as HTMLInputElement).value || '1234'
+                    adminPassword: (document.getElementById('swal-admin-pass') as HTMLInputElement).value
                 }
             }
         });
@@ -367,6 +362,155 @@ export const AdminPanel = () => {
                 details: 'Admin login credentials updated'
             });
             Swal.fire('Saved', 'Admin credentials updated successfully. Please use these next time you login.', 'success');
+        }
+    };
+
+    const handleManageFeeSecurityPin = async () => {
+        const h = document.documentElement.classList.contains('dark');
+        const adminPass = settings.adminPassword || 'admin';
+
+        // Step 1: Prompt for Admin Master Password
+        const { value: enteredPassword, isConfirmed: authConfirmed } = await Swal.fire({
+            title: 'Admin Verification',
+            html: `
+                <div class="text-left space-y-3 font-outfit">
+                    <div class="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-700 dark:text-amber-400 text-xs">
+                        🔒 <b>Admin Authorization Required:</b> Enter Master Admin Password to configure, view, change, or reset the Fee Security PIN.
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black uppercase text-slate-500 block mb-1 tracking-widest">Admin Password</label>
+                        <input id="verify-admin-pass" type="password" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm !h-[42px] px-3 ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" placeholder="Enter Admin Password">
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Verify Password',
+            confirmButtonColor: 'var(--brand-primary)',
+            background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
+            color: h ? 'var(--brand-accent)' : '#0f172a',
+            preConfirm: () => {
+                const pass = (document.getElementById('verify-admin-pass') as HTMLInputElement)?.value;
+                if (!pass) {
+                    Swal.showValidationMessage('Admin password is required');
+                    return false;
+                }
+                return pass;
+            }
+        });
+
+        if (!authConfirmed || !enteredPassword) return;
+
+        // Verify password
+        const isMatch = enteredPassword === adminPass || (!settings.adminPassword && enteredPassword === 'admin');
+        if (!isMatch) {
+            Swal.fire({
+                title: 'Access Denied!',
+                text: 'Incorrect Admin Password. You are not authorized to modify or view the Fee Security PIN.',
+                icon: 'error',
+                confirmButtonColor: '#e11d48'
+            });
+            return;
+        }
+
+        // Step 2: Authenticated Fee PIN Management Dialog
+        const currentPin = settings.feeSecurityPin || '1234';
+        const { value: actionResult } = await Swal.fire({
+            title: 'Fee Security PIN Manager',
+            html: `
+                <div class="text-left space-y-4 font-outfit">
+                    <div class="p-3.5 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl flex items-center justify-between">
+                        <div>
+                            <p class="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400">Current Security PIN</p>
+                            <p id="pin-display-text" class="text-base font-black font-mono tracking-widest text-slate-800 dark:text-white mt-0.5">••••</p>
+                        </div>
+                        <button type="button" id="btn-toggle-pin" class="px-3 py-1.5 bg-white dark:bg-white/10 hover:bg-slate-100 rounded-xl text-[10px] font-bold text-slate-700 dark:text-white border border-slate-200 dark:border-white/10 shadow-sm transition-all cursor-pointer">
+                            Show PIN
+                        </button>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-500 mb-1 block tracking-widest">New Security PIN</label>
+                            <input id="input-new-pin" type="password" maxlength="10" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm !h-[42px] px-3 font-mono tracking-widest ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" placeholder="Enter 4 or more digits">
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-black uppercase text-slate-500 mb-1 block tracking-widest">Confirm New PIN</label>
+                            <input id="input-confirm-pin" type="password" maxlength="10" class="swal2-input !mt-0 !w-full !rounded-xl !text-sm !h-[42px] px-3 font-mono tracking-widest ${h ? '!bg-[#000816] !border-brand-accent/20 !text-brand-accent' : ''}" placeholder="Re-enter new PIN">
+                        </div>
+                    </div>
+
+                    <div class="pt-2 border-t border-slate-100 dark:border-white/10 flex items-center justify-between">
+                        <button type="button" id="btn-reset-default-pin" class="text-rose-600 hover:text-rose-700 text-xs font-bold underline cursor-pointer">
+                            Reset to Default (1234)
+                        </button>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Save New PIN',
+            confirmButtonColor: 'var(--brand-primary)',
+            background: h ? 'var(--brand-primary-dark, #001529)' : '#ffffff',
+            color: h ? 'var(--brand-accent)' : '#0f172a',
+            didOpen: () => {
+                let isShowing = false;
+                const toggleBtn = document.getElementById('btn-toggle-pin');
+                const pinDisplay = document.getElementById('pin-display-text');
+                const resetBtn = document.getElementById('btn-reset-default-pin');
+                const newPinInput = document.getElementById('input-new-pin') as HTMLInputElement;
+                const confirmPinInput = document.getElementById('input-confirm-pin') as HTMLInputElement;
+
+                if (toggleBtn && pinDisplay) {
+                    toggleBtn.addEventListener('click', () => {
+                        isShowing = !isShowing;
+                        pinDisplay.textContent = isShowing ? currentPin : '••••';
+                        toggleBtn.textContent = isShowing ? 'Hide PIN' : 'Show PIN';
+                    });
+                }
+
+                if (resetBtn && newPinInput && confirmPinInput) {
+                    resetBtn.addEventListener('click', () => {
+                        newPinInput.value = '1234';
+                        confirmPinInput.value = '1234';
+                        Swal.resetValidationMessage();
+                        Swal.showValidationMessage('Default PIN (1234) filled. Click "Save New PIN" to confirm.');
+                    });
+                }
+            },
+            preConfirm: () => {
+                const newPin = (document.getElementById('input-new-pin') as HTMLInputElement)?.value?.trim();
+                const confirmPin = (document.getElementById('input-confirm-pin') as HTMLInputElement)?.value?.trim();
+
+                if (!newPin) {
+                    Swal.showValidationMessage('Please enter a new PIN (or click Reset to Default)');
+                    return false;
+                }
+                if (newPin.length < 3) {
+                    Swal.showValidationMessage('PIN must be at least 3 digits/characters');
+                    return false;
+                }
+                if (newPin !== confirmPin) {
+                    Swal.showValidationMessage('PINs do not match! Please verify');
+                    return false;
+                }
+                return { newPin };
+            }
+        });
+
+        if (actionResult && actionResult.newPin) {
+            updateSettings({ feeSecurityPin: actionResult.newPin });
+            addAuditLog({
+                user: 'Super Admin',
+                action: 'Fee PIN Updated',
+                type: 'Security',
+                details: 'Fee collection security PIN was updated'
+            });
+            Swal.fire({
+                title: 'PIN Updated! 🔒',
+                text: 'New Fee Security PIN has been saved successfully.',
+                icon: 'success',
+                timer: 2500,
+                showConfirmButton: false
+            });
         }
     };
 
@@ -1352,6 +1496,13 @@ export const AdminPanel = () => {
                                         desc="Keep your school data safe and secure."
                                         actionLabel="Security"
                                         onClick={handleAdminCredentials}
+                                    />
+                                    <AdminSettingItem
+                                        icon={ShieldCheck}
+                                        title="Fee Security PIN"
+                                        desc="Configure authorization PIN required to collect fees and record payments."
+                                        actionLabel="Manage PIN"
+                                        onClick={handleManageFeeSecurityPin}
                                     />
                                     <AdminSettingItem
                                         icon={Database}
