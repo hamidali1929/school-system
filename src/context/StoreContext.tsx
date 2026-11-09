@@ -1,5 +1,13 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { sanitizeObject } from '../utils/security';
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react';
+import { 
+    sanitizeObject, 
+    type AuthUser, 
+    saveSecureSession, 
+    verifyAndLoadSession, 
+    clearSecureSession, 
+    computeCredentialProof, 
+    installSecurityWatchdog 
+} from '../utils/security';
 import { normalizeWhatsAppNumber, MESSAGE_TEMPLATES, getWhatsAppServerUrl } from '../utils/whatsapp';
 import { supabase } from '../lib/supabase';
 import { collection, onSnapshot, doc, getDoc } from 'firebase/firestore';
@@ -87,6 +95,13 @@ export interface Student {
     previousClass?: string;
     reAdmittedDate?: string;
 }
+
+export const isStudentActive = (s: { status?: string } | null | undefined): boolean => {
+    if (!s) return false;
+    const status = (s.status || 'Active').trim().toLowerCase();
+    const inactiveStatuses = ['inactive', 'passed out', 'alumni', 'struck off', 'suspended', 'online applied', 'pending verification'];
+    return !inactiveStatuses.includes(status);
+};
 
 export interface Teacher {
     id: string;
@@ -283,6 +298,16 @@ export interface StudentExamResult {
     remarks?: string;
 }
 
+export interface ClassDisciplineConfig {
+    id: string; // e.g. 'fsc_pre_med', 'fsc_pre_eng', 'ics_phy', etc.
+    name: string; // e.g. 'F.Sc Pre-Medical'
+    urduName?: string;
+    category?: 'College' | 'School';
+    badge?: string;
+    subjects: string[];
+    marks: Record<string, number>;
+}
+
 export interface SkillCourse {
     id: string;
     title: string;
@@ -357,8 +382,12 @@ interface AppState {
     subjectTeachers: Record<string, Record<string, string>>; // Class -> { Subject: TeacherId }
     timetables: Record<string, WeeklyTimetable>; // Class -> WeeklyTimetable
     subjectTotalMarks: Record<string, Record<string, number>>;
+    classDisciplines: Record<string, Record<string, ClassDisciplineConfig>>;
     updateClassSubjects: (className: string, subjects: string[]) => void;
     updateClassSubjectMarks: (className: string, marks: Record<string, number>) => void;
+    updateClassDisciplines: (className: string, disciplines: Record<string, ClassDisciplineConfig>) => void;
+    getStudentSubjects: (student: { class: string; discipline?: string } | undefined) => string[];
+    getStudentSubjectMarks: (student: { class: string; discipline?: string } | undefined) => Record<string, number>;
     updateClassInCharge: (className: string, teacherId: string) => void;
     assignSubjectTeacher: (className: string, subject: string, teacherId: string) => void;
     updateClassSubjectTeachers: (className: string, assignments: Record<string, string>) => void;
@@ -821,6 +850,11 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         };
     });
 
+    const [classDisciplines, setClassDisciplines] = useState<Record<string, Record<string, ClassDisciplineConfig>>>(() => {
+        const saved = localStorage.getItem('edunova_class_disciplines');
+        return saved ? JSON.parse(saved) : {};
+    });
+
     const [classInCharge, setClassInCharge] = useState<Record<string, string>>(() => {
         const saved = localStorage.getItem('edunova_class_incharge');
         return saved ? JSON.parse(saved) : {};
@@ -1013,6 +1047,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 localStorage.setItem('edunova_classes', JSON.stringify(classes));
                 localStorage.setItem('edunova_period_settings_v2', JSON.stringify(periodSettings));
                 localStorage.setItem('edunova_class_subjects', JSON.stringify(classSubjects));
+                localStorage.setItem('edunova_class_disciplines', JSON.stringify(classDisciplines));
                 localStorage.setItem('edunova_subject_total_marks', JSON.stringify(subjectTotalMarks));
                 localStorage.setItem('edunova_class_incharge', JSON.stringify(classInCharge));
                 localStorage.setItem('edunova_subject_teachers', JSON.stringify(subjectTeachers));
@@ -1725,6 +1760,85 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         setSubjectTotalMarks(prev => ({ ...prev, [className]: marks }));
     };
 
+    const updateClassDisciplines = (className: string, disciplines: Record<string, ClassDisciplineConfig>) => {
+        setClassDisciplines(prev => ({ ...prev, [className]: disciplines }));
+
+        const allSubs = Array.from(new Set(Object.values(disciplines).flatMap(d => d.subjects || []))).filter(Boolean);
+        const allMarks: Record<string, number> = {};
+        Object.values(disciplines).forEach(d => {
+            Object.entries(d.marks || {}).forEach(([s, m]) => {
+                allMarks[s] = m;
+            });
+        });
+
+        if (allSubs.length > 0) {
+            setClassSubjects(prev => ({ ...prev, [className]: allSubs }));
+            setSubjectTotalMarks(prev => ({ ...prev, [className]: allMarks }));
+        }
+    };
+
+    const getStudentSubjects = useCallback((student: { class: string; discipline?: string } | undefined): string[] => {
+        if (!student || !student.class) return [];
+        const disciplines = classDisciplines[student.class];
+        if (disciplines && Object.keys(disciplines).length > 0) {
+            if (student.discipline) {
+                const sDisc = student.discipline.trim().toLowerCase();
+                const exact = Object.values(disciplines).find(d => 
+                    d.id.toLowerCase() === sDisc || d.name.toLowerCase() === sDisc
+                );
+                if (exact && exact.subjects?.length > 0) return exact.subjects;
+
+                const fuzzy = Object.values(disciplines).find(d => {
+                    const dName = d.name.toLowerCase();
+                    const dId = d.id.toLowerCase();
+                    if (sDisc.includes('med') && (dName.includes('med') || dId.includes('med'))) return true;
+                    if (sDisc.includes('eng') && (dName.includes('eng') || dId.includes('eng'))) return true;
+                    if (sDisc.includes('ics') && (dName.includes('ics') || dId.includes('ics'))) {
+                        if (sDisc.includes('stat') && (dName.includes('stat') || dId.includes('stat'))) return true;
+                        if (sDisc.includes('eco') && (dName.includes('eco') || dId.includes('eco'))) return true;
+                        return true;
+                    }
+                    if (sDisc.includes('fa') && (dName.includes('fa') || dId.includes('fa'))) return true;
+                    if (sDisc.includes('com') && (dName.includes('com') || dId.includes('com'))) return true;
+                    return dName.includes(sDisc) || sDisc.includes(dName);
+                });
+                if (fuzzy && fuzzy.subjects?.length > 0) return fuzzy.subjects;
+            }
+            const firstDisc = Object.values(disciplines)[0];
+            if (firstDisc && firstDisc.subjects?.length > 0) return firstDisc.subjects;
+        }
+        return classSubjects[student.class] || [];
+    }, [classDisciplines, classSubjects]);
+
+    const getStudentSubjectMarks = useCallback((student: { class: string; discipline?: string } | undefined): Record<string, number> => {
+        if (!student || !student.class) return {};
+        const disciplines = classDisciplines[student.class];
+        if (disciplines && Object.keys(disciplines).length > 0) {
+            if (student.discipline) {
+                const sDisc = student.discipline.trim().toLowerCase();
+                const exact = Object.values(disciplines).find(d => 
+                    d.id.toLowerCase() === sDisc || d.name.toLowerCase() === sDisc
+                );
+                if (exact && exact.marks) return exact.marks;
+
+                const fuzzy = Object.values(disciplines).find(d => {
+                    const dName = d.name.toLowerCase();
+                    const dId = d.id.toLowerCase();
+                    if (sDisc.includes('med') && (dName.includes('med') || dId.includes('med'))) return true;
+                    if (sDisc.includes('eng') && (dName.includes('eng') || dId.includes('eng'))) return true;
+                    if (sDisc.includes('ics') && (dName.includes('ics') || dId.includes('ics'))) return true;
+                    if (sDisc.includes('fa') && (dName.includes('fa') || dId.includes('fa'))) return true;
+                    if (sDisc.includes('com') && (dName.includes('com') || dId.includes('com'))) return true;
+                    return dName.includes(sDisc) || sDisc.includes(dName);
+                });
+                if (fuzzy && fuzzy.marks) return fuzzy.marks;
+            }
+            const firstDisc = Object.values(disciplines)[0];
+            if (firstDisc && firstDisc.marks) return firstDisc.marks;
+        }
+        return subjectTotalMarks[student.class] || {};
+    }, [classDisciplines, subjectTotalMarks]);
+
     const updateClassInCharge = (className: string, teacherId: string) => {
         setClassInCharge(prev => ({ ...prev, [className]: teacherId }));
     };
@@ -1830,6 +1944,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             const existingIndex = prev.findIndex(r => r.examId === examId && r.studentId === studentId);
             const isMissing = obtained === '' || (typeof obtained === 'string' && obtained.trim() === '') || obtained === null || obtained === undefined;
             const numericObtained = Number(obtained);
+            const validTotal = !isNaN(Number(total)) && Number(total) > 0 ? Number(total) : 100;
 
             if (existingIndex >= 0) {
                 const updatedPrev = [...prev];
@@ -1838,23 +1953,58 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 const newMarks = { ...r.marks };
 
                 if (isMissing) {
-                    delete newMarks[cleanSubject];
+                    if (validTotal) {
+                        newMarks[cleanSubject] = { obtained: '' as any, total: validTotal };
+                    } else {
+                        delete newMarks[cleanSubject];
+                    }
+                    if (subject !== cleanSubject) delete newMarks[subject];
                 } else {
-                    newMarks[cleanSubject] = { obtained: numericObtained, total };
+                    if (isNaN(numericObtained)) return prev;
+                    newMarks[cleanSubject] = { obtained: numericObtained, total: validTotal };
+                    if (subject !== cleanSubject) delete newMarks[subject];
                 }
 
                 r.marks = newMarks;
 
-                // Live metrics calculation
-                r.totalObtained = Object.values(newMarks).reduce((sum: number, m: any) => sum + (Number(m.obtained) || 0), 0);
-                r.totalPossible = Object.values(newMarks).reduce((sum: number, m: any) => sum + (Number(m.total) || 0), 0);
+                // Live metrics calculation: only sum actual numeric obtained marks
+                r.totalObtained = Object.values(newMarks).reduce((sum: number, m: any) => {
+                    const o = Number(m.obtained);
+                    return sum + (!isNaN(o) && m.obtained !== '' && m.obtained !== null && m.obtained !== undefined ? o : 0);
+                }, 0);
+                r.totalPossible = Object.values(newMarks).reduce((sum: number, m: any) => {
+                    const o = Number(m.obtained);
+                    const t = Number(m.total);
+                    if (!isNaN(o) && m.obtained !== '' && m.obtained !== null && m.obtained !== undefined) {
+                        return sum + (!isNaN(t) && t > 0 ? t : 100);
+                    }
+                    return sum;
+                }, 0);
                 r.percentage = r.totalPossible > 0 ? (r.totalObtained / r.totalPossible) * 100 : 0;
 
                 updatedPrev[existingIndex] = r;
                 return updatedPrev;
             } else {
-                if (isMissing) return prev; // don't create if missing
-                const newMarks = { [cleanSubject]: { obtained: numericObtained, total } };
+                if (isMissing) {
+                    if (validTotal) {
+                        const newMarks = { [cleanSubject]: { obtained: '' as any, total: validTotal } };
+                        return [...prev, {
+                            id: `RES-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                            examId,
+                            studentId,
+                            className,
+                            marks: newMarks,
+                            totalObtained: 0,
+                            totalPossible: 0,
+                            percentage: 0,
+                            grade: 'N/A',
+                            position: null
+                        }];
+                    }
+                    return prev;
+                }
+                if (isNaN(numericObtained)) return prev;
+                const newMarks = { [cleanSubject]: { obtained: numericObtained, total: validTotal } };
                 return [...prev, {
                     id: `RES-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
                     examId,
@@ -1862,8 +2012,8 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                     className,
                     marks: newMarks,
                     totalObtained: numericObtained,
-                    totalPossible: total,
-                    percentage: total > 0 ? (numericObtained / total) * 100 : 0,
+                    totalPossible: validTotal,
+                    percentage: validTotal > 0 ? (numericObtained / validTotal) * 100 : 0,
                     grade: 'N/A',
                     position: null
                 }];
@@ -1975,10 +2125,35 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
     };
 
-    const [currentUser, setCurrentUser] = useState<{ id: string, name: string, role: string, permissions?: string[] } | null>(() => {
-        const saved = localStorage.getItem('edunova_current_user');
-        return saved ? JSON.parse(saved) : null;
+    const getCredentialProof = useCallback((role: string, id: string): string | null => {
+        if (role === 'admin') {
+            const expectedPass = settings.adminPassword || 'admin';
+            return computeCredentialProof('admin', 'admin', expectedPass);
+        }
+        if (role === 'teacher') {
+            const teacher = teachers.find(t => t.id.toLowerCase() === id.toLowerCase() || t.username?.toLowerCase() === id.toLowerCase());
+            if (!teacher) return null;
+            const proofKey = teacher.password || teacher.cnic || teacher.id;
+            return computeCredentialProof('teacher', teacher.id, proofKey);
+        }
+        if (role === 'student') {
+            const student = students.find(s => s.id.toLowerCase() === id.toLowerCase());
+            if (!student) return null;
+            const proofKey = student.dob || student.fatherName || student.id;
+            return computeCredentialProof('student', student.id, proofKey);
+        }
+        return null;
+    }, [settings.adminPassword, teachers, students]);
+
+    const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => {
+        return verifyAndLoadSession(getCredentialProof);
     });
+
+    useEffect(() => {
+        installSecurityWatchdog(() => {
+            setCurrentUser(null);
+        });
+    }, []);
 
     const addAuditLog = (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
         const newLog: AuditLog = {
@@ -1998,20 +2173,22 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
         if (actualRole === 'admin') {
             const expectedUser = settings.adminUsername ? settings.adminUsername.toLowerCase() : 'admin';
+            const expectedPass = settings.adminPassword || 'admin';
 
             if (normalizedId === expectedUser) {
-                // Check password if it's set in settings
-                if (settings.adminPassword && settings.adminPassword !== actualPassword) {
+                // Strict password verification - NEVER allow bypass without password!
+                if (actualPassword !== expectedPass) {
                     return false;
                 }
-                const user = { id: 'admin', name: 'Super Admin', role: 'admin' };
-                setCurrentUser(user);
-                localStorage.setItem('edunova_current_user', JSON.stringify(user));
+                const user: AuthUser = { id: 'admin', name: 'Super Admin', role: 'admin' };
+                const proof = computeCredentialProof('admin', 'admin', expectedPass);
+                saveSecureSession(user, proof);
+                setCurrentUser(Object.freeze(user));
                 addAuditLog({
                     user: 'Super Admin',
                     action: 'System Login',
                     type: 'Security',
-                    details: 'Admin authenticated successfully.'
+                    details: 'Admin authenticated successfully with cryptographic signature.'
                 });
                 return true;
             }
@@ -2024,18 +2201,22 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
                 t.username?.toLowerCase() === normalizedId
             );
             if (teacher) {
-                // Find the class where this teacher is in-charge
+                // Check password if teacher has one configured
+                if (teacher.password && actualPassword && teacher.password !== actualPassword) {
+                    return false;
+                }
                 const assignedClass = Object.keys(classInCharge).find(cls => classInCharge[cls] === teacher.id);
-
-                const user = {
+                const user: AuthUser = {
                     id: teacher.id,
                     name: teacher.name,
                     role: 'teacher',
                     permissions: teacher.permissions || [],
-                    inchargeClass: assignedClass // Use the mapped class
+                    inchargeClass: assignedClass
                 };
-                setCurrentUser(user);
-                localStorage.setItem('edunova_current_user', JSON.stringify(user));
+                const proofKey = teacher.password || teacher.cnic || teacher.id;
+                const proof = computeCredentialProof('teacher', teacher.id, proofKey);
+                saveSecureSession(user, proof);
+                setCurrentUser(Object.freeze(user));
                 addAuditLog({
                     user: teacher.name,
                     action: 'Teacher Login',
@@ -2049,9 +2230,11 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
         if (actualRole === 'student') {
             const student = students.find(s => s.id?.toLowerCase() === normalizedId);
             if (student) {
-                const user = { id: student.id, name: student.name, role: 'student' };
-                setCurrentUser(user);
-                localStorage.setItem('edunova_current_user', JSON.stringify(user));
+                const user: AuthUser = { id: student.id, name: student.name, role: 'student' };
+                const proofKey = student.dob || student.fatherName || student.id;
+                const proof = computeCredentialProof('student', student.id, proofKey);
+                saveSecureSession(user, proof);
+                setCurrentUser(Object.freeze(user));
                 addAuditLog({
                     user: student.name,
                     action: 'Student Login',
@@ -2067,7 +2250,7 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
 
     const logout = () => {
         setCurrentUser(null);
-        localStorage.removeItem('edunova_current_user');
+        clearSecureSession();
     };
 
     const addExpense = (e: Omit<Expense, 'id'>) => {
@@ -2350,11 +2533,15 @@ export const StoreProvider = ({ children }: { children: ReactNode }) => {
             updateFeeStructure,
             classSubjects,
             subjectTotalMarks,
+            classDisciplines,
             classInCharge,
             subjectTeachers,
             timetables,
             updateClassSubjects,
             updateClassSubjectMarks,
+            updateClassDisciplines,
+            getStudentSubjects,
+            getStudentSubjectMarks,
             updateClassInCharge,
             assignSubjectTeacher,
             updateClassSubjectTeachers,

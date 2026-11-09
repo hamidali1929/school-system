@@ -1,9 +1,9 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
     Plus, Trophy, BookOpen, Users, Calendar,
     CheckCircle2, AlertCircle, Trash2, Medal, Calculator,
     Printer, Award, Star, ClipboardList, MessageSquare, Share2, Edit2,
-    FileDown, FileUp, Building2
+    FileDown, FileUp, Building2, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { useStore } from '../context/StoreContext';
@@ -14,12 +14,15 @@ import { cn } from '../utils/cn';
 import Swal from 'sweetalert2';
 import { ClassTestsTab } from '../components/ClassTestsTab';
 
+const sanitizeSubjId = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '_');
+
 export const Exams = () => {
     const {
         exams, examResults, addExam, updateExam, deleteExam,
         inputMarks, finalizeResults, classes,
         classSubjects, students, currentUser,
-        settings, teachers, sendNotification, subjectTotalMarks
+        settings, teachers, sendNotification, subjectTotalMarks,
+        getStudentSubjects, getStudentSubjectMarks
     } = useStore();
 
     const userProfile = teachers.find(t => t.id === currentUser?.id);
@@ -34,6 +37,25 @@ export const Exams = () => {
     const [selectedClass, setSelectedClass] = useState<string | null>(currentUser?.role === 'teacher' && currentUser?.inchargeClass ? currentUser.inchargeClass : null);
     const [selectedClassesForRange, setSelectedClassesForRange] = useState<string[]>([]);
     const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+    const activeSelectedStudent = useMemo(() => {
+        return students.find(s => s.id === selectedStudentId);
+    }, [students, selectedStudentId]);
+
+    const activeStudentSubjects = useMemo(() => {
+        if (activeSelectedStudent) {
+            const sSubs = getStudentSubjects(activeSelectedStudent);
+            if (sSubs && sSubs.length > 0) return sSubs;
+        }
+        return (selectedClass && classSubjects[selectedClass]) || [];
+    }, [activeSelectedStudent, selectedClass, classSubjects, getStudentSubjects]);
+
+    const activeStudentSubjectMarks = useMemo(() => {
+        if (activeSelectedStudent) {
+            return getStudentSubjectMarks(activeSelectedStudent);
+        }
+        return (selectedClass && subjectTotalMarks[selectedClass]) || {};
+    }, [activeSelectedStudent, selectedClass, subjectTotalMarks, getStudentSubjectMarks]);
     const [, setCertificateData] = useState<null | Record<string, any>>(null);
     const [certMode, setCertMode] = useState<'academic' | 'course'>('academic');
     const [customCert, setCustomCert] = useState({
@@ -561,10 +583,10 @@ export const Exams = () => {
                                         </thead>
                                         <tbody>
                                             ${uniqueSubjects.filter(subName => {
-            const m = result.marks[subName];
+            const m = result.marks[subName] || result.marks[subName.trim()];
             return m && m.obtained !== undefined && m.obtained !== '';
         }).map(subName => {
-            const m = result.marks[subName];
+            const m = result.marks[subName] || result.marks[subName.trim()];
             const perc = (m.obtained / m.total) * 100;
             const barColor = perc >= 80 ? '#10b981' : perc >= 60 ? '#3b82f6' : perc >= 40 ? '#f59e0b' : '#ef4444';
             let g = 'F';
@@ -638,9 +660,12 @@ export const Exams = () => {
         const WindowPrt = window.open('', '', 'left=0,top=0,width=1000,height=1200,toolbar=0,scrollbars=0,status=0');
         if (!WindowPrt) return;
 
-        // Ensure we get all subjects for the class to show them even if marks are missing
+        // Ensure we get relevant subjects for the student (based on field/discipline if college)
         const classTitle = result.className;
-        const allClassSubjects = classSubjects[classTitle] || Object.keys(result.marks || {});
+        const studentSubs = getStudentSubjects(student);
+        const allClassSubjects = (studentSubs && studentSubs.length > 0)
+            ? studentSubs
+            : (classSubjects[classTitle] || Object.keys(result.marks || {}));
 
         WindowPrt.document.write(generateResultCardHTML(student, result, exam, settings, allClassSubjects));
         WindowPrt.document.write(`
@@ -1192,7 +1217,10 @@ export const Exams = () => {
             grade: grade
         };
 
-        const allClassSubjects = classSubjects[finalResult.className] || Object.keys(finalResult.marks || {});
+        const studentSubs = getStudentSubjects(student);
+        const allClassSubjects = (studentSubs && studentSubs.length > 0)
+            ? studentSubs
+            : (classSubjects[finalResult.className] || Object.keys(finalResult.marks || {}));
         const htmlContent = generateResultCardHTML(student, finalResult, exam, settings, allClassSubjects);
 
         if (!silent) {
@@ -1309,7 +1337,10 @@ export const Exams = () => {
             if (!student) return;
 
             const classTitle = result.className;
-            const allClassSubjects = classSubjects[classTitle] || Object.keys(result.marks || {});
+            const studentSubs = getStudentSubjects(student);
+            const allClassSubjects = (studentSubs && studentSubs.length > 0)
+                ? studentSubs
+                : (classSubjects[classTitle] || Object.keys(result.marks || {}));
 
             // Pass the relative index as the position for the printed card
             const cardHTML = generateResultCardHTML(student, { ...result, position: index + 1 }, exam, settings, allClassSubjects);
@@ -1819,31 +1850,31 @@ export const Exams = () => {
                                     {(() => {
                                         const cleanSelectedCampus = selectedCampus?.trim().toLowerCase();
                                         const relevantStudents = students.filter(s =>
+                                            s.status !== 'Inactive' &&
                                             s.class === selectedClass &&
                                             (!cleanSelectedCampus || s.campus?.trim().toLowerCase() === cleanSelectedCampus)
                                         );
 
-                                        const subjects = classSubjects[selectedClass] || [];
-                                        const classSubjCount = subjects.length;
-
                                         return relevantStudents.map(s => {
                                             const res = examResults.find(r => r.studentId === s.id && r.examId === selectedExamId);
+                                            const sSubjects = getStudentSubjects(s);
+                                            const studentSubjCount = sSubjects.length > 0 ? sSubjects.length : (classSubjects[selectedClass] || []).length;
                                             let isCompleted = false;
 
-                                            if (res && classSubjCount > 0) {
+                                            if (res && studentSubjCount > 0) {
                                                 let marksCount = 0;
-                                                subjects.forEach((subj) => {
+                                                const checkSubs = sSubjects.length > 0 ? sSubjects : (classSubjects[selectedClass] || []);
+                                                checkSubs.forEach((subj) => {
                                                     const cleanSubj = subj.trim();
-                                                    // Try both trimmed and untrimmed keys for backwards compatibility
                                                     const mark = res.marks[cleanSubj] || res.marks[subj];
-                                                    if (mark && mark.obtained !== undefined && String(mark.obtained) !== '') marksCount++;
+                                                    if (mark && mark.obtained !== undefined && mark.obtained !== null && String(mark.obtained) !== '') marksCount++;
                                                 });
-                                                isCompleted = marksCount >= classSubjCount;
+                                                isCompleted = marksCount >= studentSubjCount;
                                             }
 
                                             return (
                                                 <option key={s.id} value={s.id}>
-                                                    {isCompleted ? '✓ ' : ''}{s.name} ({s.id})
+                                                    {isCompleted ? '✓ ' : ''}{s.name} ({s.id}){s.discipline ? ` [${s.discipline}]` : ''}
                                                 </option>
                                             );
                                         });
@@ -1872,11 +1903,58 @@ export const Exams = () => {
                     {selectedExamId && selectedClass && selectedStudentId ? (
                         <div className="glass-card overflow-hidden">
                             <div className="p-4 md:p-6 bg-brand-primary text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
-                                <div>
-                                    <h4 className="text-sm md:text-sm font-black uppercase tracking-widest">Marks Sheet</h4>
-                                    <p className="text-[10px] opacity-70 font-bold">
-                                        {students.find(s => s.id === selectedStudentId)?.name} • {selectedClass}
-                                    </p>
+                                <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                                    <div>
+                                        <h4 className="text-sm md:text-sm font-black uppercase tracking-widest">Marks Sheet</h4>
+                                        <p className="text-[10px] opacity-80 font-bold flex items-center gap-1.5 mt-0.5">
+                                            <span>{activeSelectedStudent?.name}</span> • <span>{selectedClass}</span>
+                                            {activeSelectedStudent?.discipline && (
+                                                <span className="px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase bg-white/20 text-yellow-300 border border-white/20">
+                                                    {activeSelectedStudent.discipline}
+                                                </span>
+                                            )}
+                                        </p>
+                                    </div>
+                                    {/* Quick Student Switcher */}
+                                    {(() => {
+                                        const cleanCampus = selectedCampus?.trim().toLowerCase();
+                                        const classStudentsList = students.filter(s =>
+                                            s.status !== 'Inactive' &&
+                                            s.class === selectedClass &&
+                                            (!cleanCampus || s.campus?.trim().toLowerCase() === cleanCampus)
+                                        );
+                                        const currIdx = classStudentsList.findIndex(s => s.id === selectedStudentId);
+
+                                        return (
+                                            <div className="flex items-center gap-1.5 bg-black/20 rounded-2xl px-2.5 py-1 border border-white/10 self-start sm:self-auto">
+                                                <button
+                                                    type="button"
+                                                    disabled={currIdx <= 0}
+                                                    onClick={() => {
+                                                        if (currIdx > 0) setSelectedStudentId(classStudentsList[currIdx - 1].id);
+                                                    }}
+                                                    className="p-1 rounded-xl hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                                    title="Previous Student"
+                                                >
+                                                    <ChevronLeft className="w-4 h-4" />
+                                                </button>
+                                                <span className="text-[10.5px] font-black tracking-wider px-1">
+                                                    {currIdx >= 0 ? currIdx + 1 : 0} / {classStudentsList.length}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    disabled={currIdx < 0 || currIdx >= classStudentsList.length - 1}
+                                                    onClick={() => {
+                                                        if (currIdx >= 0 && currIdx < classStudentsList.length - 1) setSelectedStudentId(classStudentsList[currIdx + 1].id);
+                                                    }}
+                                                    className="p-1 rounded-xl hover:bg-white/20 disabled:opacity-30 disabled:hover:bg-transparent transition-all"
+                                                    title="Next Student"
+                                                >
+                                                    <ChevronRight className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <div className="grid grid-cols-2 sm:flex sm:flex-row flex-wrap items-stretch sm:items-center gap-2">
                                     <button
@@ -1957,11 +2035,16 @@ export const Exams = () => {
 
                             {/* Mobile Marks View - Premium Native IOS Style */}
                             <div className="md:hidden p-3 md:p-4 space-y-4 bg-slate-50/80 dark:bg-[#000816]">
-                                {(classSubjects[selectedClass] || []).map(subject => {
+                                {activeStudentSubjects.map((subject: string) => {
+                                    const cleanSubj = subject.trim();
                                     const result = examResults.find(r => r.studentId === selectedStudentId && r.examId === selectedExamId);
-                                    const defaultTotal = selectedClass && subjectTotalMarks?.[selectedClass]?.[subject] || 100;
-                                    const subjectData = result?.marks[subject] || { obtained: undefined as any, total: defaultTotal };
-                                    const percent = subjectData.total > 0 && subjectData.obtained !== undefined && subjectData.obtained !== '' ? (subjectData.obtained / subjectData.total) * 100 : 0;
+                                    const defaultTotal = activeStudentSubjectMarks[cleanSubj] || activeStudentSubjectMarks[subject] || (selectedClass && (subjectTotalMarks?.[selectedClass]?.[cleanSubj] || subjectTotalMarks?.[selectedClass]?.[subject])) || 100;
+                                    const subjectData = result?.marks?.[cleanSubj] || result?.marks?.[subject] || { obtained: undefined as any, total: defaultTotal };
+                                    const obtVal = subjectData.obtained !== undefined && subjectData.obtained !== null ? subjectData.obtained : '';
+                                    const numObt = Number(obtVal);
+                                    const hasValue = obtVal !== '' && !isNaN(numObt);
+                                    const isOverTotal = hasValue && numObt > (subjectData.total || 100);
+                                    const percent = hasValue && subjectData.total > 0 ? (numObt / subjectData.total) * 100 : 0;
 
                                     return (
                                         <div key={subject} className="bg-white dark:bg-slate-900 rounded-[1.25rem] p-4 shadow-sm border border-slate-100/80 dark:border-white/5 overflow-hidden relative group">
@@ -1977,11 +2060,13 @@ export const Exams = () => {
                                                         <span className="text-[15px] leading-none font-[1000] text-slate-800 dark:text-white uppercase tracking-tight block">{subject}</span>
                                                         <div className="flex items-center gap-1.5 mt-1.5">
                                                             <div className="w-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700"></div>
-                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SUBJECT MATRIX</span>
+                                                            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                                                {isOverTotal ? 'EXCEEDS MAX POINTS' : 'SUBJECT MATRIX'}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </div>
-                                                {subjectData.obtained !== undefined && subjectData.obtained !== '' ? (
+                                                {hasValue ? (
                                                     <div className="px-3 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-black tracking-widest uppercase flex items-center gap-1 border border-emerald-100 dark:border-emerald-500/20 shadow-sm shrink-0">
                                                         <CheckCircle2 className="w-3.5 h-3.5" /> Logged
                                                     </div>
@@ -1998,8 +2083,10 @@ export const Exams = () => {
                                                     <div className="relative">
                                                         <input
                                                             type="number"
+                                                            step="any"
+                                                            min="1"
                                                             value={subjectData.total}
-                                                            onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, subject, subjectData.obtained, Number(e.target.value))}
+                                                            onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, cleanSubj, subjectData.obtained, Number(e.target.value))}
                                                             className="w-full bg-white dark:bg-slate-800 border-none text-center py-3 rounded-xl text-sm font-black text-slate-600 dark:text-slate-200 outline-none shadow-sm shadow-slate-200/50 dark:shadow-none focus:ring-2 focus:ring-slate-300 dark:focus:ring-brand-accent/30 transition-all font-outfit"
                                                         />
                                                     </div>
@@ -2011,72 +2098,74 @@ export const Exams = () => {
                                                     <label className="text-[8px] font-black text-brand-primary dark:text-brand-accent uppercase tracking-[0.2em] block mb-2 ml-1">Score Obtained</label>
                                                     <div className="relative">
                                                         <input
-                                                            id={`mark-input-obtained-${subject.replace(/\\s+/g, '-')}`}
+                                                            id={`mark-input-mobile-${sanitizeSubjId(subject)}`}
                                                             type="number"
-                                                            value={subjectData.obtained !== undefined ? subjectData.obtained : ''}
-                                                            onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, subject, e.target.value, subjectData.total)}
+                                                            step="any"
+                                                            min="0"
+                                                            max={subjectData.total || 100}
+                                                            value={obtVal}
+                                                            onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, cleanSubj, e.target.value, subjectData.total)}
                                                             onKeyDown={(e) => {
                                                                 if (e.key === 'Enter') {
                                                                     e.preventDefault();
-                                                                    const subjectsList = classSubjects[selectedClass] || [];
+                                                                    const subjectsList = activeStudentSubjects;
                                                                     const currentIndex = subjectsList.indexOf(subject);
                                                                     if (currentIndex < subjectsList.length - 1) {
                                                                         const nextSubject = subjectsList[currentIndex + 1];
-                                                                        const nextInputs = document.querySelectorAll(`input[id="mark-input-obtained-${nextSubject.replace(/\\s+/g, '-')}"]`);
-                                                                        for (let i = 0; i < nextInputs.length; i++) {
-                                                                            const el = nextInputs[i] as HTMLInputElement;
-                                                                            if (el.offsetParent !== null) { el.focus(); el.select(); return; }
+                                                                        const nextEl = document.getElementById(`mark-input-mobile-${sanitizeSubjId(nextSubject)}`) as HTMLInputElement | null;
+                                                                        if (nextEl) {
+                                                                            nextEl.focus();
+                                                                            nextEl.select();
+                                                                            return;
                                                                         }
                                                                     } else {
                                                                         // Next Student
-                                                                        const classSubjCount = subjectsList.length;
-
-                                                                        // All students in this class/campus
-                                                                        const relevantStudents = students.filter(s => s.class === selectedClass && (!selectedCampus || s.campus?.toLowerCase() === selectedCampus.toLowerCase()));
-                                                                        const currentIndexInAll = relevantStudents.findIndex(s => s.id === selectedStudentId);
-
-                                                                        // Find the NEXT student who is incomplete
-                                                                        const nextIncompleteStudent = relevantStudents.find((s, idx) => {
-                                                                            if (idx <= currentIndexInAll) return false;
-                                                                            const res = examResults.find(r => r.studentId === s.id && r.examId === selectedExamId);
-                                                                            if (!res) return true;
-                                                                            let marksCount = 0;
-                                                                            subjectsList.forEach((subj) => {
-                                                                                if (res.marks[subj] && res.marks[subj].obtained !== undefined && String(res.marks[subj].obtained) !== '') marksCount++;
-                                                                            });
-                                                                            return marksCount < classSubjCount;
-                                                                        });
-
-                                                                        if (nextIncompleteStudent) {
-                                                                            setSelectedStudentId(nextIncompleteStudent.id);
+                                                                        const cleanCampus = selectedCampus?.trim().toLowerCase();
+                                                                        const relevantStudents = students.filter(s =>
+                                                                            s.status !== 'Inactive' &&
+                                                                            s.class === selectedClass &&
+                                                                            (!cleanCampus || s.campus?.trim().toLowerCase() === cleanCampus)
+                                                                        );
+                                                                        const currentIdx = relevantStudents.findIndex(s => s.id === selectedStudentId);
+                                                                        if (currentIdx >= 0 && currentIdx < relevantStudents.length - 1) {
+                                                                            const nextStudent = relevantStudents[currentIdx + 1];
+                                                                            setSelectedStudentId(nextStudent.id);
                                                                             setTimeout(() => {
-                                                                                const firstSubject = subjectsList[0];
-                                                                                const nextInputs = document.querySelectorAll(`input[id="mark-input-obtained-${firstSubject.replace(/\\s+/g, '-')}"]`);
-                                                                                for (let i = 0; i < nextInputs.length; i++) {
-                                                                                    const el = nextInputs[i] as HTMLInputElement;
-                                                                                    if (el.offsetParent !== null) { el.focus(); el.select(); return; }
+                                                                                const nextSubs = getStudentSubjects(nextStudent);
+                                                                                const firstSub = nextSubs.length > 0 ? nextSubs[0] : (selectedClass && classSubjects[selectedClass]?.[0]);
+                                                                                if (firstSub) {
+                                                                                    const firstEl = document.getElementById(`mark-input-mobile-${sanitizeSubjId(firstSub)}`) as HTMLInputElement | null;
+                                                                                    if (firstEl) {
+                                                                                        firstEl.focus();
+                                                                                        firstEl.select();
+                                                                                    }
                                                                                 }
-                                                                            }, 200);
+                                                                            }, 150);
                                                                         }
                                                                     }
                                                                 }
                                                             }}
-                                                            className="w-full bg-white dark:bg-slate-800 border-none text-center py-3 rounded-xl text-base font-[1000] text-brand-primary dark:text-brand-accent outline-none shadow-sm shadow-slate-200/50 dark:shadow-none focus:ring-2 focus:ring-brand-primary/40 dark:focus:ring-brand-accent/50 transition-all font-outfit placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:scale-105"
+                                                            className={cn(
+                                                                "w-full bg-white dark:bg-slate-800 border-none text-center py-3 rounded-xl text-base font-[1000] text-brand-primary dark:text-brand-accent outline-none shadow-sm shadow-slate-200/50 dark:shadow-none focus:ring-2 focus:ring-brand-primary/40 dark:focus:ring-brand-accent/50 transition-all font-outfit placeholder:text-slate-300 dark:placeholder:text-slate-600 focus:scale-105",
+                                                                isOverTotal && "ring-2 ring-rose-500 text-rose-600 dark:text-rose-400"
+                                                            )}
                                                             placeholder="--"
                                                         />
                                                     </div>
                                                 </div>
                                             </div>
 
-                                            {subjectData.obtained !== undefined && subjectData.obtained !== '' && (
+                                            {hasValue && (
                                                 <div className="mt-4 px-1.5 relative z-10 flex items-center gap-3">
                                                     <div className="flex-1 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
                                                         <div
-                                                            className={cn("h-full transition-all duration-1000 ease-out rounded-full", percent >= 80 ? "bg-emerald-500" : percent >= 60 ? "bg-brand-primary dark:bg-brand-accent" : "bg-amber-500")}
+                                                            className={cn("h-full transition-all duration-1000 ease-out rounded-full", isOverTotal ? "bg-rose-500" : percent >= 80 ? "bg-emerald-500" : percent >= 60 ? "bg-brand-primary dark:bg-brand-accent" : "bg-amber-500")}
                                                             style={{ width: `${Math.min(percent, 100)}%` }}
                                                         ></div>
                                                     </div>
-                                                    <span className="text-[9px] font-black text-slate-400">{percent.toFixed(0)}%</span>
+                                                    <span className={cn("text-[9px] font-black", isOverTotal ? "text-rose-500" : "text-slate-400")}>
+                                                        {percent.toFixed(0)}%
+                                                    </span>
                                                 </div>
                                             )}
                                         </div>
@@ -2095,96 +2184,111 @@ export const Exams = () => {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {(classSubjects[selectedClass] || []).map(subject => {
+                                        {activeStudentSubjects.map((subject: string) => {
+                                            const cleanSubj = subject.trim();
                                             const result = examResults.find(r => r.studentId === selectedStudentId && r.examId === selectedExamId);
-                                            const defaultTotal = selectedClass && subjectTotalMarks?.[selectedClass]?.[subject] || 100;
-                                            const subjectData = result?.marks[subject] || { obtained: undefined as any, total: defaultTotal };
+                                            const defaultTotal = activeStudentSubjectMarks[cleanSubj] || activeStudentSubjectMarks[subject] || (selectedClass && (subjectTotalMarks?.[selectedClass]?.[cleanSubj] || subjectTotalMarks?.[selectedClass]?.[subject])) || 100;
+                                            const subjectData = result?.marks?.[cleanSubj] || result?.marks?.[subject] || { obtained: undefined as any, total: defaultTotal };
+                                            const obtVal = subjectData.obtained !== undefined && subjectData.obtained !== null ? subjectData.obtained : '';
+                                            const numObt = Number(obtVal);
+                                            const hasValue = obtVal !== '' && !isNaN(numObt);
+                                            const isOverTotal = hasValue && numObt > (subjectData.total || 100);
 
                                             return (
                                                 <tr key={subject} className="hover:bg-slate-50/50 transition-colors group">
                                                     <td className="px-6 py-4 sticky left-0 bg-white dark:bg-slate-900 z-10 group-hover:bg-slate-50 transition-colors">
                                                         <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center font-bold text-emerald-600 text-[10px]">
+                                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center font-bold text-emerald-600 dark:text-emerald-400 text-[10px]">
                                                                 <BookOpen className="w-4 h-4" />
                                                             </div>
-                                                            <span className="text-xs font-bold text-slate-700 uppercase">{subject}</span>
+                                                            <div>
+                                                                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase block">{subject}</span>
+                                                                {isOverTotal && (
+                                                                    <span className="text-[9px] font-bold text-rose-500">Max marks exceeded ({subjectData.total})</span>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
-                                                        {subjectData.obtained !== undefined && subjectData.obtained !== '' ? (
-                                                            <CheckCircle2 className="w-4 h-4 text-emerald-500 mx-auto" />
+                                                        {hasValue ? (
+                                                            <div className="flex items-center justify-center gap-1 text-emerald-500 font-bold text-xs">
+                                                                <CheckCircle2 className="w-4 h-4" />
+                                                                <span>Saved</span>
+                                                            </div>
                                                         ) : (
-                                                            <AlertCircle className="w-4 h-4 text-slate-200 mx-auto" />
+                                                            <div className="flex items-center justify-center gap-1 text-slate-300 dark:text-slate-600 font-medium text-xs">
+                                                                <AlertCircle className="w-4 h-4" />
+                                                                <span>Pending</span>
+                                                            </div>
                                                         )}
                                                     </td>
                                                     <td className="px-6 py-4 text-center">
-                                                        <div className="max-w-[80px] mx-auto">
+                                                        <div className="max-w-[90px] mx-auto">
                                                             <input
                                                                 type="number"
+                                                                step="any"
+                                                                min="1"
                                                                 value={subjectData.total}
-                                                                onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, subject, subjectData.obtained, Number(e.target.value))}
-                                                                className="w-full bg-slate-50 border border-slate-100 text-center py-2 rounded-xl text-sm font-black text-slate-400 focus:ring-2 ring-slate-200 outline-none transition-all"
+                                                                onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, cleanSubj, subjectData.obtained, Number(e.target.value))}
+                                                                className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 text-center py-2 rounded-xl text-sm font-black text-slate-600 dark:text-slate-200 focus:ring-2 ring-slate-200 outline-none transition-all"
                                                                 placeholder="100"
                                                             />
                                                         </div>
                                                     </td>
                                                     <td className="px-6 py-4">
-                                                        <div className="max-w-[120px] mx-auto">
+                                                        <div className="max-w-[140px] mx-auto">
                                                             <input
-                                                                id={`mark-input-obtained-${subject.replace(/\\s+/g, '-')}`}
+                                                                id={`mark-input-desktop-${sanitizeSubjId(subject)}`}
                                                                 type="number"
-                                                                value={subjectData.obtained !== undefined ? subjectData.obtained : ''}
-                                                                onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, subject, e.target.value, subjectData.total)}
+                                                                step="any"
+                                                                min="0"
+                                                                max={subjectData.total || 100}
+                                                                value={obtVal}
+                                                                onChange={(e) => inputMarks(selectedExamId, selectedClass, selectedStudentId, cleanSubj, e.target.value, subjectData.total)}
                                                                 onKeyDown={(e) => {
                                                                     if (e.key === 'Enter') {
                                                                         e.preventDefault();
-                                                                        const subjectsList = classSubjects[selectedClass] || [];
+                                                                        const subjectsList = activeStudentSubjects;
                                                                         const currentIndex = subjectsList.indexOf(subject);
                                                                         if (currentIndex < subjectsList.length - 1) {
                                                                             const nextSubject = subjectsList[currentIndex + 1];
-                                                                            const nextInputs = document.querySelectorAll(`input[id="mark-input-obtained-${nextSubject.replace(/\\s+/g, '-')}"]`);
-                                                                            for (let i = 0; i < nextInputs.length; i++) {
-                                                                                const el = nextInputs[i] as HTMLInputElement;
-                                                                                if (el.offsetParent !== null) { el.focus(); el.select(); return; }
+                                                                            const nextEl = document.getElementById(`mark-input-desktop-${sanitizeSubjId(nextSubject)}`) as HTMLInputElement | null;
+                                                                            if (nextEl) {
+                                                                                nextEl.focus();
+                                                                                nextEl.select();
+                                                                                return;
                                                                             }
                                                                         } else {
                                                                             // Next Student
-                                                                            const classSubjCount = subjectsList.length;
-
-                                                                            // All students in this class/campus
+                                                                            const cleanCampus = selectedCampus?.trim().toLowerCase();
                                                                             const relevantStudents = students.filter(s =>
+                                                                                s.status !== 'Inactive' &&
                                                                                 s.class === selectedClass &&
-                                                                                (!selectedCampus || s.campus?.toLowerCase() === selectedCampus.toLowerCase())
+                                                                                (!cleanCampus || s.campus?.trim().toLowerCase() === cleanCampus)
                                                                             );
-                                                                            const currentIndexInAll = relevantStudents.findIndex(s => s.id === selectedStudentId);
-
-                                                                            // Find the NEXT student who is incomplete
-                                                                            const nextIncompleteStudent = relevantStudents.find((s, idx) => {
-                                                                                if (idx <= currentIndexInAll) return false;
-                                                                                const res = examResults.find(r => r.studentId === s.id && r.examId === selectedExamId);
-                                                                                if (!res) return true;
-                                                                                let marksCount = 0;
-                                                                                subjectsList.forEach((subj) => {
-                                                                                    if (res.marks[subj] && res.marks[subj].obtained !== undefined && String(res.marks[subj].obtained) !== '') marksCount++;
-                                                                                });
-                                                                                return marksCount < classSubjCount;
-                                                                            });
-
-                                                                            if (nextIncompleteStudent) {
-                                                                                setSelectedStudentId(nextIncompleteStudent.id);
+                                                                            const currentIdx = relevantStudents.findIndex(s => s.id === selectedStudentId);
+                                                                            if (currentIdx >= 0 && currentIdx < relevantStudents.length - 1) {
+                                                                                const nextStudent = relevantStudents[currentIdx + 1];
+                                                                                setSelectedStudentId(nextStudent.id);
                                                                                 setTimeout(() => {
-                                                                                    const firstSubject = subjectsList[0];
-                                                                                    const nextInputs = document.querySelectorAll(`input[id="mark-input-obtained-${firstSubject.replace(/\\s+/g, '-')}"]`);
-                                                                                    for (let i = 0; i < nextInputs.length; i++) {
-                                                                                        const el = nextInputs[i] as HTMLInputElement;
-                                                                                        if (el.offsetParent !== null) { el.focus(); el.select(); return; }
+                                                                                    const nextSubs = getStudentSubjects(nextStudent);
+                                                                                    const firstSub = nextSubs.length > 0 ? nextSubs[0] : (selectedClass && classSubjects[selectedClass]?.[0]);
+                                                                                    if (firstSub) {
+                                                                                        const firstEl = document.getElementById(`mark-input-desktop-${sanitizeSubjId(firstSub)}`) as HTMLInputElement | null;
+                                                                                        if (firstEl) {
+                                                                                            firstEl.focus();
+                                                                                            firstEl.select();
+                                                                                        }
                                                                                     }
-                                                                                }, 200);
+                                                                                }, 150);
                                                                             }
                                                                         }
                                                                     }
                                                                 }}
-                                                                className="w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 text-center py-2 rounded-[var(--brand-radius,0.75rem)] text-sm font-black focus:ring-2 ring-brand-primary/20 outline-none transition-all dark:text-white"
+                                                                className={cn(
+                                                                    "w-full bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/10 text-center py-2 rounded-[var(--brand-radius,0.75rem)] text-sm font-black focus:ring-2 ring-brand-primary/20 outline-none transition-all dark:text-white",
+                                                                    isOverTotal && "border-rose-500 ring-2 ring-rose-500/30 text-rose-600 dark:text-rose-400"
+                                                                )}
                                                                 placeholder="00"
                                                             />
                                                         </div>

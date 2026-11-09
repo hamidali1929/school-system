@@ -48,7 +48,7 @@ const SECTIONS = [
 ];
 
 export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType }: AdmissionFormProps) => {
-    const { addStudent, updateStudent, students, classes: allClasses, feeStructure, campuses, settings } = useStore();
+    const { addStudent, updateStudent, students, classes: allClasses, feeStructure, campuses, settings, classDisciplines } = useStore();
     const [activeSection, setActiveSection] = useState('personal');
     const [submittedStudent, setSubmittedStudent] = useState<Student | null>(null);
 
@@ -92,6 +92,38 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
         ...editStudent,
         avatar: editStudent?.avatar && editStudent.avatar.length > 5 ? editStudent.avatar : ''
     });
+
+    const availableDisciplines = useMemo(() => {
+        const targetClass = formData?.class || editStudent?.class || '';
+        if (!targetClass) {
+            return [
+                '',
+                'F.Sc Pre-Medical',
+                'F.Sc Pre-Engineering',
+                'ICS (Physics Group)',
+                'ICS (Statistics Group)',
+                'ICS (Economics Group)',
+                'FA IT (Information Tech)',
+                'FA Humanities / Arts',
+                'I.Com (Commerce)'
+            ];
+        }
+        const conf = classDisciplines?.[targetClass];
+        if (conf && Object.keys(conf).length > 0) {
+            return ['', ...Object.values(conf).map(c => c.name)];
+        }
+        return [
+            '',
+            'F.Sc Pre-Medical',
+            'F.Sc Pre-Engineering',
+            'ICS (Physics Group)',
+            'ICS (Statistics Group)',
+            'ICS (Economics Group)',
+            'FA IT (Information Tech)',
+            'FA Humanities / Arts',
+            'I.Com (Commerce)'
+        ];
+    }, [formData?.class, editStudent?.class, classDisciplines]);
 
     // Re-sync form data whenever editStudent changes
     useEffect(() => {
@@ -693,7 +725,7 @@ export const AdmissionForm = ({ editStudent, onClose, initialCampus, initialType
                                                 <FormField label="Select Class" icon={GraduationCap} name="class" value={formData.class} onChange={handleInputChange} type="select" options={['', ...filteredClasses]} />
                                             </div>
                                             {detectedType === 'College' && (
-                                                <FormField label="Select Board" icon={GraduationCap} name="discipline" value={formData.discipline} onChange={handleInputChange} placeholder="E.g. Science, Arts" />
+                                                <FormField label="Select Field / Discipline" icon={GraduationCap} name="discipline" value={formData.discipline} onChange={handleInputChange} type="select" options={availableDisciplines} />
                                             )}
                                         </div>
 

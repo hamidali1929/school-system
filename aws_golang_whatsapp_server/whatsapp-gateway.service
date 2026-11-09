@@ -1,0 +1,22 @@
+[Unit]
+Description=Ultra-Fast Golang WhatsApp Gateway Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/whatsapp-gateway
+ExecStart=/opt/whatsapp-gateway/whatsapp-server
+Restart=always
+RestartSec=5
+Environment=PORT=3001
+Environment=DB_FILE=file:/opt/whatsapp-gateway/whatsapp_session.db?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)
+LimitNOFILE=65535
+
+# Output logging to systemd journal
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=whatsapp-gateway
+
+[Install]
+WantedBy=multi-user.target

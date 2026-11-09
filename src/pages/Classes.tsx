@@ -3,12 +3,13 @@ import { Plus, Edit2, Trash2, GraduationCap, Users, RotateCcw, BookOpen, UserPlu
 import { useStore } from '../context/StoreContext';
 import Swal from 'sweetalert2';
 import { cn } from '../utils/cn';
+import { CurriculumModal } from '../components/CurriculumModal';
 
 export const ClassesPage = () => {
     const {
         classes, feeStructure, addClass, updateClass, deleteClass, students, teachers,
-        classSubjects, classInCharge, subjectTeachers, updateClassSubjects, updateClassInCharge,
-        updateClassSubjectTeachers, campuses, addStudent, subjectTotalMarks, updateClassSubjectMarks,
+        classSubjects, classInCharge, subjectTeachers, updateClassInCharge,
+        updateClassSubjectTeachers, campuses, addStudent,
         migrateClass, campusSections, addCampusSection, deleteCampusSection,
         wingAssignments, updateWingAssignments, passOutClass,
         classPrograms, updateClassPrograms
@@ -17,6 +18,7 @@ export const ClassesPage = () => {
     const [campusFilter, setCampusFilter] = useState('All');
     const [sectionFilter, setSectionFilter] = useState('All');
     const [search, setSearch] = useState('');
+    const [curriculumModalClass, setCurriculumModalClass] = useState<string | null>(null);
 
     const handleRestoreDefaults = () => {
         Swal.fire({
@@ -248,6 +250,11 @@ export const ClassesPage = () => {
             if (formValues.program) {
                 updateClassPrograms({ ...classPrograms, [formValues.name]: formValues.program });
             }
+
+            const isCollegeClass = formValues.program === 'College' || ['11th', '12th', '1st year', '2nd year', 'inter', 'fsc', 'ics', 'fa', 'icom'].some(k => formValues.name.toLowerCase().includes(k));
+            if (isCollegeClass) {
+                setCurriculumModalClass(formValues.name);
+            }
             Swal.fire({
                 title: 'Unit Established',
                 text: `${formValues.name} has been integrated into the institutional registry.`,
@@ -354,61 +361,8 @@ export const ClassesPage = () => {
         }
     };
 
-    const handleManageSubjects = async (className: string) => {
-        const currentSubjects = (classSubjects[className] || []).join(', ');
-        const { value: subjectsStr } = await Swal.fire({
-            title: 'Manage Subjects',
-            text: `Define curriculum for ${className} (Separated by commas)`,
-            input: 'textarea',
-            inputValue: currentSubjects,
-            inputPlaceholder: 'English, Physics, Chemistry, Urdu...',
-            showCancelButton: true,
-            confirmButtonColor: 'var(--brand-primary)',
-            confirmButtonText: 'Update Subjects'
-        });
-
-        if (subjectsStr !== undefined) {
-            const subjects = subjectsStr.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0);
-            updateClassSubjects(className, subjects);
-
-            if (subjects.length > 0) {
-                const h = document.documentElement.classList.contains('dark');
-                const { value: marksValues } = await Swal.fire({
-                    title: 'Set Default Maximum Marks',
-                    text: 'Define the total marks for each subject in this class. These will be used as defaults when entering exam marks.',
-                    html: `
-                        <div class="text-left font-outfit space-y-3 mt-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                            ${subjects.map((s: string) => `
-                                <div class="flex items-center justify-between gap-4 bg-slate-50 dark:bg-white/5 p-3 rounded-xl border border-slate-100 dark:border-white/10">
-                                    <label class="text-xs font-black uppercase text-brand-primary dark:text-brand-accent truncate flex-1">${s}</label>
-                                    <input type="number" id="marks-${s.replace(/[^a-zA-Z0-9]/g, '-')}" class="w-24 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/20 text-center py-1.5 outline-none rounded-lg text-xs font-black focus:border-brand-primary" value="${subjectTotalMarks[className]?.[s] || 100}" />
-                                </div>
-                            `).join('')}
-                        </div>
-                    `,
-                    background: h ? 'var(--glass-bg)' : '#ffffff',
-                    color: h ? 'var(--brand-accent)' : '#0f172a',
-                    confirmButtonText: 'Save Curriculum & Marks',
-                    confirmButtonColor: 'var(--brand-primary)',
-                    preConfirm: () => {
-                        const marks: Record<string, number> = {};
-                        subjects.forEach((s: string) => {
-                            const input = document.getElementById(`marks-${s.replace(/[^a-zA-Z0-9]/g, '-')}`) as HTMLInputElement;
-                            marks[s] = Number(input?.value) || 100;
-                        });
-                        return marks;
-                    }
-                });
-
-                if (marksValues) {
-                    updateClassSubjectMarks(className, marksValues);
-                    Swal.fire({ title: 'Curriculum Updated', icon: 'success', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000, background: h ? 'var(--glass-bg)' : '#ffffff', color: h ? 'var(--brand-accent)' : '#0f172a' });
-                }
-            } else {
-                updateClassSubjectMarks(className, {});
-                Swal.fire({ title: 'Curriculum Cleared', icon: 'info', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
-            }
-        }
+    const handleManageSubjects = (className: string) => {
+        setCurriculumModalClass(className);
     };
 
     const handleAssignInCharge = async (className: string) => {
@@ -903,9 +857,13 @@ export const ClassesPage = () => {
                                 <p className="text-[7.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Active Students</p>
                                 <p className="text-xs font-black text-brand-primary dark:text-brand-accent mt-0.5">{studentCount}</p>
                             </div>
-                            <div className="text-center">
-                                <p className="text-[7.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Subjects</p>
-                                <p className="text-xs font-black text-slate-800 dark:text-white mt-0.5">{subjects.length}</p>
+                            <div 
+                                onClick={() => handleManageSubjects(className)}
+                                className="text-center cursor-pointer hover:opacity-80 transition-opacity group/sub"
+                                title="Click to Manage Curriculum & Subjects"
+                            >
+                                <p className="text-[7.5px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider group-hover/sub:text-blue-500 transition-colors">Subjects</p>
+                                <p className="text-xs font-black text-slate-800 dark:text-white mt-0.5 group-hover/sub:text-blue-500 transition-colors">{subjects.length}</p>
                             </div>
                         </div>
 
@@ -1154,6 +1112,12 @@ export const ClassesPage = () => {
                     <h3 className="font-black text-slate-400 dark:text-brand-accent uppercase tracking-[0.3em] text-sm">Registry is Empty</h3>
                     <p className="text-xs text-slate-400 dark:text-slate-500 mt-2 font-medium max-w-xs mx-auto">Click "Restore Defaults" or "Add New Class" to begin institutional setup.</p>
                 </div>
+            )}
+            {curriculumModalClass && (
+                <CurriculumModal
+                    className={curriculumModalClass}
+                    onClose={() => setCurriculumModalClass(null)}
+                />
             )}
         </div>
     );

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { ArrowUpRight, Search, Clock, AlertTriangle, FileText, History, Percent, Edit3, Calendar, MessageSquare, Bell, Trash2 } from 'lucide-react';
-import { useStore, type Student, type Payment } from '../context/StoreContext';
+import { useStore, type Student, type Payment, isStudentActive } from '../context/StoreContext';
 import { cn } from '../utils/cn';
 import { MESSAGE_TEMPLATES } from '../utils/whatsapp';
 import Swal from 'sweetalert2';
@@ -14,17 +14,21 @@ export const Fees = () => {
     const [voucherForcePaid, setVoucherForcePaid] = useState(false);
     const [showBulkModal, setShowBulkModal] = useState(false);
     const [activeTab, setActiveTab] = useState<'billing' | 'ledger'>('billing');
+    const [statusFilter, setStatusFilter] = useState<'Active' | 'All'>('Active');
 
     const isTeacher = currentUser?.role === 'teacher';
     const inchargeClass = currentUser?.inchargeClass;
 
-    const filteredStudents = students.filter(s => {
-        const belongsToClass = !isTeacher || s.class === inchargeClass;
-        if (!belongsToClass) return false;
-        return s.name.toLowerCase().includes(search.toLowerCase()) ||
-            s.id.toLowerCase().includes(search.toLowerCase()) ||
-            s.class.toLowerCase().includes(search.toLowerCase());
-    });
+    const filteredStudents: Student[] = useMemo(() => {
+        return students.filter(s => {
+            if (statusFilter === 'Active' && !isStudentActive(s)) return false;
+            const belongsToClass = !isTeacher || s.class === inchargeClass;
+            if (!belongsToClass) return false;
+            return s.name.toLowerCase().includes(search.toLowerCase()) ||
+                s.id.toLowerCase().includes(search.toLowerCase()) ||
+                s.class.toLowerCase().includes(search.toLowerCase());
+        });
+    }, [students, isTeacher, inchargeClass, search, statusFilter]);
 
     // Get all payments for ledger
     const masterLedger: { studentName: string; studentId: string; class: string; payment: Payment }[] = [];
@@ -44,7 +48,7 @@ export const Fees = () => {
         const currentMonthIdx = now.getMonth();
         const currentYearNum = now.getFullYear();
 
-        const studentsToApply = isTeacher ? students.filter(s => s.class === inchargeClass) : students;
+        const studentsToApply = (isTeacher ? students.filter(s => s.class === inchargeClass) : students).filter(isStudentActive);
 
         const { value: formValues } = await Swal.fire({
             title: 'Monthly Billing Cycle',
@@ -574,7 +578,7 @@ export const Fees = () => {
 
             {showBulkModal && (
                 <BulkFeeVoucher
-                    students={filteredStudents}
+                    students={filteredStudents.filter(isStudentActive)}
                     onClose={() => setShowBulkModal(false)}
                 />
             )}
@@ -611,6 +615,20 @@ export const Fees = () => {
                     <button onClick={() => handleGenerateAllMonthlyFees()} className="px-3.5 py-2 bg-brand-primary text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-brand-primary/10">
                         <Calendar className="w-3.5 h-3.5" /> Bulk Billing
                     </button>
+                    <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark rounded-xl border border-slate-200 dark:border-brand-accent/10">
+                        <button
+                            onClick={() => setStatusFilter(statusFilter === 'Active' ? 'All' : 'Active')}
+                            className={cn(
+                                "px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 mr-1",
+                                statusFilter === 'Active'
+                                    ? "bg-emerald-600 text-white shadow-sm"
+                                    : "bg-slate-200 dark:bg-white/10 text-slate-700 dark:text-white"
+                            )}
+                            title="Toggle Inactive Students visibility"
+                        >
+                            <span>{statusFilter === 'Active' ? 'Active Students' : 'All Students'}</span>
+                        </button>
+                    </div>
                     <div className="flex p-1 bg-slate-100 dark:bg-brand-primary-dark rounded-xl border border-slate-200 dark:border-brand-accent/10">
                         <button
                             onClick={() => setActiveTab('billing')}

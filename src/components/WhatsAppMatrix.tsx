@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { io, Socket } from 'socket.io-client';
 import { QRCodeSVG } from 'qrcode.react';
 import { useStore } from '../context/StoreContext';
 import {
@@ -27,7 +26,6 @@ export const WhatsAppMatrix = () => {
 
     const [status, setStatus] = useState<'IDLE' | 'QR' | 'CONNECTED' | 'DISCONNECTED'>('IDLE');
     const [qrCode, setQrCode] = useState<string | null>(null);
-    const [, setSocket] = useState<Socket | null>(null);
     const [logs, setLogs] = useState<{ time: string, msg: string, type: 'info' | 'success' | 'warning' }[]>([]);
     const [activeTab, setActiveTab] = useState<'connect' | 'groups' | 'broadcast' | 'logs'>('connect');
     const [groups, setGroups] = useState<any[]>([]);
@@ -42,82 +40,45 @@ export const WhatsAppMatrix = () => {
     useEffect(() => {
         const targetUrl = getEffectiveServerUrl();
 
-        // Immediate HTTP Status Check on mount
-        const checkImmediateStatus = async () => {
+        // ⚡ High-Speed HTTP Status & Live QR Poller
+        const pollGateway = async () => {
             try {
-                const res = await fetch(`${targetUrl}/status`);
+                // 1. Check Gateway Status
+                const res = await fetch(`${targetUrl}/status`, { cache: 'no-store' });
                 if (res.ok) {
                     const data = await res.json();
-                    if (data.status === 'ACTIVE' || data.status === 'CONNECTED') {
+                    if (data.status === 'ACTIVE' || data.status === 'CONNECTED' || data.connected === true) {
                         setStatus('CONNECTED');
                         setQrCode(null);
-                        addLog('24/7 Cloud Gateway is Active & Authenticated', 'success');
+                        return;
                     }
                 }
-            } catch (e) {
-                console.warn('Initial status check failed, socket will connect:', e);
+
+                // 2. If not active, retrieve live pairing QR code
+                const qrRes = await fetch(`${targetUrl}/qr`, { cache: 'no-store' });
+                if (qrRes.ok) {
+                    const qrData = await qrRes.json();
+                    if (qrData.status === 'CONNECTED' || qrData.connected === true) {
+                        setStatus('CONNECTED');
+                        setQrCode(null);
+                        addLog('WhatsApp Gateway Authenticated & Connected', 'success');
+                    } else if (qrData.status === 'QR' && qrData.qr) {
+                        setStatus('QR');
+                        setQrCode(qrData.qr);
+                    } else if (qrData.status === 'INITIALIZING') {
+                        setStatus('IDLE');
+                    }
+                }
+            } catch (e: any) {
+                console.warn('Gateway polling notice:', e);
             }
         };
-        checkImmediateStatus();
 
-        const newSocket = io(targetUrl, {
-            path: '/socket.io',
-            transports: ['websocket', 'polling'],
-            reconnection: true,
-            reconnectionAttempts: Infinity,
-            reconnectionDelay: 1000,
-            timeout: 20000
-        });
-
-        newSocket.on('connect', () => {
-            addLog(`Auto-connected to Cloud WhatsApp Server`, 'info');
-        });
-
-        newSocket.on('qr', (qr: string) => {
-            setStatus(prev => {
-                if (prev === 'CONNECTED') return prev;
-                setQrCode(qr);
-                addLog('Pairing QR code generated', 'warning');
-                return 'QR';
-            });
-        });
-
-        newSocket.on('status', (newStatus: string) => {
-            if (newStatus === 'CONNECTED' || newStatus === 'ACTIVE') {
-                setStatus('CONNECTED');
-                setQrCode(null);
-                addLog('WhatsApp Cloud Session Connected', 'success');
-            } else if (newStatus === 'QR') {
-                setStatus('QR');
-            } else if (newStatus === 'DISCONNECTED') {
-                setStatus('DISCONNECTED');
-                setQrCode(null);
-            }
-        });
-
-        newSocket.on('system_log', (msg: string) => {
-            addLog(msg, 'info');
-        });
-
-        setSocket(newSocket);
-
-        // Fallback polling every 20s to ensure connection stays verified
-        const interval = setInterval(async () => {
-            try {
-                const res = await fetch(`${targetUrl}/status`);
-                if (res.ok) {
-                    const data = await res.json();
-                    if (data.status === 'ACTIVE') {
-                        setStatus('CONNECTED');
-                        setQrCode(null);
-                    }
-                }
-            } catch (e) { }
-        }, 20000);
+        pollGateway();
+        const pollTimer = setInterval(pollGateway, 2500);
 
         return () => {
-            clearInterval(interval);
-            newSocket.close();
+            clearInterval(pollTimer);
         };
     }, [serverUrl]);
 
@@ -134,13 +95,20 @@ export const WhatsAppMatrix = () => {
         setIsLoadingGroups(true);
         try {
             const baseUrl = getEffectiveServerUrl();
-            const response = await fetch(`${baseUrl}/groups`);
+            const response = await fetch(`${baseUrl}/groups`, { cache: 'no-store' });
             const data = await response.json();
-            if (data.success) {
-                setGroups(data.groups);
-                addLog(`Found ${data.groups.length} active groups`, 'info');
+            if (data.success && Array.isArray(data.groups)) {
+                const normalized = data.groups.map((g: any) => ({
+                    id: g.id || '',
+                    name: g.name || g.subject || 'WhatsApp Group',
+                    subject: g.subject || g.name || 'WhatsApp Group',
+                    participants: typeof g.participants === 'number' ? g.participants : (g.participantCount || 0),
+                    topic: g.topic || ''
+                }));
+                setGroups(normalized);
+                addLog(`Found ${normalized.length} active groups`, 'info');
             } else {
-                throw new Error(data.error);
+                throw new Error(data.error || 'Failed to fetch groups');
             }
         } catch (err: any) {
             console.error('Failed to fetch groups', err);
@@ -151,10 +119,12 @@ export const WhatsAppMatrix = () => {
     };
 
     useEffect(() => {
-        if (activeTab === 'groups' && status === 'CONNECTED') {
-            fetchGroups();
+        if ((activeTab === 'groups' || (activeTab === 'broadcast' && broadcastType === 'groups')) && status === 'CONNECTED') {
+            if (groups.length === 0 && !isLoadingGroups) {
+                fetchGroups();
+            }
         }
-    }, [activeTab, status]);
+    }, [activeTab, broadcastType, status]);
 
     const handleSendMessage = async (targetId?: string, targetName?: string) => {
         if (status !== 'CONNECTED') {
@@ -311,7 +281,7 @@ export const WhatsAppMatrix = () => {
                     targetNumber = targetId; // For groups, targetId IS the JID
                     const group = groups.find(g => g.id === targetId);
                     if (group) {
-                        targetLabel = group.subject;
+                        targetLabel = group.subject || group.name || 'WhatsApp Group';
                         personalizedMessage = personalizedMessage.replace(/\[Student Name\]/g, 'Students');
                     }
                 }
@@ -633,9 +603,27 @@ export const WhatsAppMatrix = () => {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-center py-20 flex flex-col items-center gap-6">
-                                                <Loader2 size={40} className="text-[#003366]/20 animate-spin" />
-                                                <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.4em] animate-pulse">Loading System...</p>
+                                            <div className="text-center py-16 flex flex-col items-center gap-6 animate-in fade-in duration-500">
+                                                <div className="w-24 h-24 bg-blue-50/50 rounded-full flex items-center justify-center border-4 border-blue-100 relative">
+                                                    <Loader2 size={36} className="text-[#003366] animate-spin" />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <h5 className="text-sm font-black text-slate-700 uppercase tracking-widest">Connecting to WhatsApp Gateway...</h5>
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">High-performance Golang microservice is syncing</p>
+                                                </div>
+                                                <button
+                                                    onClick={async () => {
+                                                        const baseUrl = getEffectiveServerUrl();
+                                                        try {
+                                                            await fetch(`${baseUrl}/logout`, { method: 'POST' });
+                                                            addLog('Refreshing pairing channel & requesting fresh QR...', 'info');
+                                                        } catch (e) { }
+                                                    }}
+                                                    className="mt-2 px-6 py-3.5 bg-gradient-to-r from-[#003366] to-blue-700 hover:from-blue-900 hover:to-blue-800 text-white rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] shadow-lg shadow-blue-900/10 transition-all flex items-center gap-2"
+                                                >
+                                                    <RefreshCcw size={13} />
+                                                    <span>Fetch / Refresh QR Code</span>
+                                                </button>
                                             </div>
                                         )}
                                     </motion.div>
@@ -660,13 +648,21 @@ export const WhatsAppMatrix = () => {
                                                     className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl py-4 pl-14 pr-6 text-sm font-bold focus:bg-white outline-none transition-all"
                                                 />
                                             </div>
-                                            <button
-                                                onClick={fetchGroups}
-                                                disabled={isLoadingGroups}
-                                                className="p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl text-[#003366] disabled:opacity-50"
-                                            >
-                                                <RefreshCcw size={20} className={cn(isLoadingGroups && "animate-spin")} />
-                                            </button>
+                                            <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                                {groups.length > 0 && (
+                                                    <span className="px-3 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-xl text-xs font-black">
+                                                        {groups.length} Groups
+                                                    </span>
+                                                )}
+                                                <button
+                                                    onClick={fetchGroups}
+                                                    disabled={isLoadingGroups}
+                                                    title="Refresh Groups"
+                                                    className="p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl text-[#003366] disabled:opacity-50 transition-all"
+                                                >
+                                                    <RefreshCcw size={20} className={cn(isLoadingGroups && "animate-spin")} />
+                                                </button>
+                                            </div>
                                         </div>
 
                                         <div className="space-y-4 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
@@ -677,56 +673,97 @@ export const WhatsAppMatrix = () => {
                                                 </div>
                                             ) : isLoadingGroups ? (
                                                 <div className="py-32 text-center space-y-4">
-                                                    <Loader2 size={40} className="animate-spin text-[#003366]/10 mx-auto" />
-                                                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">Loading Groups...</p>
+                                                    <Loader2 size={40} className="animate-spin text-[#003366]/40 mx-auto" />
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Loading WhatsApp Groups...</p>
                                                 </div>
-                                            ) : (
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                    {groups
-                                                        .filter(g => g.subject.toLowerCase().includes(groupSearch.toLowerCase()))
-                                                        .map((group, idx) => (
-                                                            <motion.div
-                                                                key={group.id}
-                                                                initial={{ opacity: 0, y: 10 }}
-                                                                animate={{ opacity: 1, y: 0 }}
-                                                                transition={{ delay: idx * 0.03 }}
-                                                                whileHover={{ scale: 1.02 }}
-                                                                onClick={() => {
-                                                                    // @ts-ignore
-                                                                    if (activeTab === 'broadcast') {
-                                                                        toggleTargetSelection(group.id);
-                                                                    } else {
-                                                                        handleSendMessage(group.id, group.subject);
-                                                                    }
-                                                                }}
-                                                                className={cn(
-                                                                    "group flex flex-col p-6 bg-slate-50 hover:bg-white border-2 border-slate-50 hover:border-[#25D366]/20 rounded-[2.5rem] transition-all cursor-pointer relative overflow-hidden",
-                                                                    selectedTargets.includes(group.id) && "ring-4 ring-[#25D366] border-[#25D366]/50 bg-white"
-                                                                )}
+                                            ) : groups.length === 0 ? (
+                                                <div className="py-24 text-center space-y-4">
+                                                    <div className="w-16 h-16 bg-slate-100 rounded-3xl mx-auto flex items-center justify-center text-slate-400">
+                                                        <Users size={32} />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <p className="text-sm font-black text-slate-700 uppercase tracking-wide">No Groups Found</p>
+                                                        <p className="text-xs text-slate-400 max-w-sm mx-auto">Make sure this WhatsApp account is a member of at least one group or reload.</p>
+                                                    </div>
+                                                    <button
+                                                        onClick={fetchGroups}
+                                                        disabled={isLoadingGroups}
+                                                        className="inline-flex items-center gap-2 px-6 py-3 bg-[#003366] text-white rounded-2xl text-xs font-black uppercase tracking-wider hover:bg-[#002244] transition-all shadow-md"
+                                                    >
+                                                        <RefreshCcw size={14} className={cn(isLoadingGroups && "animate-spin")} />
+                                                        Reload Groups
+                                                    </button>
+                                                </div>
+                                            ) : (() => {
+                                                const filteredGroups = groups.filter(g =>
+                                                    (g?.subject || g?.name || '').toLowerCase().includes(groupSearch.toLowerCase())
+                                                );
+
+                                                if (filteredGroups.length === 0) {
+                                                    return (
+                                                        <div className="py-20 text-center space-y-3">
+                                                            <Search size={36} className="mx-auto text-slate-300" />
+                                                            <p className="text-xs font-black text-slate-600 uppercase">No groups matching &ldquo;{groupSearch}&rdquo;</p>
+                                                            <button
+                                                                onClick={() => setGroupSearch('')}
+                                                                className="text-[11px] font-bold text-indigo-600 hover:underline uppercase"
                                                             >
-                                                                <div className="flex items-start justify-between mb-4">
-                                                                    <div className="w-16 h-16 bg-white rounded-3xl shadow-sm flex items-center justify-center text-[#003366] border border-slate-100 group-hover:text-emerald-500 transition-all">
-                                                                        <Users size={28} />
-                                                                    </div>
-                                                                    <div className="p-2 bg-emerald-100/50 text-emerald-600 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        <Send size={16} />
-                                                                    </div>
-                                                                </div>
+                                                                Clear Search Filter
+                                                            </button>
+                                                        </div>
+                                                    );
+                                                }
 
-                                                                <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight line-clamp-1 mb-2">
-                                                                    {group.subject}
-                                                                </h4>
-
-                                                                <div className="flex items-center gap-3">
-                                                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-full">
-                                                                        <Users size={10} className="text-slate-400" />
-                                                                        <span className="text-[9px] font-black text-slate-600 uppercase">{group.participants} Members</span>
+                                                return (
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                        {filteredGroups.map((group, idx) => {
+                                                            const groupTitle = group.subject || group.name || 'WhatsApp Group';
+                                                            const memberCount = typeof group.participants === 'number' ? group.participants : 0;
+                                                            return (
+                                                                <motion.div
+                                                                    key={group.id}
+                                                                    initial={{ opacity: 0, y: 10 }}
+                                                                    animate={{ opacity: 1, y: 0 }}
+                                                                    transition={{ delay: idx * 0.03 }}
+                                                                    whileHover={{ scale: 1.02 }}
+                                                                    onClick={() => {
+                                                                        // @ts-ignore
+                                                                        if (activeTab === 'broadcast') {
+                                                                            toggleTargetSelection(group.id);
+                                                                        } else {
+                                                                            handleSendMessage(group.id, groupTitle);
+                                                                        }
+                                                                    }}
+                                                                    className={cn(
+                                                                        "group flex flex-col p-6 bg-slate-50 hover:bg-white border-2 border-slate-50 hover:border-[#25D366]/20 rounded-[2.5rem] transition-all cursor-pointer relative overflow-hidden",
+                                                                        selectedTargets.includes(group.id) && "ring-4 ring-[#25D366] border-[#25D366]/50 bg-white"
+                                                                    )}
+                                                                >
+                                                                    <div className="flex items-start justify-between mb-4">
+                                                                        <div className="w-16 h-16 bg-white rounded-3xl shadow-sm flex items-center justify-center text-[#003366] border border-slate-100 group-hover:text-emerald-500 transition-all">
+                                                                            <Users size={28} />
+                                                                        </div>
+                                                                        <div className="p-2 bg-emerald-100/50 text-emerald-600 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <Send size={16} />
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            </motion.div>
-                                                        ))}
-                                                </div>
-                                            )}
+
+                                                                    <h4 className="text-sm font-black text-slate-800 uppercase tracking-tight line-clamp-1 mb-2">
+                                                                        {groupTitle}
+                                                                    </h4>
+
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-100 rounded-full">
+                                                                            <Users size={10} className="text-slate-400" />
+                                                                            <span className="text-[9px] font-black text-slate-600 uppercase">{memberCount} Members</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </motion.div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </motion.div>
                                 )}
@@ -759,7 +796,12 @@ export const WhatsAppMatrix = () => {
                                                     ].map((target, i) => (
                                                         <button
                                                             key={i}
-                                                            onClick={() => setBroadcastType(target.id as any)}
+                                                            onClick={() => {
+                                                                setBroadcastType(target.id as any);
+                                                                if (target.id === 'groups' && groups.length === 0 && status === 'CONNECTED') {
+                                                                    fetchGroups();
+                                                                }
+                                                            }}
                                                             className={cn(
                                                                 "p-6 rounded-[2rem] border-2 shadow-sm text-left group transition-all",
                                                                 broadcastType === target.id ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-slate-800 border-white hover:border-indigo-200"
@@ -812,34 +854,54 @@ export const WhatsAppMatrix = () => {
                                                 {broadcastType === 'groups' ? (
                                                     isLoadingGroups ? (
                                                         <div className="col-span-full py-10 text-center">
-                                                            <Loader2 size={24} className="animate-spin mx-auto text-slate-300" />
+                                                            <Loader2 size={24} className="animate-spin mx-auto text-slate-400" />
+                                                            <p className="text-[10px] font-black text-slate-400 mt-2 uppercase tracking-wider">Loading Groups...</p>
                                                         </div>
                                                     ) : groups.length === 0 ? (
-                                                        <div className="col-span-full py-10 text-center text-slate-300 text-[10px] font-black uppercase">No groups loaded</div>
-                                                    ) : (
-                                                        groups
-                                                            .filter(g => g.subject.toLowerCase().includes(contactSearch.toLowerCase()))
-                                                            .map(g => (
-                                                                <button
-                                                                    key={g.id}
-                                                                    onClick={() => toggleTargetSelection(g.id)}
-                                                                    className={cn(
-                                                                        "p-3 rounded-2xl text-[10px] font-bold text-left transition-all border-2",
-                                                                        selectedTargets.includes(g.id)
-                                                                            ? "bg-emerald-50 border-emerald-500 text-emerald-700"
-                                                                            : "bg-white border-slate-50 text-slate-500 hover:border-slate-200"
-                                                                    )}
-                                                                >
-                                                                    <div className="flex items-center gap-2">
-                                                                        <div className={cn(
-                                                                            "w-2 h-2 rounded-full",
-                                                                            selectedTargets.includes(g.id) ? "bg-emerald-500" : "bg-slate-200"
-                                                                        )}></div>
-                                                                        <span className="truncate">{g.subject}</span>
-                                                                    </div>
-                                                                </button>
-                                                            ))
-                                                    )
+                                                        <div className="col-span-full py-10 text-center space-y-2">
+                                                            <p className="text-slate-400 text-xs font-bold uppercase tracking-wider">No groups loaded yet</p>
+                                                            <button
+                                                                onClick={fetchGroups}
+                                                                disabled={isLoadingGroups}
+                                                                className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-[10px] font-black uppercase transition-all"
+                                                            >
+                                                                Fetch Groups Now
+                                                            </button>
+                                                        </div>
+                                                    ) : (() => {
+                                                        const filtered = groups.filter(g =>
+                                                            (g?.subject || g?.name || '').toLowerCase().includes(contactSearch.toLowerCase())
+                                                        );
+
+                                                        if (filtered.length === 0) {
+                                                            return (
+                                                                <div className="col-span-full py-10 text-center text-slate-400 text-[10px] font-black uppercase">
+                                                                    No groups matching &ldquo;{contactSearch}&rdquo;
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        return filtered.map(g => (
+                                                            <button
+                                                                key={g.id}
+                                                                onClick={() => toggleTargetSelection(g.id)}
+                                                                className={cn(
+                                                                    "p-3 rounded-2xl text-[10px] font-bold text-left transition-all border-2",
+                                                                    selectedTargets.includes(g.id)
+                                                                        ? "bg-emerald-50 border-emerald-500 text-emerald-700 shadow-sm"
+                                                                        : "bg-white border-slate-100 text-slate-600 hover:border-slate-300"
+                                                                )}
+                                                            >
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className={cn(
+                                                                        "w-2 h-2 rounded-full shrink-0",
+                                                                        selectedTargets.includes(g.id) ? "bg-emerald-500" : "bg-slate-300"
+                                                                    )}></div>
+                                                                    <span className="truncate">{g.subject || g.name || 'WhatsApp Group'}</span>
+                                                                </div>
+                                                            </button>
+                                                        ));
+                                                    })()
                                                 ) : broadcastType === 'students' ? (
                                                     students
                                                         .filter(s => s.name.toLowerCase().includes(contactSearch.toLowerCase()) || (s.whatsappNumber && s.whatsappNumber.includes(contactSearch)))

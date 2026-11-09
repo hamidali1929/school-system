@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useStore, type Student } from '../context/StoreContext';
+import { useStore, type Student, isStudentActive } from '../context/StoreContext';
 import { X, Printer, Layers, Phone, Download, Loader2 } from 'lucide-react';
 import * as htmlToImage from 'html-to-image';
 import html2canvas from 'html2canvas';
@@ -41,16 +41,19 @@ const VoucherCopy = React.memo(({
     const monthNamesList = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
     const monthIndex = monthNamesList.indexOf(monthName.toUpperCase());
     const monthKey = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
-    const isMonthBilled = (Array.isArray(student.billedMonths) && student.billedMonths.includes(monthKey)) || (Number(student.feesTotal || 0) >= tuitionFee);
+    const isMonthBilled = Array.isArray(student.billedMonths) && student.billedMonths.includes(monthKey);
 
     const currentOutstanding = Math.max(0, Number(student.feesTotal || 0) - Number(student.feesPaid || 0));
     // If current month is already billed in student.feesTotal, previous arrears is currentOutstanding - tuitionFee
     // If current month is not yet billed, previous arrears is the full currentOutstanding
     const oldBalance = isMonthBilled ? Math.max(0, currentOutstanding - tuitionFee) : currentOutstanding;
     const grossTotal = tuitionFee + admission + security + misc + fine + oldBalance;
-    const paidTowardsThis = isMonthBilled && currentOutstanding < grossTotal ? (grossTotal - currentOutstanding) : (Number(student.feesPaid || 0) > 0 && currentOutstanding < grossTotal ? (grossTotal - currentOutstanding) : 0);
+
+    // A student bulk voucher is only marked paid if their overall balance is 0 and was explicitly paid
+    const isStudentFullyPaid = currentOutstanding === 0 && Number(student.feesTotal || 0) > 0;
+    const paidTowardsThis = isStudentFullyPaid ? grossTotal : 0;
     const amountToPay = Math.max(0, grossTotal - paidTowardsThis);
-    const isPaid = amountToPay === 0 || (Number(student.feesPaid || 0) >= Number(student.feesTotal || 0) && Number(student.feesTotal || 0) > 0);
+    const isPaid = isStudentFullyPaid;
 
     const issueDate = useMemo(() => new Date(), []);
     const dueDate = useMemo(() => {
@@ -90,9 +93,11 @@ const VoucherCopy = React.memo(({
                 </div>
 
                 {/* Student Info Box */}
-                <div className="grid grid-cols-1 mb-3 uppercase font-black text-[10px] border-2 border-slate-800 rounded-sm overflow-hidden">
+                <div className="grid grid-cols-1 mb-3 uppercase font-black text-[10px] border-2 border-slate-800 rounded-sm overflow-hidden shadow-sm">
+                    <div className="py-2 px-2 bg-slate-900 text-white text-center font-[1000] text-[14px] md:text-[15px] border-b-2 border-slate-800 tracking-widest uppercase leading-snug truncate">
+                        {student.name}
+                    </div>
                     {[
-                        { label: 'STUDENT NAME', value: student.name },
                         { label: 'STUDENT ID', value: student.id },
                         { label: 'FATHER NAME', value: student.fatherName || 'N/A' },
                         { label: 'CLASS / GRADE', value: student.class },
@@ -123,7 +128,7 @@ const VoucherCopy = React.memo(({
                             { label: 'Security Fee', val: security },
                             { label: 'Misc. / Other Charges', val: misc },
                             { label: 'Tuition Fee:', val: tuitionFee },
-                            { label: "Absent Fine (" + absentDays + ")" , val: fine },
+                            { label: absentDays > 0 ? `Absent Fine (${absentDays} Days)` : 'Absent Fine', val: fine },
                             { label: 'Arrears / Old Balance', val: oldBalance },
                         ].map((row, i) => (
                             <div key={i} className="grid grid-cols-12 border-b border-slate-300 last:border-0 grow flex items-center">
@@ -145,7 +150,7 @@ const VoucherCopy = React.memo(({
                         </div>
                         <div className="grid grid-cols-12 font-black text-[10px] border-b border-slate-300 bg-slate-100">
                             <div className="col-span-8 p-1.5 border-r border-slate-300 uppercase text-slate-700">Amount Received / Paid</div>
-                            <div className="col-span-4 p-1.5 text-right text-slate-900">-{paidTowardsThis > 0 ? paidTowardsThis.toLocaleString() : '0'}</div>
+                            <div className="col-span-4 p-1.5 text-right text-slate-900">{paidTowardsThis > 0 ? `-${paidTowardsThis.toLocaleString()}` : '0'}</div>
                         </div>
                         <div className="grid grid-cols-12 bg-slate-200 text-slate-900 border-t-2 border-slate-800 font-black text-[13px] print:bg-slate-200 print:text-black print:border-t-2 print:border-slate-800">
                             <div className="col-span-8 p-2 border-r border-slate-800 print:border-slate-800 uppercase whitespace-nowrap">Net Balance Arrears</div>
@@ -158,7 +163,7 @@ const VoucherCopy = React.memo(({
                 <div className="mb-3 shrink-0">
                     <p className="text-[8px] font-black uppercase text-slate-500 mb-0.5 leading-none">TOTAL IN WORDS</p>
                     <div className="flex justify-between items-end border-b-2 border-slate-400 pb-1">
-                        <p className="text-[11px] font-black italic leading-tight text-slate-900 truncate max-w-[200px]">{numberToWords(amountToPay)}</p>
+                        <p className="text-[11px] font-black italic leading-tight text-slate-900 truncate max-w-[200px]">{numberToWords(isPaid ? grossTotal : (amountToPay > 0 ? amountToPay : grossTotal))}</p>
                     </div>
                 </div>
 
@@ -264,6 +269,7 @@ const VoucherCopy = React.memo(({
 export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
     const { settings, feeStructure, attendance, campuses, classPrograms } = useStore();
     const [isExporting, setIsExporting] = useState(false);
+    const activeStudents = useMemo(() => students.filter(isStudentActive), [students]);
 
     useEffect(() => {
         // Prevent body scrolling when studio is open
@@ -420,7 +426,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                             <h2 className="text-base sm:text-2xl font-black text-white uppercase tracking-tighter leading-none">Bulk Voucher Studio</h2>
                             <p className="text-[9px] sm:text-[11px] font-black text-slate-400 uppercase tracking-widest mt-1 flex items-center gap-1.5">
                                 <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-                                {students.length} Accounts Ready
+                                {activeStudents.length} Accounts Ready
                             </p>
                         </div>
                     </div>
@@ -477,7 +483,7 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
             {/* PREVIEW CONTAINER */}
             <div className="flex-1 overflow-x-auto overflow-y-auto p-2 sm:p-8 md:p-16 bg-slate-950/50 print:bg-white print:p-0 print:overflow-visible print:block custom-scrollbar">
                 <div className="voucher-preview-scale flex flex-col gap-6 sm:gap-16 items-start md:items-center print:gap-0 print:block">
-                    {students.map((student) => {
+                    {activeStudents.map((student) => {
                         const tuition = Number(student.monthlyFees) || Number(student.monthlyTuition) || Number(feeStructure[student.class]) || Number(feeStructure['General']) || 4000;
                         
                             const isCollegeClass = student?.class ? ['11th', '12th', '1st year', '2nd year', 'fsc', 'ics', 'icom', 'fa'].some(kw => student.class.toLowerCase().includes(kw)) : false;
@@ -495,6 +501,12 @@ export const BulkFeeVoucher = ({ students, onClose }: BulkFeeVoucherProps) => {
                             </div>
                         );
                     })}
+                    {activeStudents.length === 0 && (
+                        <div className="p-12 text-center text-slate-300 bg-slate-900/60 rounded-3xl border border-white/10 max-w-lg mx-auto">
+                            <p className="text-base font-bold text-amber-400">No Active Students</p>
+                            <p className="text-xs text-slate-400 mt-1">Inactive and passed out students are strictly excluded from voucher generation.</p>
+                        </div>
+                    )}
                 </div>
             </div>
 

@@ -33,3 +33,9 @@ server/logs.txt
 android/app/build
 android/.gradle
 android/build
+*.aab
+*.apk
+dist.zip
+playstore-api.json
+**/whatsapp-server*
+**/whatsapp.db*

@@ -151,7 +151,9 @@ export const Sidebar = ({ user, activeTab, setActiveTab, onLogout, onClose }: {
 
                         <div className="flex items-center gap-3">
                             <item.icon className={cn("w-6 h-6 md:w-5 md:h-5 transition-transform group-hover:scale-110", activeTab === item.id ? "text-[#003366]" : "text-yellow-400")} />
-                            <span className="font-bold uppercase text-[13px] md:text-[12px] tracking-wider">{item.label}</span>
+                            <span className="font-bold uppercase text-[13px] md:text-[12px] tracking-wider">
+                                {item.id === 'dashboard' && user.role === 'teacher' ? 'Faculty Portal' : item.label}
+                            </span>
                         </div>
 
                         <div className="flex items-center gap-2">

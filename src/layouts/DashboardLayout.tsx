@@ -19,6 +19,7 @@ const FinancePage = lazy(() => import('../pages/Finance').then(m => ({ default: 
 const Documents = lazy(() => import('../pages/Documents').then(m => ({ default: m.Documents })));
 const Analytics = lazy(() => import('../pages/Analytics').then(m => ({ default: m.Analytics })));
 const StudentPanel = lazy(() => import('../pages/StudentPanel').then(m => ({ default: m.StudentPanel })));
+const TeacherPanel = lazy(() => import('../pages/TeacherPanel').then(m => ({ default: m.TeacherPanel })));
 const ParentPanel = lazy(() => import('../pages/Parents').then(m => ({ default: m.ParentPanel })));
 
 const ModuleLoader = () => (
@@ -35,7 +36,7 @@ export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: 
         const hash = typeof window !== 'undefined' ? window.location.hash.replace('#/', '') : '';
         const validTabs = ['dashboard', 'students', 'classes', 'courses', 'teachers', 'fees', 'exams', 'admin', 'attendance', 'timetable', 'finance', 'documents', 'analytics', 'parents', 'academic', 'attendance_log', 'fees_ledger', 'communication'];
         if (hash && validTabs.includes(hash)) return hash;
-        return user.role === 'teacher' ? 'attendance' : user.role === 'student' ? 'dashboard' : 'dashboard';
+        return 'dashboard';
     });
 
     useEffect(() => {
@@ -74,7 +75,7 @@ export const DashboardLayout = ({ user, onLogout }: { user: { id: string; name: 
 
         switch (activeTab) {
             case 'dashboard':
-                return <Dashboard key={refreshKey} onNavigate={setActiveTab} />;
+                return user.role === 'teacher' ? <TeacherPanel key={refreshKey} onNavigate={setActiveTab} /> : <Dashboard key={refreshKey} onNavigate={setActiveTab} />;
             case 'students':
                 return (user.role === 'admin' || user.role === 'teacher') ? <Students key={refreshKey} /> : <StudentPanel key={refreshKey} />;
             case 'parents':

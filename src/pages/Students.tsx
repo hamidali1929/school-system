@@ -1,7 +1,7 @@
 import { createPortal } from 'react-dom';
 import { useState, useEffect, useMemo } from 'react';
 import { Search, Download, Plus, X, FileText, Contact, Edit, Trash2, Camera, CheckCircle2, Users, DollarSign, Layers, ArrowRightLeft, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Globe } from 'lucide-react';
-import { useStore, type Student } from '../context/StoreContext';
+import { useStore, type Student, isStudentActive } from '../context/StoreContext';
 import { AdmissionForm } from '../components/AdmissionForm';
 import { BlankAdmissionForm } from '../components/BlankAdmissionForm';
 import { IDCardGenerator } from '../components/IDCardGenerator';
@@ -1909,7 +1909,7 @@ export const Students = () => {
 
             {showBulkFeeVouchers && (
                 <BulkFeeVoucher
-                    students={students.filter(s => selectedIds.includes(s.id))}
+                    students={students.filter(s => selectedIds.includes(s.id) && isStudentActive(s))}
                     onClose={() => setShowBulkFeeVouchers(false)}
                 />
             )}
